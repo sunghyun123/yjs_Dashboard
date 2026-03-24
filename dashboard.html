@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오늘의 현장 상황판</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f4f7f6; }
+        h2 { color: #333; display: flex; justify-content: space-between; align-items: center; }
+        .update-time { font-size: 14px; color: #666; font-weight: normal; }
+        table { width: 100%; border-collapse: collapse; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #004085; color: white; }
+        tr:hover { background-color: #f1f1f1; }
+        .badge { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; color: white; }
+        .cat-작업완료 { background-color: #28a745; }
+        .cat-업무요청 { background-color: #ffc107; color: #333; }
+        .cat-이슈보고 { background-color: #dc3545; }
+        .cat-일정공유 { background-color: #17a2b8; }
+        .cat-기타 { background-color: #6c757d; }
+    </style>
+</head>
+<body>
+
+    <h2>
+        📊 오늘 현장 상황판
+        <span class="update-time" id="lastUpdated">마지막 업데이트: 대기 중...</span>
+    </h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>시간</th>
+                <th>날짜</th>
+                <th>현장 위치</th>
+                <th>작업 내용</th>
+                <th>담당자</th>
+                <th>분류</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <tr><td colspan="6" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        async function fetchDashboardData() {
+            try {
+                // FastAPI의 GET 엔드포인트 호출
+                const response = await fetch('/api/schedules/today');
+                const result = await response.json();
+
+                if (response.ok) {
+                    renderTable(result.data);
+                    updateTimestamp();
+                } else {
+                    console.error("데이터 로드 실패:", result.detail);
+                }
+            } catch (error) {
+                console.error("서버 통신 오류:", error);
+            }
+        }
+
+        function renderTable(dataList) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = ""; // 기존 데이터 지우기
+
+            if (dataList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">오늘 등록된 일정이 없습니다.</td></tr>';
+                return;
+            }
+
+            dataList.forEach(item => {
+                const tr = document.createElement('tr');
+                let displayPerson = (item.person === null || item.person === "null" || item.person === "") ? "-" : item.person;
+
+                // 시간 포맷팅 (YYYY-MM-DD HH:MM:SS -> HH:MM)
+                const timeStr = item.created_at ? item.created_at.substring(11, 16) : "-";
+
+                // 카테고리에 맞는 배지 색상 클래스 적용
+                const badgeClass = `badge cat-${item.category}`;
+
+                tr.innerHTML = `
+                    <td>${timeStr}</td>
+                    <td>${item.date || '-'}</td>
+                    <td><b>${item.location || '-'}</b></td>
+                    <td>${item.task || '-'}</td>
+                    <td>${displayPerson}</td>
+                    <td><span class="${badgeClass}">${item.category || '-'}</span></td>
+                `;
+                tbody.appendChild(tr);
+                tbody.innerHTML += row;
+            });
+        }
+
+        function updateTimestamp() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('lastUpdated').innerText = `마지막 업데이트: ${timeString}`;
+        }
+
+        // 1. 페이지 로드 시 즉시 데이터 한 번 가져오기
+        fetchDashboardData();
+
+        // 2. 10초(10000ms)마다 자동으로 데이터 갱신하기
+        setInterval(fetchDashboardData, 10000);
+    </script>
+</body>
+</html>

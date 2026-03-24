@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>현장 일정 보고</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
+        h2 { text-align: center; color: #333; }
+        textarea { width: 100%; height: 100px; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; resize: none; }
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #message { margin-top: 15px; text-align: center; font-weight: bold; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+    <h2>👷‍♂️ 현장 보고 입력</h2>
+
+    <textarea id="reportText" placeholder="예: 오늘 안양 현장 접지 끝남. 김대리님한테 전달 좀 해줘"></textarea>
+    <button onclick="submitReport()">AI 분석 및 전송</button>
+
+    <div id="message"></div>
+
+    <script>
+        async function submitReport() {
+            const textInput = document.getElementById('reportText');
+            const messageDiv = document.getElementById('message');
+            const text = textInput.value.trim();
+
+            if (!text) {
+                showMessage("보고 내용을 입력해 주세요.", "error");
+                return;
+            }
+
+            messageDiv.innerHTML = "AI가 텍스트를 분석 중입니다... ⏳";
+            messageDiv.className = "";
+
+            try {
+                // FastAPI의 POST 엔드포인트 호출
+                const response = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showMessage("✅ " + result.message, "success");
+                    textInput.value = ""; // 성공 시 입력창 초기화
+                } else {
+                    showMessage("❌ 오류: " + (result.detail || "전송 실패"), "error");
+                }
+            } catch (error) {
+                showMessage("❌ 서버와 통신할 수 없습니다.", "error");
+                console.error("Error:", error);
+            }
+        }
+
+        function showMessage(text, className) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = text;
+            messageDiv.className = className;
+        }
+    </script>
+</body>
+</html>
