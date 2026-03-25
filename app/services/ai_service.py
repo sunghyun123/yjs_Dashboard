@@ -1,114 +1,90 @@
+# app/services/ai_service.py
 import json
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any
-
-import google.generativeai as genai
+from typing import Optional, Dict, Any, List, Literal
 from pydantic import BaseModel, Field
+from google import genai
+from google.genai import types
 
-# from app.core.config import settings
-
-# 1. 로거(Logger) 설정
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
-# 2. Pydantic을 활용한 응답 스키마 정의 (제미나이가 이 구조를 무조건 따르게 강제함)
+# 1. 일정 데이터 구조 (create, update 시 후보 데이터 작성용)
 class ScheduleSchema(BaseModel):
-    date: str = Field(description="작업 기준 날짜 (YYYY-MM-DD 형식). 파악 불가시 빈 문자열('') 입력")
-    location: str = Field(description="현장 위치, 지명 또는 건물명. 파악 불가시 빈 문자열('') 입력")
-    task: str = Field(description="수행한 작업 내용 요약 (명사형). 파악 불가시 빈 문자열('') 입력")
-    person: str = Field(description="담당자, 수신자 (다수일 경우 쉼표로 구분). 파악 불가시 빈 문자열('') 입력")
-    category: str = Field(description="작업완료, 업무요청, 이슈보고, 일정공유, 기타 중 택 1")
+    date: str = Field(description="YYYY-MM-DD 형식의 날짜")
+    location: str = Field(description="현장 위치 (예: 안양, 군포 지중화 등)")
+    task: str = Field(description="주요 작업 명칭")
+    person: str = Field(default="-", description="담당자 또는 작업자 이름")
+    details: str = Field(default="", description="참여자, 장비, 특이사항 등 상세 내용")
+    tags: List[str] = Field(default_factory=list, description="야간, 돌발, 교육, 대기 등의 키워드 리스트")
+    category: str = Field(description="공사일정, 이슈보고, 일반메모 중 하나")
+
+
+# 2. [V2 신규] 대화형 의도 분석 구조
+class ActionSchema(BaseModel):
+    intent: Literal["create", "delete", "update", "search", "incomplete"] = Field(
+        description="사용자 발화의 핵심 의도"
+    )
+    target_date: Optional[str] = Field(
+        default=None, description="명령에서 추출된 대상 날짜 (YYYY-MM-DD 형식). 특정할 수 없으면 null"
+    )
+    target_keyword: Optional[str] = Field(
+        default=None, description="검색/수정/삭제 시 후보를 찾기 위한 장소나 작업명 키워드. 없으면 null"
+    )
+    schedule_data: Optional[ScheduleSchema] = Field(
+        default=None, description="새로 생성(create)하거나 수정(update)할 때 필요한 구체적 일정 데이터"
+    )
+    reply_message: str = Field(
+        description="사용자에게 채팅창으로 건넬 자연스럽고 친절한 한국어 응답 메시지 (예: '어떤 일정을 지울까요?', '아래 일정을 등록할까요?')"
+    )
+
 
 class GeminiService:
     def __init__(self, api_key: str):
-        # API 키 초기화
-        genai.configure(api_key=api_key)
-        # 텍스트 분석에 빠르고 적합한 flash 모델 사용
+        self.client = genai.Client(api_key=api_key)
         self.model_name = "gemini-3-flash-preview"
-        logger.info("GeminiService initialized.")
 
-    async def parse_field_report(self, text: str) -> Optional[Dict[str, Any]]:
-        """
-        현장 작업 텍스트를 입력받아 구조화된 JSON(Dict)으로 반환합니다.
-        실패 시 서버 중단을 막고 None을 반환합니다.
-        """
-        if not text or not text.strip():
-            logger.warning("빈 텍스트가 입력되었습니다.")
-            return None
-
-        # API 호출 시점의 현재 날짜를 동적으로 계산
+    async def process_command(self, text: str) -> Optional[Dict[str, Any]]:
+        # 시스템 프롬프트에 동적으로 현재 날짜 주입 (YYYY-MM-DD)
         current_date = datetime.now().strftime("%Y-%m-%d")
 
         system_instruction = f"""
-        당신은 건설/현장 작업 보고 텍스트를 분석하여 구조화된 데이터로 변환하는 전문 AI 어시스턴트입니다.
+        당신은 건설 현장 상황판의 스마트 AI 어시스턴트입니다. (오늘 날짜 기준: {current_date})
+        사용자의 메시지를 분석하여 데이터베이스를 직접 조작하는 대신, '사용자의 의도'를 파악하고 DB 검색 조건이나 후보 데이터를 추출하세요.
 
-        [지침]
-        1. "오늘", "내일" 등의 상대적 날짜는 [기준 날짜]를 바탕으로 계산하세요.
-        2. 텍스트에서 유추할 수 없는 정보는 반드시 null 처리하세요.
+        [의도(intent) 분류 기준 및 지시사항]
+        1. create (등록): 새로운 일정을 추가하려는 경우. 
+           - schedule_data를 최대한 채워주세요. 
+           - reply_message 예시: "다음 내용으로 일정을 등록할까요?"
+        2. delete (삭제): 기존 일정을 지우려는 경우. 
+           - target_date나 target_keyword(장소/작업명)를 추출하세요. (정확한 ID를 모르므로 검색할 조건만 뽑습니다.)
+           - reply_message 예시: "삭제할 일정을 찾아봤어요. 아래 목록에서 선택해 주세요."
+        3. update (수정): 기존 일정을 변경하려는 경우.
+           - 변경 대상을 찾기 위해 target_date나 target_keyword를 추출하고, 새롭게 덮어쓸 내용은 schedule_data에 담아주세요.
+           - reply_message 예시: "수정할 일정을 찾았습니다. 이렇게 내용을 바꿀까요?"
+        4. search (조회): 단순히 일정을 보여달라고 하는 경우.
+           - target_date나 target_keyword를 추출하세요.
+           - reply_message 예시: "요청하신 일정 목록입니다."
+        5. incomplete (정보 부족): 무언가 요청했으나 날짜, 장소, 작업명 등 핵심 정보가 너무 부족하여 도저히 검색이나 생성을 할 수 없는 경우.
+           - reply_message를 통해 부족한 정보를 되물어보세요. 예: "언제, 어디서 하는 일정인지 장소나 날짜를 조금 더 자세히 알려주세요!"
 
-        [기준 날짜]
-        {current_date}
+        [중요] reply_message는 마치 메신저에서 대화하듯, 작업자에게 친근하고 명확한 존댓말로 작성해야 합니다.
         """
 
         try:
-            logger.info(f"Gemini API 호출 시작 (입력 텍스트: '{text[:20]}...')")
-
-            # 동적인 시스템 프롬프트를 위해 호출할 때마다 모델 인스턴스화
-            model = genai.GenerativeModel(
-                model_name=self.model_name,
-                system_instruction=system_instruction
-            )
-
-            # 비동기(async) 방식으로 제미나이 호출
-            response = await model.generate_content_async(
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
                 contents=text,
-                generation_config=genai.GenerationConfig(
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
                     response_mime_type="application/json",
-                    response_schema=ScheduleSchema,  # Pydantic 스키마 강제 주입
-                    temperature=0.1  # 일관된 출력을 위해 온도를 낮춤
+                    response_schema=ActionSchema,
+                    temperature=0.0
                 )
             )
-
-            # 반환된 텍스트(JSON 문자열)를 파이썬 딕셔너리로 변환
-            parsed_data = json.loads(response.text)
-            logger.info("Gemini API 파싱 성공.")
-            return parsed_data
-
-        # 1. JSON 변환 에러 처리 (제미나이가 JSON 형식을 어겼을 경우)
-        except json.JSONDecodeError as e:
-            logger.error(f"[JSON 파싱 에러] 응답 데이터가 유효한 JSON이 아닙니다: {e}")
-            logger.error(f"원본 응답: {response.text}")
-            return None
-
-        # 2. Google API 관련 에러 (네트워크 문제, 할당량 초과 등)
-        except genai.types.generation_types.StopCandidateException as e:
-            logger.error(f"[Gemini API 에러] 모델이 예기치 않게 응답을 중단했습니다: {e}")
-            return None
-
-        # 3. 기타 예기치 못한 에러 (서버 다운 방지)
+            # JSON 응답을 딕셔너리로 변환하여 반환
+            return json.loads(response.text)
         except Exception as e:
-            logger.error(f"[시스템 에러] 제미나이 파싱 중 알 수 없는 에러 발생: {str(e)}", exc_info=True)
+            logger.error(f"AI 의도 분석 오류: {e}")
             return None
-
-
-# 테스트용 코드 (직접 실행해 볼 수 있도록)
-if __name__ == "__main__":
-    import asyncio
-
-    # 여기에 실제 발급받은 API 키를 넣어 테스트해 보세요
-    # 실제 환경에서는 settings.GEMINI_API_KEY 를 전달합니다
-    API_KEY = ""
-
-
-    async def run_test():
-        ai_service = GeminiService(api_key=API_KEY)
-        sample_text = "오늘 안양 현장 접지 끝남. 김대리님한테 전달 좀 해줘"
-        result = await ai_service.parse_field_report(sample_text)
-
-        print("\n--- 파싱 결과 ---")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-
-
-    asyncio.run(run_test())

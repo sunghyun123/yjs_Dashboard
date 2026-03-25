@@ -2,69 +2,298 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>현장 일정 보고</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>YJS 스마트 현장 보고 (대화형)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
-        h2 { text-align: center; color: #333; }
-        textarea { width: 100%; height: 100px; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; resize: none; }
-        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }
-        button:hover { background-color: #0056b3; }
-        #message { margin-top: 15px; text-align: center; font-weight: bold; }
-        .success { color: green; }
-        .error { color: red; }
+        body, html { height: 100%; margin: 0; background-color: #b2c7d9; font-family: 'Malgun Gothic', sans-serif; }
+
+        /* 전체 레이아웃 (모바일 앱 스타일) */
+        .app-container { display: flex; flex-direction: column; height: 100vh; max-width: 600px; margin: 0 auto; background-color: #b2c7d9; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+
+        /* 상단 헤더 */
+        .chat-header { background-color: #003366; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+        .chat-header h5 { margin: 0; font-size: 1.1rem; font-weight: bold; }
+
+        /* 채팅 내역 영역 */
+        .chat-box { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+
+        /* 말풍선 공통 */
+        .bubble { max-width: 75%; padding: 10px 14px; border-radius: 15px; font-size: 0.95rem; line-height: 1.4; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+        /* 내 말풍선 (오른쪽) */
+        .bubble-me { background-color: #ffeb33; color: #000; align-self: flex-end; border-top-right-radius: 4px; }
+
+        /* 봇 말풍선 (왼쪽) */
+        .bubble-bot { background-color: #fff; color: #333; align-self: flex-start; border-top-left-radius: 4px; }
+
+        /* 상호작용 카드 (후보 리스트, 확인 버튼 등) */
+        .interactive-card { background-color: #fff; border: 1px solid #dee2e6; border-radius: 10px; padding: 12px; align-self: flex-start; width: 85%; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: -5px; }
+        .candidate-item { border-bottom: 1px solid #f0f0f0; padding-bottom: 8px; margin-bottom: 8px; }
+        .candidate-item:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+
+        /* 하단 입력 영역 */
+        .input-area { background-color: #fff; padding: 10px 15px; display: flex; gap: 10px; align-items: center; border-top: 1px solid #ccc; z-index: 10; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+        .input-area input[type="text"] { flex-grow: 1; border-radius: 20px; border: 1px solid #ced4da; padding: 10px 15px; outline: none; }
+        .input-area input[type="text"]:focus { border-color: #003366; }
+        .btn-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; padding: 0; border: none; }
+
+        /* 타이핑 인디케이터 */
+        .typing-indicator { display: none; align-self: flex-start; background-color: #fff; padding: 10px 15px; border-radius: 15px; border-top-left-radius: 4px; font-size: 0.85rem; color: #666; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
 
-    <h2>👷‍♂️ 현장 보고 입력</h2>
+<div class="app-container">
+    <header class="chat-header">
+        <h5>🤖 YJS 스마트 AI 비서</h5>
+        <a href="/dashboard.html" class="btn btn-sm btn-outline-light rounded-pill">📊 상황판 보기</a>
+    </header>
 
-    <textarea id="reportText" placeholder="예: 오늘 안양 현장 접지 끝남. 김대리님한테 전달 좀 해줘"></textarea>
-    <button onclick="submitReport()">AI 분석 및 전송</button>
+    <div class="chat-box" id="chatBox">
+        <div class="bubble bubble-bot">
+            안녕하세요! 현장 관리 AI 비서입니다.<br>
+            오늘 일정 등록, 수정, 삭제나 작업일지 사진을 보내주시면 제가 처리해 드릴게요! 😊<br>
+            <small class="text-muted">(예: "오늘 안양 현장 야간작업 추가해줘")</small>
+        </div>
+    </div>
 
-    <div id="message"></div>
+    <div class="typing-indicator" id="typingIndicator">
+        AI가 메시지를 분석하고 있습니다... ⏳
+    </div>
 
-    <script>
-        async function submitReport() {
-            const textInput = document.getElementById('reportText');
-            const messageDiv = document.getElementById('message');
-            const text = textInput.value.trim();
+    <div class="input-area">
+        <input type="file" id="imageInput" class="d-none" accept="image/*" onchange="uploadImage()">
 
-            if (!text) {
-                showMessage("보고 내용을 입력해 주세요.", "error");
-                return;
+        <button class="btn btn-secondary btn-circle" onclick="document.getElementById('imageInput').click()">
+            📸
+        </button>
+
+        <input type="text" id="chatInput" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
+
+        <button class="btn btn-primary btn-circle" onclick="sendMessage()" style="background-color: #003366;">
+            ➤
+        </button>
+    </div>
+</div>
+
+<script>
+    const chatBox = document.getElementById('chatBox');
+    const chatInput = document.getElementById('chatInput');
+    const typingIndicator = document.getElementById('typingIndicator');
+
+    // 현재 처리 중인 AI 데이터를 임시 저장하는 전역 변수
+    let currentPendingData = null;
+
+    // 말풍선 추가 함수
+    function appendBubble(sender, text) {
+        const div = document.createElement('div');
+        div.className = `bubble bubble-${sender}`;
+        div.innerHTML = text;
+        chatBox.appendChild(div);
+        scrollToBottom();
+    }
+
+    // 스크롤 맨 아래로
+    function scrollToBottom() {
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // 엔터키 처리
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') {
+            sendMessage();
+        }
+    }
+
+    // 1. 메시지 전송 및 AI 분석 요청 (/chat)
+    async function sendMessage() {
+        const text = chatInput.value.trim();
+        if (!text) return;
+
+        // 내 메시지 화면에 표시
+        appendBubble('me', text);
+        chatInput.value = '';
+
+        // 로딩 켜기
+        chatBox.appendChild(typingIndicator);
+        typingIndicator.style.display = 'block';
+        scrollToBottom();
+
+        try {
+            const response = await fetch('/api/schedules/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+            const data = await response.json();
+
+            // 봇 응답 메시지 표시
+            appendBubble('bot', data.reply_message);
+
+            // AI 의도에 따라 액션 버튼(카드) 렌더링
+            if (data.intent && data.intent !== 'incomplete') {
+                renderInteractiveCard(data.intent, data);
             }
 
-            messageDiv.innerHTML = "AI가 텍스트를 분석 중입니다... ⏳";
-            messageDiv.className = "";
+        } catch (error) {
+            appendBubble('bot', '❌ 서버와 통신 중 문제가 발생했습니다.');
+        } finally {
+            typingIndicator.style.display = 'none';
+        }
+    }
 
-            try {
-                // FastAPI의 POST 엔드포인트 호출
-                const response = await fetch('/api/schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text })
+    // 2. 동적 상호작용 카드 생성 (등록 확인, 후보 리스트 등)
+    function renderInteractiveCard(intent, data) {
+        const card = document.createElement('div');
+        card.className = 'interactive-card';
+        let html = '';
+
+        // [등록/수정]인 경우: 제안하는 데이터 확인
+        if (intent === 'create' || intent === 'update') {
+            const sd = data.schedule_data;
+            currentPendingData = sd; // 데이터 임시 저장
+
+            html += `
+                <div class="mb-2">
+                    <strong>📍 ${sd.location}</strong> <span class="badge bg-light text-dark border">${sd.category}</span><br>
+                    작업: ${sd.task}<br>
+                    날짜: ${sd.date} | 담당: ${sd.person}<br>
+                    ${sd.tags && sd.tags.length > 0 ? `<small class="text-primary">태그: ${sd.tags.join(', ')}</small>` : ''}
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-sm btn-primary flex-grow-1" onclick="executeAction('${intent}', null, this)">⭕ ${intent === 'create' ? '등록' : '수정'} 확인</button>
+                    <button class="btn btn-sm btn-outline-secondary flex-grow-1" onclick="cancelAction(this)">❌ 취소</button>
+                </div>
+            `;
+        }
+
+        // [삭제]인 경우: 후보 리스트 보여주고 선택하게 함
+        else if (intent === 'delete') {
+            if (data.candidates && data.candidates.length > 0) {
+                data.candidates.forEach(cand => {
+                    html += `
+                        <div class="candidate-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${cand.location}</strong> (${cand.date})<br>
+                                <small class="text-muted">${cand.task}</small>
+                            </div>
+                            <button class="btn btn-sm btn-danger ms-2 text-nowrap" onclick="executeAction('delete', ${cand.id}, this)">🗑️ 삭제</button>
+                        </div>
+                    `;
                 });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    showMessage("✅ " + result.message, "success");
-                    textInput.value = ""; // 성공 시 입력창 초기화
-                } else {
-                    showMessage("❌ 오류: " + (result.detail || "전송 실패"), "error");
-                }
-            } catch (error) {
-                showMessage("❌ 서버와 통신할 수 없습니다.", "error");
-                console.error("Error:", error);
+                html += `<button class="btn btn-sm btn-outline-secondary w-100 mt-2" onclick="cancelAction(this)">취소</button>`;
+            } else {
+                return; // 후보가 없으면 카드 안 그림 (봇이 이미 텍스트로 안내함)
             }
         }
 
-        function showMessage(text, className) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.innerHTML = text;
-            messageDiv.className = className;
+        // [조회]인 경우: 리스트만 보여줌
+        else if (intent === 'search') {
+            if (data.candidates && data.candidates.length > 0) {
+                data.candidates.forEach(cand => {
+                    html += `
+                        <div class="candidate-item">
+                            <strong>${cand.location}</strong> (${cand.date})<br>
+                            <span class="text-dark">${cand.task}</span><br>
+                            <small class="text-muted">${cand.details || '상세내용 없음'}</small>
+                        </div>
+                    `;
+                });
+            }
         }
-    </script>
+
+        card.innerHTML = html;
+        chatBox.appendChild(card);
+        scrollToBottom();
+    }
+
+    // 3. 실제 DB 실행 요청 (/execute)
+    async function executeAction(action, scheduleId, buttonElem) {
+        // 중복 클릭 방지 (버튼 비활성화)
+        const parentCard = buttonElem.closest('.interactive-card');
+        const buttons = parentCard.querySelectorAll('button');
+        buttons.forEach(b => b.disabled = true);
+
+        const payload = {
+            action: action,
+            schedule_data: (action === 'create' || action === 'update') ? currentPendingData : null,
+            schedule_id: action === 'delete' ? scheduleId : null
+        };
+
+        try {
+            const response = await fetch('/api/schedules/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+
+            if (response.ok && result.status === 'success') {
+                appendBubble('bot', `✅ ${result.message}`);
+                parentCard.style.opacity = '0.5'; // 처리 완료된 카드는 흐리게 처리
+            } else {
+                appendBubble('bot', `❌ 처리 실패: ${result.message || '알 수 없는 오류'}`);
+                buttons.forEach(b => b.disabled = false); // 실패 시 다시 누를 수 있게 복구
+            }
+        } catch (error) {
+            appendBubble('bot', '❌ 서버 통신 중 오류가 발생했습니다.');
+            buttons.forEach(b => b.disabled = false);
+        }
+    }
+
+    // 4. 취소 버튼 처리
+    function cancelAction(buttonElem) {
+        const parentCard = buttonElem.closest('.interactive-card');
+        parentCard.innerHTML = '<div class="text-center text-muted small">취소되었습니다.</div>';
+        currentPendingData = null;
+    }
+
+    // 5. 작업일지 이미지 업로드
+    async function uploadImage() {
+        const fileInput = document.getElementById('imageInput');
+        const file = fileInput.files[0];
+
+        if (!file) return;
+
+        // 내 메시지로 사진 보냈음을 표시
+        appendBubble('me', `📷 사진 전송: ${file.name}`);
+
+        // 로딩 켜기
+        chatBox.appendChild(typingIndicator);
+        typingIndicator.style.display = 'block';
+        typingIndicator.innerText = "AI가 이미지를 분석하고 자동 분류 중입니다... 📂";
+        scrollToBottom();
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch('/api/vision/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                appendBubble('bot', `
+                    <strong>✅ ${data.message}</strong><br>
+                    <hr style="margin:5px 0;">
+                    📁 폴더: ${data.folder}<br>
+                    📄 파일명: ${data.filename}
+                `);
+            } else {
+                appendBubble('bot', `❌ 이미지 분석 실패: ${data.detail || '알 수 없는 오류'}`);
+            }
+        } catch (error) {
+            appendBubble('bot', '❌ 서버 통신 오류가 발생했습니다.');
+        } finally {
+            typingIndicator.style.display = 'none';
+            typingIndicator.innerText = "AI가 메시지를 분석하고 있습니다... ⏳"; // 텍스트 원복
+            fileInput.value = ''; // input 초기화
+        }
+    }
+</script>
+
 </body>
 </html>

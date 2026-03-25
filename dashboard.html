@@ -3,107 +3,220 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>오늘의 현장 상황판</title>
+    <title>YJS 스마트 현장 상황판</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 900px; margin: auto; background-color: #f4f7f6; }
-        h2 { color: #333; display: flex; justify-content: space-between; align-items: center; }
-        .update-time { font-size: 14px; color: #666; font-weight: normal; }
-        table { width: 100%; border-collapse: collapse; background-color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background-color: #004085; color: white; }
-        tr:hover { background-color: #f1f1f1; }
-        .badge { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; color: white; }
-        .cat-작업완료 { background-color: #28a745; }
-        .cat-업무요청 { background-color: #ffc107; color: #333; }
-        .cat-이슈보고 { background-color: #dc3545; }
-        .cat-일정공유 { background-color: #17a2b8; }
-        .cat-기타 { background-color: #6c757d; }
+        body { background-color: #f4f6f9; font-family: 'Malgun Gothic', sans-serif; }
+        .dashboard-header { background-color: #003366; color: white; padding: 15px 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .card { border-radius: 12px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card-header { background-color: white; border-bottom: 2px solid #f4f6f9; font-weight: bold; font-size: 1.1rem; border-radius: 12px 12px 0 0 !important; }
+        .schedule-item { border-left: 4px solid #0d6efd; background-color: #f8f9fa; padding: 12px; margin-bottom: 10px; border-radius: 0 8px 8px 0; transition: all 0.3s ease; }
+        .schedule-item:hover { transform: translateX(5px); box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important; }
+        .schedule-item.category-완료 { border-left-color: #198754; }
+        .schedule-item.category-이슈 { border-left-color: #dc3545; }
+        .worklog-tag { font-size: 0.85rem; background-color: #e9ecef; padding: 3px 8px; border-radius: 12px; margin-right: 5px; }
+        .tag-badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; margin-right: 4px; font-weight: bold; }
+        .tag-야간 { background-color: #ff4d4d; color: white; }
+        .tag-돌발 { background-color: #ff9800; color: white; }
+        .tag-교육 { background-color: #2196f3; color: white; }
+        .detail-text { font-size: 0.85rem; color: #666; background: #f0f2f5; padding: 6px 10px; border-radius: 4px; margin-top: 8px; }
+
+        /* 스크롤바 숨기기 (전자 칠판용 깔끔한 UI) */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
     </style>
 </head>
 <body>
 
-    <h2>
-        📊 오늘 현장 상황판
-        <span class="update-time" id="lastUpdated">마지막 업데이트: 대기 중...</span>
-    </h2>
+    <header class="dashboard-header d-flex justify-content-between align-items-center">
+        <h3 class="m-0 fw-bold">📊 YJS 공사계획 및 현황판</h3>
+        <div class="d-flex align-items-center">
+            <h5 class="m-0 me-3" id="currentDate"></h5>
+            <span class="badge bg-success fs-6 blink-bg">🟢 실시간 연동 중</span>
+        </div>
+    </header>
 
-    <table>
-        <thead>
-            <tr>
-                <th>시간</th>
-                <th>날짜</th>
-                <th>현장 위치</th>
-                <th>작업 내용</th>
-                <th>담당자</th>
-                <th>분류</th>
-            </tr>
-        </thead>
-        <tbody id="tableBody">
-            <tr><td colspan="6" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>
-        </tbody>
-    </table>
+    <div class="container-fluid mt-4 px-4">
+        <div class="row">
+
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center py-3">
+                        <span>📋 현장 보고 실시간 현황</span>
+                        <div class="text-end">
+                            <small class="text-muted me-3" id="lastUpdated">업데이트 중...</small>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadSchedules()">🔄 수동 갱신</button>
+                        </div>
+                    </div>
+                    <div class="card-body" id="scheduleBoard" style="max-height: 80vh; overflow-y: auto;">
+                        <div class="text-center text-muted py-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-3">현장 데이터를 불러오는 중입니다...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header py-3">🏃‍♂️ 외출 및 행선표</div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                                <div><b class="fs-5">김무선</b> <span class="badge bg-warning text-dark ms-2">외출</span></div>
+                                <span class="text-muted">광명 현장 답사 (16:00 복귀)</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                                <div><b class="fs-5">이재규</b> <span class="badge bg-danger ms-2">야간작업</span></div>
+                                <span class="text-muted">안양 변전소</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                                <div><b class="fs-5">김상훈</b> <span class="badge bg-success ms-2">사무실</span></div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header py-3">📅 이달의 주요 공지</div>
+                    <div class="card-body">
+                        <div class="alert alert-info py-3 mb-3 shadow-sm">
+                            <strong class="fs-5">[D-21] 4.15(수) 14:00</strong><br>
+                            <span class="mt-1 d-block">82지1112 크레인 안전검사 (합동수도사업소)</span>
+                        </div>
+                        <div class="alert alert-warning py-3 mb-0 shadow-sm border-warning">
+                            <strong class="fs-5 text-danger">※ 긴급 공지사항</strong><br>
+                            <span class="mt-1 d-block">파형관 발주 시 2주 소요! 자재 재고 확인 요망</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
 
     <script>
-        async function fetchDashboardData() {
-            try {
-                // FastAPI의 GET 엔드포인트 호출
-                const response = await fetch('/api/schedules/today');
-                const result = await response.json();
+        const days = ['일', '월', '화', '수', '목', '금', '토'];
 
-                if (response.ok) {
-                    renderTable(result.data);
-                    updateTimestamp();
-                } else {
-                    console.error("데이터 로드 실패:", result.detail);
-                }
-            } catch (error) {
-                console.error("서버 통신 오류:", error);
-            }
+        // 상단 헤더의 오늘 날짜 업데이트
+        function updateHeaderDate() {
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}. ${String(today.getMonth() + 1).padStart(2, '0')}. ${String(today.getDate()).padStart(2, '0')} (${days[today.getDay()]})`;
+            document.getElementById('currentDate').innerText = dateStr;
         }
 
-        function renderTable(dataList) {
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = ""; // 기존 데이터 지우기
-
-            if (dataList.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">오늘 등록된 일정이 없습니다.</td></tr>';
-                return;
-            }
-
-            dataList.forEach(item => {
-                const tr = document.createElement('tr');
-                let displayPerson = (item.person === null || item.person === "null" || item.person === "") ? "-" : item.person;
-
-                // 시간 포맷팅 (YYYY-MM-DD HH:MM:SS -> HH:MM)
-                const timeStr = item.created_at ? item.created_at.substring(11, 16) : "-";
-
-                // 카테고리에 맞는 배지 색상 클래스 적용
-                const badgeClass = `badge cat-${item.category}`;
-
-                tr.innerHTML = `
-                    <td>${timeStr}</td>
-                    <td>${item.date || '-'}</td>
-                    <td><b>${item.location || '-'}</b></td>
-                    <td>${item.task || '-'}</td>
-                    <td>${displayPerson}</td>
-                    <td><span class="${badgeClass}">${item.category || '-'}</span></td>
-                `;
-                tbody.appendChild(tr);
-                tbody.innerHTML += row;
-            });
+        // 요일 구하는 함수
+        function getDayName(dateString) {
+            if (!dateString || dateString === '날짜 미상') return '';
+            const d = new Date(dateString);
+            if (isNaN(d)) return '';
+            return `(${days[d.getDay()]})`;
         }
 
-        function updateTimestamp() {
+        // 업데이트 시간 표시 업데이트
+        function updateLastSyncTime() {
             const now = new Date();
-            const timeString = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            document.getElementById('lastUpdated').innerText = `마지막 업데이트: ${timeString}`;
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            document.getElementById('lastUpdated').innerText = `마지막 동기화: ${timeStr}`;
         }
 
-        // 1. 페이지 로드 시 즉시 데이터 한 번 가져오기
-        fetchDashboardData();
+        // [핵심] 일정 데이터 불러오기 함수
+        async function loadSchedules() {
+            const board = document.getElementById('scheduleBoard');
 
-        // 2. 10초(10000ms)마다 자동으로 데이터 갱신하기
-        setInterval(fetchDashboardData, 10000);
+            try {
+                // 백엔드 API 호출
+                const response = await fetch('/api/schedules/today');
+                const data = await response.json();
+
+                if (data.data.length === 0) {
+                    board.innerHTML = '<div class="text-center text-muted py-5 fs-5">현재 등록된 일정이 없습니다.</div>';
+                    updateLastSyncTime();
+                    return;
+                }
+
+                // 1. 데이터를 날짜별로 그룹화
+                const groupedData = data.data.reduce((acc, item) => {
+                    const dateKey = item.date || '날짜 미상';
+                    if (!acc[dateKey]) acc[dateKey] = [];
+                    acc[dateKey].push(item);
+                    return acc;
+                }, {});
+
+                // 2. 날짜 최신순 정렬
+                const sortedDates = Object.keys(groupedData).sort((a, b) => b.localeCompare(a)); // 내림차순 정렬
+
+                // 3. HTML 렌더링
+                let boardHTML = '';
+                const todayStr = new Date().toISOString().split('T')[0];
+
+                sortedDates.forEach(date => {
+                    const dayName = getDayName(date);
+                    let headerClass = "text-secondary";
+                    let dateLabel = date;
+
+                    if (date === todayStr) {
+                        headerClass = "text-primary fw-bold fs-5";
+                        dateLabel = `${date} [오늘]`;
+                    }
+
+                    boardHTML += `<h5 class="mt-4 mb-3 pb-2 border-bottom ${headerClass}">📅 ${dateLabel} ${dayName}</h5>`;
+
+                    groupedData[date].forEach(item => {
+                        let colorClass = '';
+                        if(item.category && item.category.includes('완료')) colorClass = 'category-완료';
+                        if(item.category && item.category.includes('이슈')) colorClass = 'category-이슈';
+
+                        let tagList = [];
+                        if (item.tags) {
+                            tagList = typeof item.tags === 'string' ? item.tags.split(',') : item.tags;
+                        }
+
+                        boardHTML += `
+                            <div class="schedule-item ${colorClass} shadow-sm">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong class="fs-5">📍 ${item.location || '위치 미상'}</strong>
+                                    <div>
+                                        ${tagList.filter(t => t.trim() !== "").map(tag =>
+                                            `<span class="tag-badge tag-${tag.trim()}">${tag.trim()}</span>`
+                                        ).join('')}
+                                        <span class="badge bg-light text-dark border ms-1">${item.category || '기타'}</span>
+                                    </div>
+                                </div>
+                                <div class="mb-2 text-dark fs-5 fw-medium">${item.task || '내용 없음'}</div>
+                                ${item.details ? `<div class="detail-text">📝 ${item.details}</div>` : ''}
+                                <div class="text-muted mt-2 d-flex justify-content-between align-items-center" style="font-size: 0.85rem;">
+                                    <span>👤 담당: <b>${item.person || '-'}</b></span>
+                                    <span>🕒 등록: ${item.created_at}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                });
+
+                board.innerHTML = boardHTML;
+                updateLastSyncTime();
+
+            } catch (error) {
+                // 일시적인 네트워크 오류 시 이전 화면을 유지하며 조용히 콘솔에만 에러 출력
+                console.error('데이터 갱신 실패:', error);
+                document.getElementById('lastUpdated').innerText = '동기화 지연 중...';
+            }
+        }
+
+        // 페이지 로드 시 초기화 및 자동 갱신 설정
+        window.onload = () => {
+            updateHeaderDate();
+            loadSchedules();
+
+            // 30초(30000ms)마다 백그라운드에서 자동으로 데이터 갱신
+            setInterval(loadSchedules, 30000);
+
+            // 날짜가 자정을 넘기면 헤더의 날짜도 바뀌도록 1시간마다 날짜 체크
+            setInterval(updateHeaderDate, 3600000);
+        };
     </script>
 </body>
 </html>
