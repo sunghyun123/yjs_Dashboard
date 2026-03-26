@@ -1,20 +1,47 @@
 import os
 import pandas as pd
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from datetime import datetime
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends
 from app.services.vision_ai_service import VisionService
 from app.core.config import settings
+from app.db.db_manager import DBManager
+from app.core.auth import require_session
 
 router = APIRouter(prefix="/api/vision", tags=["Vision"])
 vision_svc = VisionService(api_key=settings.GEMINI_API_KEY)
+db = DBManager(db_path="schedule.db")
 
 # 자동화 데이터가 저장될 루트 폴더
 BASE_STORAGE = Path("자동화_데이터")
 
 
 @router.post("/upload")
-async def process_document(file: UploadFile = File(...)):
+async def process_document(
+    file: UploadFile = File(...),
+    upload_category: str = Form(default=""),
+    user_session=Depends(require_session),
+):
     content = await file.read()
+
+    # 사용자 지정 카테고리 업로드 (모바일/PC 사진 전송)
+    if upload_category:
+        date_dir = datetime.now().strftime("%Y-%m-%d")
+        folder = BASE_STORAGE / date_dir / upload_category
+        folder.mkdir(parents=True, exist_ok=True)
+        safe_name = datetime.now().strftime("%H%M%S")
+        save_path = folder / f"{safe_name}{Path(file.filename).suffix}"
+        with open(save_path, "wb") as f:
+            f.write(content)
+        db.save_photo_upload(
+            category=upload_category,
+            file_path=str(save_path),
+            uploaded_by=user_session["user_id"],
+            uploaded_device=user_session.get("device_name", "unknown-device"),
+            related_date=date_dir,
+        )
+        return {"message": "사진 저장 완료", "folder": str(folder), "filename": save_path.name}
+
     data = await vision_svc.analyze_document(content, file.content_type)
 
     if not data:

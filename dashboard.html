@@ -20,6 +20,18 @@
         .tag-돌발 { background-color: #ff9800; color: white; }
         .tag-교육 { background-color: #2196f3; color: white; }
         .detail-text { font-size: 0.85rem; color: #666; background: #f0f2f5; padding: 6px 10px; border-radius: 4px; margin-top: 8px; }
+        .schedule-meta { font-size: 0.82rem; color: #6c757d; }
+        .schedule-actions .btn { min-width: 78px; }
+        .schedule-action-panel { border-top: 1px dashed #d7dbe0; margin-top: 8px; padding-top: 8px; display: none; }
+        .schedule-item.active .schedule-action-panel { display: block; }
+        .toolbar-card { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); background: #fff; padding: 12px; margin-bottom: 14px; }
+        .id-chip { font-size: 0.75rem; border: 1px solid #cfd4da; border-radius: 999px; padding: 2px 8px; color: #495057; background: #f8f9fa; }
+        .memo-chip { font-size: 0.72rem; border-radius: 999px; padding: 2px 8px; background: #eef2f7; color: #415166; border: 1px solid #d7dfe8; }
+        .save-toast {
+            position: fixed; right: 16px; bottom: 16px; z-index: 1080; min-width: 240px;
+            background: #212529; color: #fff; border-radius: 10px; padding: 10px 12px; display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
 
         /* 스크롤바 숨기기 (전자 칠판용 깔끔한 UI) */
         ::-webkit-scrollbar { width: 8px; }
@@ -42,6 +54,25 @@
         <div class="row">
 
             <div class="col-lg-8">
+                <div class="toolbar-card">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-sm-5">
+                            <input id="scheduleSearchKeyword" class="form-control form-control-sm" placeholder="현장/작업 검색">
+                        </div>
+                        <div class="col-sm-3">
+                            <input id="scheduleTargetDate" class="form-control form-control-sm" type="date">
+                        </div>
+                        <div class="col-sm-2">
+                            <div class="form-check mt-1">
+                                <input class="form-check-input" type="checkbox" id="todayOnlyCheck" checked>
+                                <label class="form-check-label small" for="todayOnlyCheck">오늘만</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-2 text-end">
+                            <button class="btn btn-sm btn-outline-primary w-100" onclick="loadSchedules()">필터 적용</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center py-3">
                         <span>📋 현장 보고 실시간 현황</span>
@@ -62,43 +93,99 @@
             <div class="col-lg-4">
                 <div class="card">
                     <div class="card-header py-3">🏃‍♂️ 외출 및 행선표</div>
-                    <div class="card-body p-0">
-                        <ul class="list-group list-group-flush">
-                            <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                                <div><b class="fs-5">김무선</b> <span class="badge bg-warning text-dark ms-2">외출</span></div>
-                                <span class="text-muted">광명 현장 답사 (16:00 복귀)</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                                <div><b class="fs-5">이재규</b> <span class="badge bg-danger ms-2">야간작업</span></div>
-                                <span class="text-muted">안양 변전소</span>
-                            </li>
-                            <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                                <div><b class="fs-5">김상훈</b> <span class="badge bg-success ms-2">사무실</span></div>
-                            </li>
-                        </ul>
+                    <div class="card-body">
+                        <div class="small text-muted mb-2">현황판에서는 상태 조회만 제공합니다. 상태 변경은 전자칠판에서 진행하세요.</div>
+                        <ul class="list-group list-group-flush" id="workerStatusList"></ul>
                     </div>
                 </div>
 
                 <div class="card mt-3">
-                    <div class="card-header py-3">📅 이달의 주요 공지</div>
+                    <div class="card-header py-3">📝 기타 메모</div>
                     <div class="card-body">
-                        <div class="alert alert-info py-3 mb-3 shadow-sm">
-                            <strong class="fs-5">[D-21] 4.15(수) 14:00</strong><br>
-                            <span class="mt-1 d-block">82지1112 크레인 안전검사 (합동수도사업소)</span>
+                        <div class="input-group input-group-sm mb-2">
+                            <input id="memoInput" class="form-control" placeholder="메모 입력">
+                            <button class="btn btn-outline-secondary" onclick="saveMemo()">등록</button>
                         </div>
-                        <div class="alert alert-warning py-3 mb-0 shadow-sm border-warning">
-                            <strong class="fs-5 text-danger">※ 긴급 공지사항</strong><br>
-                            <span class="mt-1 d-block">파형관 발주 시 2주 소요! 자재 재고 확인 요망</span>
+                        <div id="memoList" class="vstack gap-2"></div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header py-3">🧩 전자칠판 템플릿 입력</div>
+                    <div class="card-body">
+                        <div class="input-group input-group-sm mb-2">
+                            <select id="boardActionType" class="form-select">
+                                <option value="register">등록</option>
+                                <option value="memo">메모</option>
+                            </select>
+                            <input id="boardDate" class="form-control" type="date">
                         </div>
+                        <div class="input-group input-group-sm mb-2">
+                            <input id="boardLocation" class="form-control" placeholder="현장 위치">
+                            <input id="boardCategory" class="form-control" placeholder="카테고리(기본 공사일정)">
+                        </div>
+                        <div class="mb-2">
+                            <input id="boardTask" class="form-control form-control-sm mb-1" placeholder="작업/메모 제목">
+                            <textarea id="boardDetails" class="form-control form-control-sm" rows="2" placeholder="상세"></textarea>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary w-100" onclick="submitBoardTemplate()">템플릿 전송</button>
                     </div>
                 </div>
             </div>
 
         </div>
     </div>
+    <div id="saveToast" class="save-toast"></div>
 
+    <div class="modal fade" id="editRequestModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">일정 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-2">현황판 수정은 즉시 반영되며 변경 이력이 저장됩니다.</div>
+                    <input id="editScheduleId" class="form-control form-control-sm mb-2" readonly>
+                    <input id="editDate" class="form-control form-control-sm mb-2" placeholder="날짜 (YYYY-MM-DD)">
+                    <input id="editLocation" class="form-control form-control-sm mb-2" placeholder="현장 위치">
+                    <input id="editTask" class="form-control form-control-sm mb-2" placeholder="작업 내용">
+                    <input id="editPerson" class="form-control form-control-sm mb-2" placeholder="담당자">
+                    <textarea id="editDetails" rows="3" class="form-control form-control-sm mb-2" placeholder="상세 내용"></textarea>
+                    <input id="editCategory" class="form-control form-control-sm mb-2" placeholder="카테고리">
+                    <input id="editTags" class="form-control form-control-sm" placeholder="태그(쉼표 구분)">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="submitDirectEdit()">즉시 수정</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const days = ['일', '월', '화', '수', '목', '금', '토'];
+        const scheduleMap = new Map();
+        const memoCountBySchedule = new Map();
+        const linkedMemosBySchedule = new Map();
+        let editRequestModal = null;
+        let pendingReorderBuffer = [];
+        let isSavingReorder = false;
+
+        async function ensureSession() {
+            try {
+                const response = await fetch('/api/auth/me');
+                if (!response.ok) {
+                    window.location.href = '/';
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                window.location.href = '/';
+                return false;
+            }
+        }
 
         // 상단 헤더의 오늘 날짜 업데이트
         function updateHeaderDate() {
@@ -122,35 +209,184 @@
             document.getElementById('lastUpdated').innerText = `마지막 동기화: ${timeStr}`;
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function getScheduleFilters() {
+            const todayOnly = document.getElementById('todayOnlyCheck').checked;
+            const selectedDate = document.getElementById('scheduleTargetDate').value;
+            const keyword = document.getElementById('scheduleSearchKeyword').value.trim().toLowerCase();
+            return { todayOnly, selectedDate, keyword };
+        }
+
+        function buildReorderPayloadFromDOM() {
+            const groups = Array.from(document.querySelectorAll('.schedule-group'));
+            const items = [];
+            groups.forEach((group) => {
+                const date = group.getAttribute('data-date') || '';
+                const cards = Array.from(group.querySelectorAll('.schedule-item'));
+                cards.forEach((card, index) => {
+                    const id = Number(card.getAttribute('data-id'));
+                    if (id && date) {
+                        items.push({ schedule_id: id, date, display_order: index });
+                    }
+                });
+            });
+            return items;
+        }
+
+        function attachDragHandlers() {
+            const cards = Array.from(document.querySelectorAll('.schedule-item'));
+            const groups = Array.from(document.querySelectorAll('.schedule-group'));
+            cards.forEach((card) => {
+                card.addEventListener('dragstart', () => card.classList.add('opacity-50'));
+                card.addEventListener('dragend', () => {
+                    card.classList.remove('opacity-50');
+                    pendingReorderBuffer = buildReorderPayloadFromDOM();
+                });
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
+                    document.querySelectorAll('.schedule-item.active').forEach((el) => {
+                        if (el !== card) el.classList.remove('active');
+                    });
+                    card.classList.toggle('active');
+                });
+            });
+            groups.forEach((group) => {
+                group.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    const dragging = document.querySelector('.schedule-item.opacity-50');
+                    if (!dragging) return;
+                    const afterElement = Array.from(group.querySelectorAll('.schedule-item:not(.opacity-50)')).find((child) => {
+                        const box = child.getBoundingClientRect();
+                        return e.clientY < box.top + box.height / 2;
+                    });
+                    if (afterElement) {
+                        group.insertBefore(dragging, afterElement);
+                    } else {
+                        group.appendChild(dragging);
+                    }
+                });
+            });
+        }
+
+        async function flushPendingReorder() {
+            if (isSavingReorder || pendingReorderBuffer.length === 0) return;
+            isSavingReorder = true;
+            try {
+                const response = await fetch('/api/schedules/reorder-batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: pendingReorderBuffer })
+                });
+                if (response.ok) {
+                    pendingReorderBuffer = [];
+                    showSaveToast('정렬 변경이 저장되었습니다.', 'success');
+                } else {
+                    showSaveToast('정렬 저장 실패: 잠시 후 자동 재시도합니다.', 'error');
+                }
+            } catch (e) {
+                console.error('정렬 저장 실패:', e);
+                showSaveToast('정렬 저장 실패: 네트워크 상태를 확인하세요.', 'error');
+            } finally {
+                isSavingReorder = false;
+            }
+        }
+
+        function showSaveToast(message, type = 'info') {
+            const el = document.getElementById('saveToast');
+            el.textContent = message;
+            el.style.display = 'block';
+            if (type === 'success') {
+                el.style.background = '#1f6f43';
+            } else if (type === 'error') {
+                el.style.background = '#8b1e2b';
+            } else {
+                el.style.background = '#212529';
+            }
+            window.setTimeout(() => {
+                el.style.display = 'none';
+            }, 2200);
+        }
+
+        function renderMemoCountsOnCards() {
+            const chips = Array.from(document.querySelectorAll('[data-memo-count-for]'));
+            chips.forEach((chip) => {
+                const scheduleId = Number(chip.getAttribute('data-memo-count-for'));
+                const count = memoCountBySchedule.get(scheduleId) || 0;
+                chip.textContent = `메모 ${count}`;
+            });
+        }
+
+        function renderLinkedMemosOnCards() {
+            const containers = Array.from(document.querySelectorAll('[data-linked-memos-for]'));
+            containers.forEach((container) => {
+                const scheduleId = Number(container.getAttribute('data-linked-memos-for'));
+                const linkedRows = linkedMemosBySchedule.get(scheduleId) || [];
+                if (linkedRows.length === 0) {
+                    container.innerHTML = '';
+                    return;
+                }
+                container.innerHTML = linkedRows.map((m) => `
+                    <div class="detail-text mt-2">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div>↳ ${escapeHtml(m.content || '')}</div>
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="삭제" onclick="deleteMemo(${m.id})">🗑</button>
+                        </div>
+                        <div class="small text-muted mt-1">${escapeHtml(m.last_actor_user || '-')}</div>
+                    </div>
+                `).join('');
+            });
+        }
+
         // [핵심] 일정 데이터 불러오기 함수
         async function loadSchedules() {
             const board = document.getElementById('scheduleBoard');
+            const { todayOnly, selectedDate, keyword } = getScheduleFilters();
+            const todayStr = new Date().toISOString().split('T')[0];
+                const queryDate = todayOnly ? todayStr : (selectedDate || '');
 
             try {
                 // 백엔드 API 호출
-                const response = await fetch('/api/schedules/today');
+                const url = queryDate ? `/api/schedules/today?date=${encodeURIComponent(queryDate)}` : '/api/schedules/today';
+                const response = await fetch(url);
                 const data = await response.json();
+                const rows = Array.isArray(data.data) ? data.data : [];
+                const filteredRows = keyword
+                    ? rows.filter((item) => {
+                        const merged = `${item.location || ''} ${item.task || ''} ${item.person || ''} ${item.details || ''}`.toLowerCase();
+                        return merged.includes(keyword);
+                    })
+                    : rows;
+                scheduleMap.clear();
+                filteredRows.forEach((item) => scheduleMap.set(String(item.id), item));
 
-                if (data.data.length === 0) {
+                if (filteredRows.length === 0) {
                     board.innerHTML = '<div class="text-center text-muted py-5 fs-5">현재 등록된 일정이 없습니다.</div>';
                     updateLastSyncTime();
+                    await Promise.all([loadWorkerStatus(), loadMemos()]);
                     return;
                 }
 
                 // 1. 데이터를 날짜별로 그룹화
-                const groupedData = data.data.reduce((acc, item) => {
+                const groupedData = filteredRows.reduce((acc, item) => {
                     const dateKey = item.date || '날짜 미상';
                     if (!acc[dateKey]) acc[dateKey] = [];
                     acc[dateKey].push(item);
                     return acc;
                 }, {});
 
-                // 2. 날짜 최신순 정렬
-                const sortedDates = Object.keys(groupedData).sort((a, b) => b.localeCompare(a)); // 내림차순 정렬
+                // 2. 날짜 오래된 순 정렬 (과거 -> 오늘 -> 미래)
+                const sortedDates = Object.keys(groupedData).sort((a, b) => a.localeCompare(b));
 
                 // 3. HTML 렌더링
                 let boardHTML = '';
-                const todayStr = new Date().toISOString().split('T')[0];
 
                 sortedDates.forEach(date => {
                     const dayName = getDayName(date);
@@ -163,6 +399,7 @@
                     }
 
                     boardHTML += `<h5 class="mt-4 mb-3 pb-2 border-bottom ${headerClass}">📅 ${dateLabel} ${dayName}</h5>`;
+                    boardHTML += `<div class="schedule-group" data-date="${escapeHtml(date)}">`;
 
                     groupedData[date].forEach(item => {
                         let colorClass = '';
@@ -175,29 +412,47 @@
                         }
 
                         boardHTML += `
-                            <div class="schedule-item ${colorClass} shadow-sm">
+                            <div class="schedule-item ${colorClass} shadow-sm" draggable="true" data-id="${item.id}">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <strong class="fs-5">📍 ${item.location || '위치 미상'}</strong>
                                     <div>
+                                        <span class="id-chip">ID #${item.id}</span>
                                         ${tagList.filter(t => t.trim() !== "").map(tag =>
                                             `<span class="tag-badge tag-${tag.trim()}">${tag.trim()}</span>`
                                         ).join('')}
+                                        <span class="memo-chip ms-1" data-memo-count-for="${item.id}">메모 0</span>
                                         <span class="badge bg-light text-dark border ms-1">${item.category || '기타'}</span>
                                     </div>
                                 </div>
                                 <div class="mb-2 text-dark fs-5 fw-medium">${item.task || '내용 없음'}</div>
                                 ${item.details ? `<div class="detail-text">📝 ${item.details}</div>` : ''}
-                                <div class="text-muted mt-2 d-flex justify-content-between align-items-center" style="font-size: 0.85rem;">
-                                    <span>👤 담당: <b>${item.person || '-'}</b></span>
+                                <div class="linked-memo-list" data-linked-memos-for="${item.id}"></div>
+                                <div class="schedule-meta mt-2 d-flex justify-content-between align-items-center">
+                                    <span></span>
                                     <span>🕒 등록: ${item.created_at}</span>
+                                </div>
+                                <div class="schedule-action-panel">
+                                    <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="openEditRequestById('${item.id}')">수정</button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="requestDeleteById('${item.id}')">삭제</button>
+                                    </div>
+                                    <div class="mt-2 d-flex gap-2">
+                                        <input id="scheduleMemoInput-${item.id}" class="form-control form-control-sm" placeholder="메모 작성">
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="saveScheduleMemo(${item.id})">메모 작성</button>
+                                    </div>
                                 </div>
                             </div>
                         `;
                     });
+                    boardHTML += `</div>`;
                 });
 
                 board.innerHTML = boardHTML;
+                attachDragHandlers();
+                renderMemoCountsOnCards();
+                renderLinkedMemosOnCards();
                 updateLastSyncTime();
+                await Promise.all([loadWorkerStatus(), loadMemos()]);
 
             } catch (error) {
                 // 일시적인 네트워크 오류 시 이전 화면을 유지하며 조용히 콘솔에만 에러 출력
@@ -206,16 +461,313 @@
             }
         }
 
+        function normalizeTags(rawTags) {
+            if (!rawTags) return [];
+            if (Array.isArray(rawTags)) return rawTags.map((t) => String(t).trim()).filter(Boolean);
+            return String(rawTags).split(',').map((t) => t.trim()).filter(Boolean);
+        }
+
+        function openEditRequestById(scheduleId) {
+            const item = scheduleMap.get(String(scheduleId));
+            if (!item) {
+                alert('일정 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.');
+                return;
+            }
+            document.getElementById('editScheduleId').value = String(item.id || '');
+            document.getElementById('editDate').value = item.date || '';
+            document.getElementById('editLocation').value = item.location || '';
+            document.getElementById('editTask').value = item.task || '';
+            document.getElementById('editPerson').value = item.person || '';
+            document.getElementById('editDetails').value = item.details || '';
+            document.getElementById('editCategory').value = item.category || '공사일정';
+            document.getElementById('editTags').value = normalizeTags(item.tags).join(', ');
+            editRequestModal.show();
+        }
+
+        async function submitDirectEdit() {
+            const scheduleId = Number(document.getElementById('editScheduleId').value);
+            if (!scheduleId) {
+                alert('수정 대상 일정 ID가 없습니다.');
+                return;
+            }
+
+            const payload = {
+                action: 'update',
+                schedule_id: scheduleId,
+                schedule_data: {
+                    date: document.getElementById('editDate').value.trim(),
+                    location: document.getElementById('editLocation').value.trim(),
+                    task: document.getElementById('editTask').value.trim(),
+                    person: document.getElementById('editPerson').value.trim(),
+                    details: document.getElementById('editDetails').value.trim(),
+                    category: document.getElementById('editCategory').value.trim() || '공사일정',
+                    tags: document.getElementById('editTags').value.split(',').map((t) => t.trim()).filter(Boolean),
+                }
+            };
+
+            if (!payload.schedule_data.location || !payload.schedule_data.task) {
+                alert('현장 위치와 작업 내용은 필수입니다.');
+                return;
+            }
+
+            const response = await fetch('/api/schedules/direct-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    schedule_id: scheduleId,
+                    schedule_data: payload.schedule_data,
+                    reason: '현황판 인라인 수정'
+                })
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                alert(result.detail || result.message || '수정 실패');
+                return;
+            }
+            editRequestModal.hide();
+            alert(result.message || '수정되었습니다.');
+            await loadSchedules();
+        }
+
+        async function requestDeleteById(scheduleId) {
+            const item = scheduleMap.get(String(scheduleId));
+            if (!item) {
+                alert('일정 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.');
+                return;
+            }
+            const confirmText = `해당 일정을 삭제하시겠습니까?\n[ID #${item.id}] ${item.location || ''} / ${item.task || ''}`;
+            if (!confirm(confirmText)) return;
+
+            const response = await fetch('/api/schedules/direct-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    schedule_id: Number(item.id),
+                    reason: '현황판 인라인 삭제'
+                })
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                alert(result.detail || result.message || '삭제 실패');
+                return;
+            }
+            alert(result.message || '삭제되었습니다.');
+            await loadSchedules();
+        }
+
+        function statusBadgeClass(status) {
+            if (status === '외출') return 'bg-warning text-dark';
+            if (status === '야간작업') return 'bg-danger';
+            return 'bg-success';
+        }
+
+        async function loadWorkerStatus() {
+            const list = document.getElementById('workerStatusList');
+            const response = await fetch('/api/schedules/worker-status');
+            const data = await response.json();
+            if (!response.ok) {
+                list.innerHTML = '<li class="list-group-item text-danger">상태 조회 실패</li>';
+                return;
+            }
+            const rows = data.data || [];
+            if (rows.length === 0) {
+                list.innerHTML = '<li class="list-group-item text-muted">등록된 상태가 없습니다.</li>';
+                return;
+            }
+            list.innerHTML = rows.map((row) => `
+                <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                    <div><b>${row.user_name}</b> <span class="badge ${statusBadgeClass(row.status)} ms-1">${row.status}</span></div>
+                    <span class="text-muted small">${row.location || ''} ${row.until_time ? '(' + row.until_time + ')' : ''}</span>
+                </li>
+            `).join('');
+        }
+
+        async function saveWorkerStatus() {
+            const payload = {
+                user_name: document.getElementById('statusUserName').value.trim(),
+                status: document.getElementById('statusType').value,
+                location: document.getElementById('statusLocation').value.trim(),
+                until_time: document.getElementById('statusUntilTime').value.trim(),
+                note: ''
+            };
+            if (!payload.user_name) {
+                alert('이름을 입력하세요.');
+                return;
+            }
+            const response = await fetch('/api/schedules/worker-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                alert(data.detail || '상태 저장 실패');
+                return;
+            }
+            loadWorkerStatus();
+        }
+
+        async function loadMemos() {
+            const memoList = document.getElementById('memoList');
+            const today = new Date().toISOString().split('T')[0];
+            const response = await fetch(`/api/schedules/memos?date=${today}`);
+            const data = await response.json();
+            if (!response.ok) {
+                memoList.innerHTML = '<div class="text-danger small">메모 조회 실패</div>';
+                return;
+            }
+            const rows = data.data || [];
+            memoCountBySchedule.clear();
+            linkedMemosBySchedule.clear();
+            rows.forEach((row) => {
+                const linkedId = Number(row.linked_schedule_id || 0);
+                if (!linkedId) return;
+                memoCountBySchedule.set(linkedId, (memoCountBySchedule.get(linkedId) || 0) + 1);
+                if (!linkedMemosBySchedule.has(linkedId)) linkedMemosBySchedule.set(linkedId, []);
+                linkedMemosBySchedule.get(linkedId).push(row);
+            });
+            renderMemoCountsOnCards();
+            renderLinkedMemosOnCards();
+            const generalMemos = rows.filter((m) => !m.linked_schedule_id);
+            if (generalMemos.length === 0) {
+                memoList.innerHTML = '<div class="text-muted small">오늘 메모가 없습니다.</div>';
+                return;
+            }
+            memoList.innerHTML = generalMemos.map((m) => `
+                <div class="border rounded p-2 bg-white">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <div class="fw-semibold">${m.content}</div>
+                            <div class="small text-muted">${m.last_actor_user || '-'}</div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="삭제" onclick="deleteMemo(${m.id})">🗑</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function deleteMemo(memoId) {
+            if (!confirm('해당 메모를 삭제하시겠습니까?')) return;
+            const response = await fetch(`/api/schedules/memos/${memoId}`, { method: 'DELETE' });
+            const data = await response.json();
+            if (!response.ok) {
+                alert(data.detail || data.message || '메모 삭제 실패');
+                return;
+            }
+            await loadMemos();
+        }
+
+        async function saveMemo() {
+            const content = document.getElementById('memoInput').value.trim();
+            if (!content) return;
+            const payload = { content, memo_type: '일반', visibility: 'all' };
+            const response = await fetch('/api/schedules/memos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                alert(data.detail || '메모 등록 실패');
+                return;
+            }
+            document.getElementById('memoInput').value = '';
+            loadMemos();
+        }
+
+        async function saveScheduleMemo(scheduleId) {
+            const input = document.getElementById(`scheduleMemoInput-${scheduleId}`);
+            if (!input) return;
+            const content = input.value.trim();
+            if (!content) {
+                alert('메모 내용을 입력하세요.');
+                return;
+            }
+            const payload = {
+                content,
+                memo_type: '일반',
+                visibility: 'all',
+                linked_schedule_id: Number(scheduleId)
+            };
+            const response = await fetch('/api/schedules/memos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                alert(data.detail || '메모 등록 실패');
+                return;
+            }
+            input.value = '';
+            await loadMemos();
+        }
+
+        async function submitBoardTemplate() {
+            const payload = {
+                action_type: document.getElementById('boardActionType').value,
+                date: document.getElementById('boardDate').value.trim() || null,
+                location: document.getElementById('boardLocation').value.trim(),
+                task: document.getElementById('boardTask').value.trim(),
+                person: '전자칠판',
+                details: document.getElementById('boardDetails').value.trim(),
+                category: document.getElementById('boardCategory').value.trim() || '공사일정',
+                request_note: '',
+                schedule_id: null
+            };
+
+            const response = await fetch('/api/schedules/board/template-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                alert(data.detail || '전자칠판 템플릿 전송 실패');
+                return;
+            }
+            alert(data.message || '처리 완료');
+            loadSchedules();
+        }
+
         // 페이지 로드 시 초기화 및 자동 갱신 설정
         window.onload = () => {
-            updateHeaderDate();
-            loadSchedules();
+            ensureSession().then((ok) => {
+                if (!ok) return;
+                editRequestModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
+                updateHeaderDate();
+                document.getElementById('todayOnlyCheck').addEventListener('change', () => {
+                    const targetInput = document.getElementById('scheduleTargetDate');
+                    const isTodayOnly = document.getElementById('todayOnlyCheck').checked;
+                    targetInput.disabled = isTodayOnly;
+                    if (isTodayOnly) {
+                        targetInput.value = new Date().toISOString().split('T')[0];
+                    } else {
+                        targetInput.value = '';
+                    }
+                });
+                document.getElementById('todayOnlyCheck').dispatchEvent(new Event('change'));
+                loadSchedules();
 
-            // 30초(30000ms)마다 백그라운드에서 자동으로 데이터 갱신
-            setInterval(loadSchedules, 30000);
+                // 30초(30000ms)마다 백그라운드에서 자동으로 데이터 갱신
+                setInterval(loadSchedules, 30000);
 
-            // 날짜가 자정을 넘기면 헤더의 날짜도 바뀌도록 1시간마다 날짜 체크
-            setInterval(updateHeaderDate, 3600000);
+                // 날짜가 자정을 넘기면 헤더의 날짜도 바뀌도록 1시간마다 날짜 체크
+                setInterval(updateHeaderDate, 3600000);
+                setInterval(flushPendingReorder, 20000);
+                window.addEventListener('beforeunload', () => {
+                    if (pendingReorderBuffer.length === 0) return;
+                    navigator.sendBeacon(
+                        '/api/schedules/reorder-batch',
+                        new Blob([JSON.stringify({ items: pendingReorderBuffer })], { type: 'application/json' })
+                    );
+                });
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'hidden') {
+                        flushPendingReorder();
+                    }
+                });
+            });
         };
     </script>
 </body>

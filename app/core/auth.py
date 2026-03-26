@@ -1,0 +1,41 @@
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Dict, Any
+
+from fastapi import Cookie, HTTPException, Depends
+
+from app.db.db_manager import DBManager
+
+
+SESSION_COOKIE_NAME = "yjs_session_id"
+SESSION_TTL_DAYS = 30
+
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def create_session(db: DBManager, user_id: str, device_name: str) -> str:
+    session_id = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=SESSION_TTL_DAYS)
+    db.create_session(session_id=session_id, user_id=user_id, device_name=device_name, expires_at=expires_at.isoformat())
+    return session_id
+
+
+def require_session(session_id: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME)) -> Dict[str, Any]:
+    if not session_id:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
+    db = DBManager(db_path="schedule.db")
+    session = db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=401, detail="세션이 만료되었거나 유효하지 않습니다.")
+
+    return session
+
+
+def require_admin(session: Dict[str, Any] = Depends(require_session)) -> Dict[str, Any]:
+    if session.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
+    return session

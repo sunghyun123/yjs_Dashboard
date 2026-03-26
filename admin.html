@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YJS 관리자 요청 큐</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .queue-card { border-radius: 12px; }
+        .queue-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .queue-title { font-weight: 700; }
+        .queue-meta { font-size: 0.84rem; color: #6c757d; }
+        .request-chip { display: inline-block; font-size: 0.75rem; border-radius: 999px; padding: 2px 8px; margin-right: 6px; border: 1px solid #d6d6d6; background: #f8f9fa; color: #495057; }
+        .candidate-row { border: 1px solid #e9ecef; border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .candidate-row strong { font-size: 0.9rem; }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="m-0">관리자 요청 큐</h3>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="/" class="btn btn-outline-secondary btn-sm">채팅</a>
+            <a href="/dashboard.html" class="btn btn-outline-secondary btn-sm">상황판</a>
+            <button class="btn btn-outline-primary btn-sm" onclick="runDailyExport()">전일 업로드</button>
+            <button class="btn btn-primary btn-sm" onclick="loadRequests()">새로고침</button>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end small">
+                <div class="col-md-2">
+                    <label class="form-label mb-0">상태</label>
+                    <select id="filterStatus" class="form-select form-select-sm">
+                        <option value="pending" selected>대기</option>
+                        <option value="approved">등록됨</option>
+                        <option value="rejected">반려</option>
+                        <option value="failed">실패</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0">요청자</label>
+                    <input id="filterRequestedBy" class="form-control form-control-sm" placeholder="부분 일치">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0">시작일</label>
+                    <input id="filterSince" class="form-control form-control-sm" type="date">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0">종료일</label>
+                    <input id="filterUntil" class="form-control form-control-sm" type="date">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-primary btn-sm w-100" onclick="loadRequests()">검색</button>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()">필터 초기화</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="requestList" class="vstack gap-2"></div>
+    <div id="registeredSnapshotBox" class="mt-3"></div>
+    <div id="auditEventBox" class="mt-3"></div>
+</div>
+
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">요청 반려</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input id="rejectRequestId" class="form-control form-control-sm mb-2" readonly>
+                <label class="form-label small mb-1">반려 사유</label>
+                <textarea id="rejectReasonInput" class="form-control form-control-sm" rows="4" placeholder="반려 사유를 입력하세요."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-sm btn-danger" onclick="submitReject()">반려 처리</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">전일 업로드 실행</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label small mb-1">대상 날짜 (미입력 시 전일)</label>
+                <input id="exportTargetDateInput" class="form-control form-control-sm" type="date">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="submitDailyExport()">실행</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const ADMIN_FILTER_STORAGE_KEY = 'yjs_admin_filters_v1';
+    const ADMIN_AUDIT_PREF_STORAGE_KEY = 'yjs_admin_audit_pref_v1';
+    let rejectModal = null;
+    let exportModal = null;
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
+
+    function parsePayload(item) {
+        if (!item.payload_json) return {};
+        try {
+            const parsed = JSON.parse(item.payload_json);
+            return typeof parsed === 'object' && parsed !== null ? parsed : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function parseJsonObject(raw) {
+        if (!raw) return {};
+        try {
+            const parsed = JSON.parse(raw);
+            return (parsed && typeof parsed === 'object') ? parsed : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function summarizeAuditDiff(beforeRaw, afterRaw, includeSystemFields = false) {
+        const before = parseJsonObject(beforeRaw);
+        const after = parseJsonObject(afterRaw);
+        const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+        const ignoredFields = new Set([
+            'created_at',
+            'updated_at',
+            'last_actor_user',
+            'last_actor_device',
+            'last_actor_at',
+            'deleted_at',
+            'deleted_by',
+            'delete_reason'
+        ]);
+        const changed = [];
+        keys.forEach((k) => {
+            if (!includeSystemFields && ignoredFields.has(k)) return;
+            const b = before[k];
+            const a = after[k];
+            if (JSON.stringify(b) !== JSON.stringify(a)) {
+                changed.push(k);
+            }
+        });
+        if (changed.length === 0) {
+            return '<span class="text-muted small">변경 필드 없음</span>';
+        }
+        const preview = changed.slice(0, 4).map((k) => {
+            const b = before[k] === undefined ? '-' : String(before[k]);
+            const a = after[k] === undefined ? '-' : String(after[k]);
+            return `<div class="small"><b>${escapeHtml(k)}</b>: ${escapeHtml(b)} → ${escapeHtml(a)}</div>`;
+        }).join('');
+        const more = changed.length > 4 ? `<div class="small text-muted">외 ${changed.length - 4}개 필드</div>` : '';
+        return preview + more;
+    }
+
+    async function ensureAdminSession() {
+        const res = await fetch('/api/auth/me');
+        if (!res.ok) {
+            alert('로그인이 필요합니다.');
+            location.href = '/';
+            return null;
+        }
+        const me = await res.json();
+        if (me.role !== 'admin') {
+            alert('관리자 권한이 필요합니다.');
+            location.href = '/';
+            return null;
+        }
+        return me;
+    }
+
+    function renderItem(item) {
+        const payload = parsePayload(item);
+        const inferredScheduleId = payload.schedule_id || '';
+        const inferredScheduleData = payload.schedule_data || payload || {};
+        const hasUpdateForm = item.request_type === 'update_request';
+        const hasDeleteForm = item.request_type === 'delete_request';
+        const badgeClassByStatus = {
+            pending: 'bg-warning text-dark',
+            approved: 'bg-success',
+            rejected: 'bg-secondary',
+            failed: 'bg-danger'
+        };
+        const badgeClass = badgeClassByStatus[item.status] || 'bg-light text-dark border';
+        const payloadPreview = escapeHtml(JSON.stringify(inferredScheduleData, null, 2));
+        const requestText = escapeHtml(item.request_text || '-');
+        const summaryText = escapeHtml(item.summary || '');
+        const requestTypeText = escapeHtml(item.request_type || '-');
+        const requestedByText = escapeHtml(item.requested_by || '-');
+        const createdAtText = escapeHtml(item.created_at || '-');
+
+        return `
+            <div class="card queue-card">
+                <div class="card-body">
+                    <div class="queue-header">
+                        <div>
+                            <div class="queue-title mb-1">#${item.id}</div>
+                            <div class="queue-meta mb-2">
+                                <span class="request-chip">${requestTypeText}</span>
+                                요청자: ${requestedByText} | ${createdAtText}
+                            </div>
+                            <div class="mb-2">${requestText}</div>
+                            <div class="small text-secondary">${summaryText}</div>
+                            ${item.payload_json ? `<details class="mt-2"><summary class="small text-primary">payload 보기</summary><pre class="small bg-light border rounded p-2 mt-1 mb-0">${escapeHtml(item.payload_json)}</pre></details>` : ''}
+                        </div>
+                        <span class="badge ${badgeClass}">${escapeHtml(item.status)}</span>
+                    </div>
+                    <div class="mt-3 border rounded p-2 bg-light-subtle">
+                        <div class="small text-muted mb-2">승인 입력</div>
+                        <div class="input-group input-group-sm mb-2">
+                            <span class="input-group-text">일정 ID</span>
+                            <input id="scheduleId-${item.id}" class="form-control" value="${escapeHtml(inferredScheduleId)}" placeholder="수정/삭제 대상 ID">
+                            <button class="btn btn-outline-secondary" onclick="loadCandidates(${item.id})">후보찾기</button>
+                        </div>
+                        <div id="candidateBox-${item.id}" class="small"></div>
+                        ${hasUpdateForm ? `
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">수정 데이터(JSON)</label>
+                                <textarea id="scheduleData-${item.id}" class="form-control form-control-sm" rows="6">${payloadPreview}</textarea>
+                            </div>
+                        ` : ''}
+                        ${hasDeleteForm ? `
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">삭제 사유</label>
+                                <input id="deleteReason-${item.id}" class="form-control form-control-sm" placeholder="예: 중복 등록, 오입력">
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-success btn-sm" onclick="approve(${item.id})">승인</button>
+                        <button class="btn btn-outline-success btn-sm" onclick="quickApprove(${item.id}, '${item.request_type}')">원클릭 승인</button>
+                        ${hasUpdateForm ? `<button class="btn btn-outline-primary btn-sm" onclick="fillUpdateTemplate(${item.id})">수정 템플릿 채우기</button>` : ''}
+                        <button class="btn btn-outline-danger btn-sm" onclick="reject(${item.id})">반려</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildRequestQuery() {
+        const status = document.getElementById('filterStatus').value;
+        const requestedBy = document.getElementById('filterRequestedBy').value.trim();
+        const since = document.getElementById('filterSince').value;
+        const until = document.getElementById('filterUntil').value;
+        const p = new URLSearchParams({ status });
+        if (requestedBy) p.set('requested_by', requestedBy);
+        if (since) p.set('since', since);
+        if (until) p.set('until', until);
+        return p.toString();
+    }
+
+    function saveFilters() {
+        const payload = {
+            status: document.getElementById('filterStatus').value,
+            requestedBy: document.getElementById('filterRequestedBy').value.trim(),
+            since: document.getElementById('filterSince').value,
+            until: document.getElementById('filterUntil').value
+        };
+        localStorage.setItem(ADMIN_FILTER_STORAGE_KEY, JSON.stringify(payload));
+    }
+
+    function restoreFilters() {
+        const raw = localStorage.getItem(ADMIN_FILTER_STORAGE_KEY);
+        if (!raw) return;
+        try {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+                document.getElementById('filterStatus').value = parsed.status || 'pending';
+                document.getElementById('filterRequestedBy').value = parsed.requestedBy || '';
+                document.getElementById('filterSince').value = parsed.since || '';
+                document.getElementById('filterUntil').value = parsed.until || '';
+            }
+        } catch (e) {
+            localStorage.removeItem(ADMIN_FILTER_STORAGE_KEY);
+        }
+    }
+
+    function clearFilters() {
+        document.getElementById('filterStatus').value = 'pending';
+        document.getElementById('filterRequestedBy').value = '';
+        document.getElementById('filterSince').value = '';
+        document.getElementById('filterUntil').value = '';
+        localStorage.removeItem(ADMIN_AUDIT_PREF_STORAGE_KEY);
+        saveFilters();
+        loadRequests();
+    }
+
+    function loadAuditPrefs() {
+        const raw = localStorage.getItem(ADMIN_AUDIT_PREF_STORAGE_KEY);
+        if (!raw) return { includeSystemFields: false };
+        try {
+            const parsed = JSON.parse(raw);
+            return {
+                includeSystemFields: !!parsed.includeSystemFields
+            };
+        } catch (e) {
+            localStorage.removeItem(ADMIN_AUDIT_PREF_STORAGE_KEY);
+            return { includeSystemFields: false };
+        }
+    }
+
+    function saveAuditPrefs(pref) {
+        localStorage.setItem(
+            ADMIN_AUDIT_PREF_STORAGE_KEY,
+            JSON.stringify({ includeSystemFields: !!pref.includeSystemFields })
+        );
+    }
+
+    async function loadRequests() {
+        saveFilters();
+        const status = document.getElementById('filterStatus').value;
+        const qs = buildRequestQuery();
+        const res = await fetch(`/api/admin/requests?${qs}`);
+        const data = await res.json();
+        const list = document.getElementById('requestList');
+        const snapshotBox = document.getElementById('registeredSnapshotBox');
+        snapshotBox.innerHTML = '';
+        if (!res.ok) {
+            list.innerHTML = `<div class="alert alert-danger">${data.detail || '조회 실패'}</div>`;
+            return;
+        }
+        const rows = data.data || [];
+        if (rows.length === 0) {
+            list.innerHTML = '<div class="alert alert-secondary">대기중인 요청이 없습니다.</div>';
+        } else {
+            list.innerHTML = `<div class="small text-muted mb-1">총 ${rows.length}건</div>` + rows.map(renderItem).join('');
+        }
+        if (status === 'approved') {
+            await Promise.all([loadRegisteredSnapshot(), loadAuditEvents()]);
+        } else {
+            document.getElementById('auditEventBox').innerHTML = '';
+        }
+    }
+
+    async function loadRegisteredSnapshot() {
+        const snapshotBox = document.getElementById('registeredSnapshotBox');
+        const [scheduleRes, memoRes] = await Promise.all([
+            fetch('/api/schedules/today'),
+            fetch('/api/schedules/memos')
+        ]);
+        if (!scheduleRes.ok || !memoRes.ok) {
+            snapshotBox.innerHTML = '<div class="alert alert-warning">현재 반영 컨텐츠 조회에 실패했습니다.</div>';
+            return;
+        }
+        const scheduleJson = await scheduleRes.json();
+        const memoJson = await memoRes.json();
+        const schedules = Array.isArray(scheduleJson.data) ? scheduleJson.data : [];
+        const memos = Array.isArray(memoJson.data) ? memoJson.data : [];
+        const scheduleRows = schedules.map((s) => (
+            `<li class="list-group-item small">ID #${s.id} | ${escapeHtml(s.date || '-')} | ${escapeHtml(s.location || '-')} | ${escapeHtml(s.task || '-')}</li>`
+        )).join('');
+        const memoRows = memos.map((m) => {
+            const linkedLabel = m.linked_schedule_id
+                ? `연결 일정 #${m.linked_schedule_id}`
+                : '전역 메모';
+            return `<li class="list-group-item small">ID #${m.id} | ${escapeHtml(m.target_date || '-')} | ${escapeHtml(linkedLabel)} | ${escapeHtml(m.content || '-')}</li>`;
+        }).join('');
+        snapshotBox.innerHTML = `
+            <div class="card">
+                <div class="card-header">현재 대시보드 반영 컨텐츠 ID</div>
+                <div class="card-body">
+                    <div class="small text-muted mb-2">일정 ${schedules.length}건 / 메모 ${memos.length}건</div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="fw-semibold mb-1">일정 목록</div>
+                            <ul class="list-group">${scheduleRows || '<li class="list-group-item small text-muted">없음</li>'}</ul>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="fw-semibold mb-1">메모 목록</div>
+                            <ul class="list-group">${memoRows || '<li class="list-group-item small text-muted">없음</li>'}</ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async function loadAuditEvents() {
+        const box = document.getElementById('auditEventBox');
+        const since = document.getElementById('filterSince').value;
+        const until = document.getElementById('filterUntil').value;
+        const pref = loadAuditPrefs();
+        const includeUpdate = document.getElementById('auditActionUpdateCheck')?.checked ?? true;
+        const includeDelete = document.getElementById('auditActionDeleteCheck')?.checked ?? true;
+        const includeSystemFields = document.getElementById('auditIncludeSystemFieldsCheck')?.checked ?? pref.includeSystemFields;
+        const actionTokens = [];
+        if (includeUpdate) actionTokens.push('direct_update');
+        if (includeDelete) actionTokens.push('direct_delete');
+        const p = new URLSearchParams();
+        p.set('limit', '100');
+        if (actionTokens.length > 0) p.set('actions', actionTokens.join(','));
+        if (since) p.set('since', since);
+        if (until) p.set('until', until);
+        const res = await fetch(`/api/admin/audit-events?${p.toString()}`);
+        const data = await res.json();
+        if (!res.ok) {
+            box.innerHTML = '<div class="alert alert-warning">변경 이력 조회에 실패했습니다.</div>';
+            return;
+        }
+        const rows = Array.isArray(data.data) ? data.data : [];
+        box.innerHTML = `
+            <div class="card">
+                <div class="card-header">즉시 반영 변경 이력 (감사 로그)</div>
+                <div class="card-body p-2 border-bottom">
+                    <div class="d-flex flex-wrap gap-2 align-items-center small">
+                        <span class="text-muted me-2">행위 필터</span>
+                        <div class="form-check form-check-inline mb-0">
+                            <input class="form-check-input" type="checkbox" id="auditActionUpdateCheck" ${includeUpdate ? 'checked' : ''}>
+                            <label class="form-check-label" for="auditActionUpdateCheck">수정</label>
+                        </div>
+                        <div class="form-check form-check-inline mb-0">
+                            <input class="form-check-input" type="checkbox" id="auditActionDeleteCheck" ${includeDelete ? 'checked' : ''}>
+                            <label class="form-check-label" for="auditActionDeleteCheck">삭제</label>
+                        </div>
+                        <div class="form-check form-check-inline mb-0">
+                            <input class="form-check-input" type="checkbox" id="auditIncludeSystemFieldsCheck" ${includeSystemFields ? 'checked' : ''}>
+                            <label class="form-check-label" for="auditIncludeSystemFieldsCheck">시스템 필드 포함 보기</label>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="loadAuditEvents()">적용</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>행위</th>
+                                    <th>대상 일정</th>
+                                    <th>사용자</th>
+                                    <th>디바이스</th>
+                                    <th>사유</th>
+                                    <th>시각</th>
+                                    <th>변경 요약</th>
+                                    <th>상세</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.map((row) => `
+                                    <tr>
+                                        <td>#${row.id}</td>
+                                        <td>${escapeHtml(row.action || '-')}</td>
+                                        <td>${row.entity_id ? '#' + row.entity_id : '-'}</td>
+                                        <td>${escapeHtml(row.actor_user || '-')}</td>
+                                        <td>${escapeHtml(row.actor_device || '-')}</td>
+                                        <td>${escapeHtml(row.reason || '-')}</td>
+                                        <td>${escapeHtml(row.created_at || '-')}</td>
+                                        <td>${summarizeAuditDiff(row.before_json, row.after_json, includeSystemFields)}</td>
+                                        <td>
+                                            <details>
+                                                <summary class="small text-primary">보기</summary>
+                                                <div class="small mt-1">
+                                                    <div class="fw-semibold">before</div>
+                                                    <pre class="small bg-light border rounded p-2">${escapeHtml(row.before_json || '{}')}</pre>
+                                                    <div class="fw-semibold">after</div>
+                                                    <pre class="small bg-light border rounded p-2">${escapeHtml(row.after_json || '{}')}</pre>
+                                                </div>
+                                            </details>
+                                        </td>
+                                    </tr>
+                                `).join('') || '<tr><td colspan="9" class="text-center text-muted py-3">이력이 없습니다.</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        const u = document.getElementById('auditActionUpdateCheck');
+        const d = document.getElementById('auditActionDeleteCheck');
+        const s = document.getElementById('auditIncludeSystemFieldsCheck');
+        if (u) u.addEventListener('change', () => loadAuditEvents());
+        if (d) d.addEventListener('change', () => loadAuditEvents());
+        if (s) {
+            s.addEventListener('change', () => {
+                saveAuditPrefs({ includeSystemFields: s.checked });
+                loadAuditEvents();
+            });
+        }
+    }
+
+    async function approve(requestId) {
+        const scheduleIdElem = document.getElementById(`scheduleId-${requestId}`);
+        const scheduleDataElem = document.getElementById(`scheduleData-${requestId}`);
+        const deleteReasonElem = document.getElementById(`deleteReason-${requestId}`);
+
+        let parsedScheduleData = null;
+        if (scheduleDataElem && scheduleDataElem.value.trim()) {
+            try {
+                parsedScheduleData = JSON.parse(scheduleDataElem.value.trim());
+            } catch (e) {
+                alert('수정 데이터 JSON 형식이 올바르지 않습니다.');
+                return;
+            }
+        }
+
+        const payload = {
+            request_id: requestId,
+            decision: 'approve',
+            schedule_id: scheduleIdElem && scheduleIdElem.value.trim() ? Number(scheduleIdElem.value.trim()) : null,
+            schedule_data: parsedScheduleData,
+            reason: deleteReasonElem ? deleteReasonElem.value.trim() : ''
+        };
+        const res = await fetch('/api/admin/requests/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '승인 실패');
+            return;
+        }
+        alert(data.message || '승인 처리 완료');
+        loadRequests();
+    }
+
+    async function loadCandidates(requestId) {
+        const box = document.getElementById(`candidateBox-${requestId}`);
+        box.innerHTML = '후보 조회 중...';
+        const res = await fetch(`/api/admin/requests/${requestId}/candidates`);
+        const data = await res.json();
+        if (!res.ok) {
+            box.innerHTML = `<span class="text-danger">${data.detail || '후보 조회 실패'}</span>`;
+            return;
+        }
+        const rows = data.data || [];
+        if (rows.length === 0) {
+            box.innerHTML = '<span class="text-muted">추천 후보가 없습니다.</span>';
+            return;
+        }
+        const keywordHint = data.hint && data.hint.keywords ? data.hint.keywords.join(', ') : '';
+        box.innerHTML = `
+            <div class="small text-muted mb-1">추천 키워드: ${escapeHtml(keywordHint || '-')}</div>
+        ` + rows.map((row) => `
+            <div class="candidate-row">
+                <span><strong>#${row.id}</strong> ${escapeHtml(row.date)} ${escapeHtml(row.location)} - ${escapeHtml(row.task)}</span>
+                <button class="btn btn-sm btn-outline-primary" onclick="pickScheduleId(${requestId}, ${row.id})">선택</button>
+            </div>
+        `).join('');
+    }
+
+    function pickScheduleId(requestId, scheduleId) {
+        const input = document.getElementById(`scheduleId-${requestId}`);
+        if (input) input.value = String(scheduleId);
+        const box = document.getElementById(`candidateBox-${requestId}`);
+        if (box) {
+            box.insertAdjacentHTML('afterbegin', '<div class="small text-success mb-1">선택한 일정 ID가 반영되었습니다.</div>');
+        }
+    }
+
+    function fillUpdateTemplate(requestId) {
+        const scheduleDataElem = document.getElementById(`scheduleData-${requestId}`);
+        if (!scheduleDataElem) return;
+        const template = {
+            date: new Date().toISOString().split('T')[0],
+            location: "현장 위치 입력",
+            task: "수정 작업 내용 입력",
+            person: "담당자",
+            details: "상세 메모",
+            tags: [],
+            category: "공사일정"
+        };
+        scheduleDataElem.value = JSON.stringify(template, null, 2);
+    }
+
+    async function quickApprove(requestId, requestType) {
+        const payload = {
+            request_id: requestId,
+            decision: 'approve',
+            schedule_id: null,
+            schedule_data: null,
+            reason: requestType === 'delete_request' ? '관리자 원클릭 승인 삭제' : ''
+        };
+        const res = await fetch('/api/admin/requests/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '원클릭 승인 실패');
+            return;
+        }
+        alert(data.message || '원클릭 승인 완료');
+        loadRequests();
+    }
+
+    function reject(requestId) {
+        document.getElementById('rejectRequestId').value = String(requestId);
+        document.getElementById('rejectReasonInput').value = '';
+        rejectModal.show();
+    }
+
+    async function submitReject() {
+        const requestId = Number(document.getElementById('rejectRequestId').value);
+        const reason = document.getElementById('rejectReasonInput').value.trim();
+        if (!requestId) {
+            alert('반려 대상 요청 ID가 없습니다.');
+            return;
+        }
+        const payload = { request_id: requestId, decision: 'reject', reason };
+        const res = await fetch('/api/admin/requests/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '반려 실패');
+            return;
+        }
+        rejectModal.hide();
+        alert(data.message || '반려 처리 완료');
+        loadRequests();
+    }
+
+    function runDailyExport() {
+        document.getElementById('exportTargetDateInput').value = '';
+        exportModal.show();
+    }
+
+    async function submitDailyExport() {
+        const targetDate = document.getElementById('exportTargetDateInput').value.trim();
+        const payload = { target_date: targetDate || null };
+        const res = await fetch('/api/admin/export/daily', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '내보내기 실패');
+            return;
+        }
+        exportModal.hide();
+        alert(`내보내기 완료: ${data.data.output_dir}`);
+    }
+
+    ensureAdminSession().then((ok) => {
+        if (!ok) return;
+        rejectModal = new bootstrap.Modal(document.getElementById('rejectModal'));
+        exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
+        restoreFilters();
+        loadRequests();
+    });
+</script>
+</body>
+</html>

@@ -31,6 +31,11 @@
         .interactive-card { background-color: #fff; border: 1px solid #dee2e6; border-radius: 10px; padding: 12px; align-self: flex-start; width: 85%; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: -5px; }
         .candidate-item { border-bottom: 1px solid #f0f0f0; padding-bottom: 8px; margin-bottom: 8px; }
         .candidate-item:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+        .status-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+        .status-chip.status-success { background: #e7f7ec; color: #116b2f; border: 1px solid #b8e3c5; }
+        .status-chip.status-request { background: #fff4e5; color: #9a5c00; border: 1px solid #ffe0b2; }
+        .status-chip.status-info { background: #ebf3ff; color: #0b4ea2; border: 1px solid #c9defe; }
+        .upload-help { font-size: 0.82rem; color: #6c757d; margin-top: 4px; }
 
         /* 하단 입력 영역 */
         .input-area { background-color: #fff; padding: 10px 15px; display: flex; gap: 10px; align-items: center; border-top: 1px solid #ccc; z-index: 10; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
@@ -40,6 +45,11 @@
 
         /* 타이핑 인디케이터 */
         .typing-indicator { display: none; align-self: flex-start; background-color: #fff; padding: 10px 15px; border-radius: 15px; border-top-left-radius: 4px; font-size: 0.85rem; color: #666; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .login-overlay {
+            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45);
+            display: flex; align-items: center; justify-content: center; z-index: 9999;
+        }
+        .login-card { width: min(420px, 92vw); background: #fff; border-radius: 12px; padding: 20px; }
     </style>
 </head>
 <body>
@@ -47,13 +57,16 @@
 <div class="app-container">
     <header class="chat-header">
         <h5>🤖 YJS 스마트 AI 비서</h5>
-        <a href="/dashboard.html" class="btn btn-sm btn-outline-light rounded-pill">📊 상황판 보기</a>
+        <div class="d-flex align-items-center gap-2">
+            <span id="loginUserBadge" class="badge bg-light text-dark d-none"></span>
+            <a href="/dashboard.html" class="btn btn-sm btn-outline-light rounded-pill">📊 상황판 보기</a>
+        </div>
     </header>
 
     <div class="chat-box" id="chatBox">
         <div class="bubble bubble-bot">
             안녕하세요! 현장 관리 AI 비서입니다.<br>
-            오늘 일정 등록, 수정, 삭제나 작업일지 사진을 보내주시면 제가 처리해 드릴게요! 😊<br>
+            오늘 일정 등록/조회, 메모 작성이나 작업일지 사진을 보내주시면 제가 도와드릴게요! 😊<br>
             <small class="text-muted">(예: "오늘 안양 현장 야간작업 추가해줘")</small>
         </div>
     </div>
@@ -69,6 +82,12 @@
             📸
         </button>
 
+        <select id="inputCategory" class="form-select form-select-sm" style="max-width: 150px;">
+            <option value="schedule_create" selected>공사 일정 등록</option>
+            <option value="memo">메모</option>
+            <option value="other">기타(관리자에게 전송)</option>
+        </select>
+
         <input type="text" id="chatInput" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
 
         <button class="btn btn-primary btn-circle" onclick="sendMessage()" style="background-color: #003366;">
@@ -77,13 +96,65 @@
     </div>
 </div>
 
+<div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+        <h5 class="mb-3">로그인</h5>
+        <div class="mb-2">
+            <label class="form-label">ID</label>
+            <input id="loginUserId" class="form-control" value="admin">
+        </div>
+        <div class="mb-2">
+            <label class="form-label">비밀번호</label>
+            <input id="loginPassword" class="form-control" type="password" value="admin1234">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">등록 코드</label>
+            <input id="loginRegisterCode" class="form-control" value="YJS-REGISTER-001">
+        </div>
+        <button class="btn btn-primary w-100" onclick="login()">로그인</button>
+        <small class="text-muted d-block mt-2">미등록 기기는 로그인할 수 없습니다.</small>
+    </div>
+</div>
+
+<div class="modal fade" id="uploadCategoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">사진 카테고리 선택</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2 small text-muted">전송 전 카테고리를 선택하면 폴더가 자동 분류됩니다.</div>
+                <select id="uploadCategorySelect" class="form-select">
+                    <option value="TBM 문서" selected>TBM 문서</option>
+                    <option value="공사 일지 문서">공사 일지 문서</option>
+                    <option value="영수증">영수증</option>
+                    <option value="미분류">미분류</option>
+                </select>
+                <div class="upload-help">선택 후 전송을 누르면 업로드가 시작됩니다.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" onclick="resetImageInput()">취소</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="uploadImageWithSelectedCategory()">전송</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const chatBox = document.getElementById('chatBox');
     const chatInput = document.getElementById('chatInput');
     const typingIndicator = document.getElementById('typingIndicator');
+    const loginOverlay = document.getElementById('loginOverlay');
+    const loginUserBadge = document.getElementById('loginUserBadge');
+    const imageInput = document.getElementById('imageInput');
+    const uploadCategorySelect = document.getElementById('uploadCategorySelect');
 
     // 현재 처리 중인 AI 데이터를 임시 저장하는 전역 변수
     let currentPendingData = null;
+    let currentUserId = '';
+    let uploadCategoryModal = null;
 
     // 말풍선 추가 함수
     function appendBubble(sender, text) {
@@ -110,6 +181,11 @@
     async function sendMessage() {
         const text = chatInput.value.trim();
         if (!text) return;
+        if (!currentUserId) {
+            appendBubble('bot', '로그인이 필요합니다.');
+            return;
+        }
+        const inputCategory = document.getElementById('inputCategory').value;
 
         // 내 메시지 화면에 표시
         appendBubble('me', text);
@@ -124,12 +200,13 @@
             const response = await fetch('/api/schedules/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text })
+                body: JSON.stringify({ text: text, input_category: inputCategory })
             });
             const data = await response.json();
 
             // 봇 응답 메시지 표시
             appendBubble('bot', data.reply_message);
+            renderSystemStatus(data);
 
             // AI 의도에 따라 액션 버튼(카드) 렌더링
             if (data.intent && data.intent !== 'incomplete') {
@@ -143,6 +220,29 @@
         }
     }
 
+    function renderSystemStatus(data) {
+        if (!data || !data.reply_message) return;
+        const card = document.createElement('div');
+        card.className = 'interactive-card';
+        let chipClass = 'status-info';
+        let chipText = '처리 안내';
+
+        if ((data.intent || '') === 'incomplete') {
+            chipClass = 'status-request';
+            chipText = '요청 접수';
+        } else if ((data.intent || '') === 'create') {
+            chipClass = 'status-success';
+            chipText = '등록 확인 대기';
+        } else if ((data.intent || '') === 'search') {
+            chipClass = 'status-info';
+            chipText = '조회 결과';
+        }
+
+        card.innerHTML = `<span class="status-chip ${chipClass}">${chipText}</span>`;
+        chatBox.appendChild(card);
+        scrollToBottom();
+    }
+
     // 2. 동적 상호작용 카드 생성 (등록 확인, 후보 리스트 등)
     function renderInteractiveCard(intent, data) {
         const card = document.createElement('div');
@@ -150,7 +250,7 @@
         let html = '';
 
         // [등록/수정]인 경우: 제안하는 데이터 확인
-        if (intent === 'create' || intent === 'update') {
+        if (intent === 'create') {
             const sd = data.schedule_data;
             currentPendingData = sd; // 데이터 임시 저장
 
@@ -162,30 +262,10 @@
                     ${sd.tags && sd.tags.length > 0 ? `<small class="text-primary">태그: ${sd.tags.join(', ')}</small>` : ''}
                 </div>
                 <div class="d-flex gap-2 mt-3">
-                    <button class="btn btn-sm btn-primary flex-grow-1" onclick="executeAction('${intent}', null, this)">⭕ ${intent === 'create' ? '등록' : '수정'} 확인</button>
+                    <button class="btn btn-sm btn-primary flex-grow-1" onclick="executeAction('${intent}', null, this)">⭕ 등록 확인</button>
                     <button class="btn btn-sm btn-outline-secondary flex-grow-1" onclick="cancelAction(this)">❌ 취소</button>
                 </div>
             `;
-        }
-
-        // [삭제]인 경우: 후보 리스트 보여주고 선택하게 함
-        else if (intent === 'delete') {
-            if (data.candidates && data.candidates.length > 0) {
-                data.candidates.forEach(cand => {
-                    html += `
-                        <div class="candidate-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>${cand.location}</strong> (${cand.date})<br>
-                                <small class="text-muted">${cand.task}</small>
-                            </div>
-                            <button class="btn btn-sm btn-danger ms-2 text-nowrap" onclick="executeAction('delete', ${cand.id}, this)">🗑️ 삭제</button>
-                        </div>
-                    `;
-                });
-                html += `<button class="btn btn-sm btn-outline-secondary w-100 mt-2" onclick="cancelAction(this)">취소</button>`;
-            } else {
-                return; // 후보가 없으면 카드 안 그림 (봇이 이미 텍스트로 안내함)
-            }
         }
 
         // [조회]인 경우: 리스트만 보여줌
@@ -217,7 +297,7 @@
 
         const payload = {
             action: action,
-            schedule_data: (action === 'create' || action === 'update') ? currentPendingData : null,
+            schedule_data: action === 'create' ? currentPendingData : null,
             schedule_id: action === 'delete' ? scheduleId : null
         };
 
@@ -251,13 +331,32 @@
 
     // 5. 작업일지 이미지 업로드
     async function uploadImage() {
-        const fileInput = document.getElementById('imageInput');
-        const file = fileInput.files[0];
+        if (!currentUserId) {
+            appendBubble('bot', '로그인이 필요합니다.');
+            return;
+        }
+        const file = imageInput.files[0];
 
         if (!file) return;
+        uploadCategoryModal.show();
+    }
+
+    function resetImageInput() {
+        imageInput.value = '';
+    }
+
+    async function uploadImageWithSelectedCategory() {
+        const file = imageInput.files[0];
+        if (!file) return;
+        const uploadCategory = uploadCategorySelect.value.trim();
+        if (!uploadCategory) {
+            appendBubble('bot', '❌ 사진 카테고리를 선택해야 전송할 수 있습니다.');
+            return;
+        }
+        uploadCategoryModal.hide();
 
         // 내 메시지로 사진 보냈음을 표시
-        appendBubble('me', `📷 사진 전송: ${file.name}`);
+        appendBubble('me', `📷 [${uploadCategory}] 사진 전송: ${file.name}`);
 
         // 로딩 켜기
         chatBox.appendChild(typingIndicator);
@@ -267,6 +366,7 @@
 
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('upload_category', uploadCategory.trim());
 
         try {
             const response = await fetch('/api/vision/upload', {
@@ -290,9 +390,55 @@
         } finally {
             typingIndicator.style.display = 'none';
             typingIndicator.innerText = "AI가 메시지를 분석하고 있습니다... ⏳"; // 텍스트 원복
-            fileInput.value = ''; // input 초기화
+            resetImageInput();
         }
     }
+
+    async function checkSession() {
+        try {
+            const res = await fetch('/api/auth/me');
+            if (!res.ok) return false;
+            const me = await res.json();
+            currentUserId = me.user_id;
+            loginUserBadge.textContent = `${me.user_id}`;
+            loginUserBadge.classList.remove('d-none');
+            loginOverlay.style.display = 'none';
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    async function login() {
+        const payload = {
+            user_id: document.getElementById('loginUserId').value.trim(),
+            password: document.getElementById('loginPassword').value,
+            register_code: document.getElementById('loginRegisterCode').value.trim(),
+            device_name: navigator.userAgent.slice(0, 80)
+        };
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.detail || '로그인 실패');
+                return;
+            }
+            currentUserId = data.user_id;
+            loginUserBadge.textContent = `${data.user_id}`;
+            loginUserBadge.classList.remove('d-none');
+            loginOverlay.style.display = 'none';
+            appendBubble('bot', `안녕하세요 ${data.user_id}님. 요청을 도와드릴게요.`);
+        } catch (e) {
+            alert('로그인 중 통신 오류가 발생했습니다.');
+        }
+    }
+
+    uploadCategoryModal = new bootstrap.Modal(document.getElementById('uploadCategoryModal'));
+    checkSession();
 </script>
 
 </body>

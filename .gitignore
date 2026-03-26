@@ -1,5 +1,30 @@
-# .gitignore 파일
+# Environment and local secrets
 .env
+.env.local
+.env.*.local
+
+# Python virtual environment
 venv/
+.venv/
+
+# Python cache and bytecode
 __pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test and tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local editor/system files
+.idea/
+.vscode/
+
+# Local runtime artifacts
 *.db
+
+# Generated automation outputs and backups
+자동화_데이터/
