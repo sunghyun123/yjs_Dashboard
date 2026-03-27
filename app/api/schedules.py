@@ -24,7 +24,7 @@ db = DBManager(db_path=settings.sqlite_db_path)
 # 3. Request 모델
 class ChatRequest(BaseModel):
     text: str = Field(..., description="사용자가 채팅창에 입력한 자연어 메시지")
-    input_category: Literal["schedule_create", "memo", "other", "update_request", "delete_request"] = Field(
+    input_category: Literal["schedule_create", "general_work", "memo", "other", "update_request", "delete_request"] = Field(
         default="schedule_create",
         description="사용자 선택 입력 카테고리"
     )
@@ -63,9 +63,9 @@ class BoardTemplateActionRequest(BaseModel):
     date: Optional[str] = Field(default=None, description="YYYY-MM-DD")
     location: str = Field(default="", description="현장 위치")
     task: str = Field(default="", description="작업 내용")
-    person: str = Field(default="전자칠판", description="담당자")
+    person: str = Field(default="", description="담당자")
     details: str = Field(default="", description="상세 내용")
-    category: str = Field(default="공사일정", description="카테고리")
+    category: str = Field(default="공사 일정", description="카테고리")
     request_note: str = Field(default="", description="수정/삭제 요청 시 관리자 메모")
     schedule_id: Optional[int] = Field(default=None, description="수정/삭제 대상 일정 ID")
 
@@ -146,6 +146,9 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
     target_date = action_data.get('target_date')
     target_keyword = action_data.get('target_keyword')
     schedule_data = action_data.get('schedule_data')
+    if request.input_category == "general_work" and isinstance(schedule_data, dict):
+        # '일반 작업'은 기존 일정 등록 플로우를 사용하되 category를 강제한다.
+        schedule_data["category"] = "일반 작업"
 
     logger.info(f"AI 판단 의도: {intent}")
 
@@ -329,10 +332,10 @@ def board_template_action(request: BoardTemplateActionRequest, _user_session=Dep
                 "date": target_date,
                 "location": request.location,
                 "task": request.task,
-                "person": request.person or "전자칠판",
+                "person": request.person or "",
                 "details": request.details,
                 "tags": [],
-                "category": request.category or "공사일정",
+                "category": request.category or "공사 일정",
             },
             actor_user=actor_user,
             actor_device=actor_device,
@@ -363,10 +366,10 @@ def board_template_action(request: BoardTemplateActionRequest, _user_session=Dep
                 "date": target_date,
                 "location": request.location,
                 "task": request.task,
-                "person": request.person or "전자칠판",
+                "person": request.person or "",
                 "details": request.details,
                 "tags": [],
-                "category": request.category or "공사일정",
+                "category": request.category or "공사 일정",
             }
         }, ensure_ascii=False),
         requested_by="전자칠판",

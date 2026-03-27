@@ -3,8 +3,8 @@ def login_as_admin(client):
         "/api/auth/login",
         json={
             "user_id": "admin",
-            "password": "admin1234",
-            "register_code": "YJS-REGISTER-001",
+            "password": "1234",
+            "register_code": "",
             "device_name": "pytest-device",
         },
     )

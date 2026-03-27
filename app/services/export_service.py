@@ -20,7 +20,7 @@ class DailyExportService:
         target_dir = self.base / target_date
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        schedule_path = target_dir / "공사일정.xlsx"
+        schedule_path = target_dir / "공사 일정.xlsx"
         memo_path = target_dir / "기타메모.xlsx"
         status_path = target_dir / "인원상태.xlsx"
 

@@ -6,37 +6,188 @@
     <title>YJS 스마트 현장 상황판</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f4f6f9; font-family: 'Malgun Gothic', sans-serif; }
+        body { background-color: #f4f6f9; font-family: 'Malgun Gothic', sans-serif; overflow-x: hidden; }
         .dashboard-header { background-color: #003366; color: white; padding: 15px 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .card { border-radius: 12px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .card-header { background-color: white; border-bottom: 2px solid #f4f6f9; font-weight: bold; font-size: 1.1rem; border-radius: 12px 12px 0 0 !important; }
-        .schedule-item { border-left: 4px solid #0d6efd; background-color: #f8f9fa; padding: 12px; margin-bottom: 10px; border-radius: 0 8px 8px 0; transition: all 0.3s ease; }
-        .schedule-item:hover { transform: translateX(5px); box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important; }
-        .schedule-item.category-완료 { border-left-color: #198754; }
-        .schedule-item.category-이슈 { border-left-color: #dc3545; }
-        .schedule-item.category-작업 { border-left-color: #6f42c1; }
-        .schedule-day-block { margin-bottom: 0.25rem; }
-        .schedule-group { min-height: 3rem; box-sizing: border-box; }
-        .schedule-task-title { font-size: 1.35rem; font-weight: 700; color: #1a1d21; line-height: 1.35; }
-        .schedule-location-muted { font-size: 0.88rem; color: #6c757d; }
-        .schedule-person-line { font-size: 0.92rem; color: #495057; }
-        .worklog-tag { font-size: 0.85rem; background-color: #e9ecef; padding: 3px 8px; border-radius: 12px; margin-right: 5px; }
-        .tag-badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; margin-right: 4px; font-weight: bold; }
-        .tag-야간 { background-color: #ff4d4d; color: white; }
-        .tag-돌발 { background-color: #ff9800; color: white; }
-        .tag-교육 { background-color: #2196f3; color: white; }
-        .detail-text { font-size: 0.85rem; color: #666; background: #f0f2f5; padding: 6px 10px; border-radius: 4px; margin-top: 8px; }
-        .schedule-meta { font-size: 0.82rem; color: #6c757d; }
-        .schedule-actions .btn { min-width: 78px; }
-        .schedule-action-panel { border-top: 1px dashed #d7dbe0; margin-top: 8px; padding-top: 8px; display: none; }
-        .schedule-item.active .schedule-action-panel { display: block; }
+        .calendar-week-header {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .calendar-weekday {
+            text-align: center;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #4f5b66;
+        }
+        .calendar-weekday.sun { color: #d13232; }
+        .calendar-weekday.sat { color: #2467c5; }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .calendar-cell {
+            border: 1px solid #d8dee6;
+            border-radius: 8px;
+            background: #ffffff;
+            min-height: 126px;
+            padding: 6px 7px;
+        }
+        .calendar-cell.out-range {
+            background: #f4f6f9;
+            opacity: 0.6;
+        }
+        .calendar-cell.today {
+            border: 2px solid #1f6fe5;
+            box-shadow: 0 0 0 1px rgba(31, 111, 229, 0.15);
+        }
+        .calendar-cell.sun .calendar-date-label { color: #d13232; }
+        .calendar-cell.sat .calendar-date-label { color: #2467c5; }
+        .calendar-date-label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            border-bottom: 1px solid #eef2f7;
+            padding-bottom: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 6px;
+        }
+        .day-count-badge {
+            font-size: 0.64rem;
+            font-weight: 700;
+            color: #2f4f7a;
+            background: #eaf1fb;
+            border: 1px solid #d2e2f7;
+            border-radius: 999px;
+            padding: 1px 6px;
+            white-space: nowrap;
+        }
+        .calendar-empty-line {
+            font-size: 0.72rem;
+            color: #8a94a0;
+            margin-top: 3px;
+        }
+        .detail-text { font-size: 0.74rem; color: #666; background: #f0f2f5; padding: 4px 7px; border-radius: 4px; margin-top: 5px; line-height: 1.2; }
+        .schedule-actions .btn {
+            min-width: 84px;
+            padding: 4px 8px;
+            font-size: 0.78rem;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+        .schedule-action-panel { border-top: 1px dashed #d7dbe0; margin-top: 5px; padding-top: 5px; display: none; }
+        #workerStatusList .list-group-item { padding-top: 0.4rem; padding-bottom: 0.4rem; font-size: 0.9rem; }
+        .return-time-emphasis { color: #0b4ea2; font-weight: 700; }
+        .status-badge-sm { font-size: 0.72rem; }
+        .schedule-compact-item {
+            border-left: 3px solid #9cb6da;
+            background: #f8f9fc;
+            border-radius: 0 6px 6px 0;
+            padding: 4px 7px;
+            margin-bottom: 3px;
+        }
+        .schedule-compact-item.cat-construction { border-left-color: #2166cf; background: #edf4ff; }
+        .schedule-compact-item.cat-general { border-left-color: #6f7f95; background: #f5f7fa; }
+        .schedule-compact-item.cat-schedule { border-left-color: #9a6dd7; background: #f6f1ff; }
+        .schedule-compact-task {
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: #1c2733;
+            line-height: 1.2;
+            white-space: normal;
+            word-break: break-word;
+        }
+        .schedule-category-dot {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            margin-right: 5px;
+            vertical-align: middle;
+            transform: translateY(-1px);
+            background: #9cb6da;
+        }
+        .schedule-category-dot.cat-construction { background: #2166cf; }
+        .schedule-category-dot.cat-general { background: #6f7f95; }
+        .schedule-category-dot.cat-schedule { background: #9a6dd7; }
+        .schedule-compact-person {
+            font-size: 0.76rem;
+            color: #4d5a67;
+            line-height: 1.18;
+            white-space: normal;
+            word-break: break-word;
+        }
+        .schedule-compact-item .schedule-action-panel { display: none; }
+        .schedule-compact-item.active .schedule-action-panel { display: block; }
+        .schedule-action-panel .form-control.form-control-sm {
+            min-width: 0;
+            font-size: 0.78rem;
+            padding: 4px 6px;
+            height: auto;
+        }
+        .schedule-action-panel .btn.btn-sm {
+            font-size: 0.78rem;
+            padding: 4px 8px;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
         .toolbar-card { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); background: #fff; padding: 12px; margin-bottom: 14px; }
-        .id-chip { font-size: 0.75rem; border: 1px solid #cfd4da; border-radius: 999px; padding: 2px 8px; color: #495057; background: #f8f9fa; }
-        .memo-chip { font-size: 0.72rem; border-radius: 999px; padding: 2px 8px; background: #eef2f7; color: #415166; border: 1px solid #d7dfe8; }
         .save-toast {
             position: fixed; right: 16px; bottom: 16px; z-index: 1080; min-width: 240px;
             background: #212529; color: #fff; border-radius: 10px; padding: 10px 12px; display: none;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        @media (max-width: 768px) {
+            .dashboard-header { padding: 10px 12px; }
+            .dashboard-header h3 { font-size: 1.05rem; }
+            .container-fluid { margin-top: 12px !important; padding-left: 10px !important; padding-right: 10px !important; }
+            .toolbar-card { padding: 10px; }
+            #scheduleBoard { max-height: none !important; min-height: 40dvh; }
+            .card-header { font-size: 1rem; }
+            .schedule-compact-task { font-size: 0.84rem; }
+            .schedule-compact-person { font-size: 0.72rem; }
+            .calendar-grid, .calendar-week-header { gap: 6px; }
+            .calendar-cell { min-height: 100px; padding: 5px; }
+            .calendar-date-label { font-size: 0.74rem; }
+            .mobile-day-block {
+                border: 1px solid #d8dee6;
+                border-radius: 8px;
+                background: #fff;
+                padding: 6px;
+                margin-bottom: 8px;
+            }
+            .mobile-day-title {
+                font-size: 0.82rem;
+                font-weight: 700;
+                border-bottom: 1px solid #eef2f7;
+                padding-bottom: 4px;
+                margin-bottom: 5px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 6px;
+            }
+            .mobile-day-title.today { color: #1f6fe5; }
+            .mobile-today-pin {
+                position: sticky;
+                top: 0;
+                z-index: 3;
+                background: #eff5ff;
+                border: 1px solid #cfe0fb;
+                color: #1f4f8f;
+                border-radius: 8px;
+                padding: 5px 8px;
+                margin-bottom: 8px;
+                font-size: 0.78rem;
+                font-weight: 700;
+            }
+            /* 모바일은 조회 전용: 액션 패널 비노출 */
+            .schedule-compact-item .schedule-action-panel { display: none !important; }
         }
 
         /* 스크롤바 숨기기 (전자 칠판용 깔끔한 UI) */
@@ -77,7 +228,7 @@
                         </div>
                         <div class="col-sm-2">
                             <div class="form-check mt-1">
-                                <input class="form-check-input" type="checkbox" id="todayOnlyCheck" checked>
+                                <input class="form-check-input" type="checkbox" id="todayOnlyCheck">
                                 <label class="form-check-label small" for="todayOnlyCheck">오늘만</label>
                             </div>
                         </div>
@@ -94,7 +245,7 @@
                             <button class="btn btn-sm btn-outline-secondary" onclick="loadSchedules()">🔄 수동 갱신</button>
                         </div>
                     </div>
-                    <div class="card-body" id="scheduleBoard" style="max-height: 80vh; overflow-y: auto;">
+                    <div class="card-body" id="scheduleBoard" style="max-height: 80vh; max-height: 80dvh; overflow-y: auto;">
                         <div class="text-center text-muted py-5">
                             <div class="spinner-border text-primary" role="status"></div>
                             <p class="mt-3">현장 데이터를 불러오는 중입니다...</p>
@@ -136,16 +287,13 @@
                         <div class="mb-2">
                             <label class="form-label small mb-0">카테고리</label>
                             <select id="boardCategory" class="form-select form-select-sm">
-                                <option value="공사일정" selected>공사일정</option>
-                                <option value="(작업)">(작업)</option>
-                                <option value="점검">점검</option>
-                                <option value="자재입고">자재입고</option>
-                                <option value="현장답사">현장답사</option>
+                                <option value="공사 일정" selected>공사 일정</option>
+                                <option value="일반 작업">일반 작업</option>
                                 <option value="일정">일정</option>
                             </select>
                         </div>
                         <div class="input-group input-group-sm mb-2">
-                            <input id="boardLocation" class="form-control" placeholder="현장 위치 (생략 가능: (작업)·점검 등)">
+                            <input id="boardLocation" class="form-control" placeholder="현장 위치 (생략 가능: 일반 작업 등)">
                         </div>
                         <div class="mb-2">
                             <input id="boardTask" class="form-control form-control-sm mb-1" placeholder="작업/메모 제목">
@@ -171,17 +319,14 @@
                     <div class="small text-muted mb-2">현황판 수정은 즉시 반영되며 변경 이력이 저장됩니다.</div>
                     <input id="editScheduleId" class="form-control form-control-sm mb-2" readonly>
                     <input id="editDate" class="form-control form-control-sm mb-2" placeholder="날짜 (YYYY-MM-DD)">
-                    <input id="editLocation" class="form-control form-control-sm mb-2" placeholder="현장 위치 ((작업)·점검 등은 생략 가능)">
+                    <input id="editLocation" class="form-control form-control-sm mb-2" placeholder="현장 위치 (일반 작업·레거시 작업 카테고리는 생략 가능)">
                     <input id="editTask" class="form-control form-control-sm mb-2" placeholder="작업 내용">
                     <input id="editPerson" class="form-control form-control-sm mb-2" placeholder="담당자·작업 인원">
                     <textarea id="editDetails" rows="3" class="form-control form-control-sm mb-2" placeholder="상세 내용"></textarea>
                     <label class="form-label small mb-0">카테고리</label>
                     <select id="editCategory" class="form-select form-select-sm mb-2">
-                        <option value="공사일정">공사일정</option>
-                        <option value="(작업)">(작업)</option>
-                        <option value="점검">점검</option>
-                        <option value="자재입고">자재입고</option>
-                        <option value="현장답사">현장답사</option>
+                        <option value="공사 일정">공사 일정</option>
+                        <option value="일반 작업">일반 작업</option>
                         <option value="일정">일정</option>
                     </select>
                     <input id="editTags" class="form-control form-control-sm" placeholder="태그(쉼표 구분)">
@@ -202,10 +347,11 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="small text-muted mb-2">이름을 누르면 해당 일정의 담당·작업 인원에 추가됩니다. (관리자에서 현장직 목록을 편집할 수 있습니다.)</p>
+                    <p class="small text-muted mb-2">이름을 여러 개 선택한 뒤 추가 버튼을 누르면 담당·작업 인원에 일괄 반영됩니다.</p>
                     <div id="fieldStaffList" class="d-flex flex-wrap gap-2"></div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="appendSelectedFieldStaffToSchedule()">선택 인원 추가</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
                 </div>
             </div>
@@ -223,23 +369,38 @@
             return `${y}-${m}-${day}`;
         }
         const scheduleMap = new Map();
-        const memoCountBySchedule = new Map();
-        const linkedMemosBySchedule = new Map();
         let editRequestModal = null;
         let fieldStaffModal = null;
-        let scheduleBoardDragBound = false;
         const fieldStaffNameById = {};
-        let pendingReorderBuffer = [];
-        let isSavingReorder = false;
+        const selectedFieldStaffIds = new Set();
+        let fieldStaffTargetScheduleId = null;
 
+        const LEGACY_WORK_CATEGORIES = ['(작업)', '점검', '자재입고', '현장답사'];
         function isLocationOptionalCategory(cat) {
             const c = (cat || '').trim();
             if (!c) return false;
+            if (c === '일반 작업') return true;
             if (c.includes('(작업)')) return true;
-            return ['점검', '자재입고', '현장답사', '일정'].includes(c);
+            return [...LEGACY_WORK_CATEGORIES, '일정'].includes(c);
+        }
+
+        function displayCategoryLabel(category) {
+            const c = String(category || '').trim();
+            if (!c || c === '공사일정' || c === '공사 일정') return '공사 일정';
+            return c;
+        }
+
+        function isGeneralWorkCategory(category) {
+            const c = String(category || '').trim();
+            return c === '일반 작업'
+                || c === '(작업)'
+                || LEGACY_WORK_CATEGORIES.includes(c)
+                || c.includes('(작업)');
         }
 
         async function openFieldStaffModal(scheduleId) {
+            fieldStaffTargetScheduleId = Number(scheduleId);
+            selectedFieldStaffIds.clear();
             Object.keys(fieldStaffNameById).forEach((k) => delete fieldStaffNameById[k]);
             const box = document.getElementById('fieldStaffList');
             box.innerHTML = '<div class="text-muted small">불러오는 중...</div>';
@@ -258,28 +419,47 @@
                 }
                 box.innerHTML = rows.map((r) => {
                     fieldStaffNameById[r.id] = r.name;
-                    return `<button type="button" class="btn btn-sm btn-outline-primary">${escapeHtml(r.name)}</button>`;
+                    return `<button type="button" class="btn btn-sm btn-outline-primary" data-staff-id="${r.id}">${escapeHtml(r.name)}</button>`;
                 }).join('');
-                box.querySelectorAll('button').forEach((btn, idx) => {
-                    const id = rows[idx].id;
-                    btn.addEventListener('click', () => appendFieldStaffToSchedule(scheduleId, id));
+                box.querySelectorAll('button').forEach((btn) => {
+                    const id = Number(btn.getAttribute('data-staff-id'));
+                    btn.addEventListener('click', () => {
+                        if (selectedFieldStaffIds.has(id)) {
+                            selectedFieldStaffIds.delete(id);
+                            btn.classList.remove('btn-primary');
+                            btn.classList.add('btn-outline-primary');
+                        } else {
+                            selectedFieldStaffIds.add(id);
+                            btn.classList.remove('btn-outline-primary');
+                            btn.classList.add('btn-primary');
+                        }
+                    });
                 });
             } catch (e) {
                 box.innerHTML = '<div class="text-danger small">목록을 불러오지 못했습니다.</div>';
             }
         }
 
-        async function appendFieldStaffToSchedule(scheduleId, staffRowId) {
+        async function appendSelectedFieldStaffToSchedule() {
+            const scheduleId = Number(fieldStaffTargetScheduleId || 0);
             const item = scheduleMap.get(String(scheduleId));
-            const name = fieldStaffNameById[staffRowId];
-            if (!item || !name) return;
-            const raw = (item.person || '').trim();
-            const parts = raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
-            if (parts.includes(name)) {
-                showSaveToast('이미 포함된 인원입니다.', 'info');
+            if (!item) return;
+            const selectedNames = Array.from(selectedFieldStaffIds)
+                .map((id) => fieldStaffNameById[id])
+                .filter(Boolean);
+            if (selectedNames.length === 0) {
+                showSaveToast('추가할 인원을 선택하세요.', 'info');
                 return;
             }
-            const nextPerson = parts.length ? `${parts.join(', ')}, ${name}` : name;
+            const raw = (item.person || '').trim();
+            const parts = raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+            const uniqueNewNames = selectedNames.filter((name) => !parts.includes(name));
+            if (uniqueNewNames.length === 0) {
+                showSaveToast('선택한 인원이 이미 모두 포함되어 있습니다.', 'info');
+                return;
+            }
+            const merged = [...parts, ...uniqueNewNames];
+            const nextPerson = merged.join(', ');
             const tagsVal = normalizeTags(item.tags);
             const response = await fetch('/api/schedules/direct-update', {
                 method: 'POST',
@@ -292,10 +472,10 @@
                         task: item.task,
                         person: nextPerson,
                         details: item.details || '',
-                        category: item.category || '공사일정',
+                        category: item.category || '공사 일정',
                         tags: tagsVal,
                     },
-                    reason: '작업 인원 추가',
+                    reason: '작업 인원 일괄 추가',
                 }),
             });
             const result = await response.json();
@@ -304,8 +484,38 @@
                 return;
             }
             fieldStaffModal.hide();
-            showSaveToast('작업 인원이 반영되었습니다.', 'success');
+            showSaveToast(`${uniqueNewNames.length}명 작업 인원이 반영되었습니다.`, 'success');
             await loadSchedules();
+        }
+
+        function buildDateWindow(todayStr, pastDays = 3, futureDays = 7) {
+            const todayDate = new Date(`${todayStr}T00:00:00`);
+            const out = [];
+            for (let i = -pastDays; i <= futureDays; i++) {
+                const d = new Date(todayDate);
+                d.setDate(todayDate.getDate() + i);
+                out.push(formatLocalDateYYYYMMDD(d));
+            }
+            return out;
+        }
+
+        function statusLabelText(status) {
+            if (status === '야간작업') return '야간 작업';
+            return status || '사무실';
+        }
+
+        function formatReturnTime(untilTime) {
+            const raw = String(untilTime || '').trim();
+            if (!raw) return '';
+            const normalized = raw.replace(' ', 'T');
+            const dt = new Date(normalized);
+            if (!Number.isNaN(dt.getTime())) {
+                const hh = String(dt.getHours()).padStart(2, '0');
+                const mm = String(dt.getMinutes()).padStart(2, '0');
+                return `${hh}:${mm}`;
+            }
+            const matched = raw.match(/(\d{2}):(\d{2})/);
+            return matched ? `${matched[1]}:${matched[2]}` : raw;
         }
 
         async function ensureSession() {
@@ -360,91 +570,6 @@
             return { todayOnly, selectedDate, keyword };
         }
 
-        function buildReorderPayloadFromDOM() {
-            const groups = Array.from(document.querySelectorAll('.schedule-group'));
-            const items = [];
-            groups.forEach((group) => {
-                const date = group.getAttribute('data-date') || '';
-                const cards = Array.from(group.querySelectorAll('.schedule-item'));
-                cards.forEach((card, index) => {
-                    const id = Number(card.getAttribute('data-id'));
-                    if (id && date) {
-                        items.push({ schedule_id: id, date, display_order: index });
-                    }
-                });
-            });
-            return items;
-        }
-
-        function attachDragHandlers() {
-            const board = document.getElementById('scheduleBoard');
-            if (scheduleBoardDragBound) return;
-            scheduleBoardDragBound = true;
-            board.addEventListener('dragstart', (e) => {
-                const card = e.target.closest('.schedule-item');
-                if (!card) return;
-                card.classList.add('opacity-50');
-            });
-            board.addEventListener('dragend', (e) => {
-                const card = e.target.closest('.schedule-item');
-                if (!card) return;
-                card.classList.remove('opacity-50');
-                pendingReorderBuffer = buildReorderPayloadFromDOM();
-            });
-            board.addEventListener('dragover', (e) => {
-                let group = e.target.closest('.schedule-group');
-                if (!group) {
-                    const block = e.target.closest('.schedule-day-block');
-                    if (block) group = block.querySelector('.schedule-group');
-                }
-                if (!group) return;
-                e.preventDefault();
-                const dragging = board.querySelector('.schedule-item.opacity-50');
-                if (!dragging) return;
-                const afterElement = Array.from(group.querySelectorAll('.schedule-item:not(.opacity-50)')).find((child) => {
-                    const box = child.getBoundingClientRect();
-                    return e.clientY < box.top + box.height / 2;
-                });
-                if (afterElement) {
-                    group.insertBefore(dragging, afterElement);
-                } else {
-                    group.appendChild(dragging);
-                }
-            });
-            board.addEventListener('click', (e) => {
-                const card = e.target.closest('.schedule-item');
-                if (!card) return;
-                if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
-                document.querySelectorAll('.schedule-item.active').forEach((el) => {
-                    if (el !== card) el.classList.remove('active');
-                });
-                card.classList.toggle('active');
-            });
-        }
-
-        async function flushPendingReorder() {
-            if (isSavingReorder || pendingReorderBuffer.length === 0) return;
-            isSavingReorder = true;
-            try {
-                const response = await fetch('/api/schedules/reorder-batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ items: pendingReorderBuffer })
-                });
-                if (response.ok) {
-                    pendingReorderBuffer = [];
-                    showSaveToast('정렬 변경이 저장되었습니다.', 'success');
-                } else {
-                    showSaveToast('정렬 저장 실패: 잠시 후 자동 재시도합니다.', 'error');
-                }
-            } catch (e) {
-                console.error('정렬 저장 실패:', e);
-                showSaveToast('정렬 저장 실패: 네트워크 상태를 확인하세요.', 'error');
-            } finally {
-                isSavingReorder = false;
-            }
-        }
-
         function showSaveToast(message, type = 'info') {
             const el = document.getElementById('saveToast');
             el.textContent = message;
@@ -461,42 +586,13 @@
             }, 2200);
         }
 
-        function renderMemoCountsOnCards() {
-            const chips = Array.from(document.querySelectorAll('[data-memo-count-for]'));
-            chips.forEach((chip) => {
-                const scheduleId = Number(chip.getAttribute('data-memo-count-for'));
-                const count = memoCountBySchedule.get(scheduleId) || 0;
-                chip.textContent = `메모 ${count}`;
-            });
-        }
-
-        function renderLinkedMemosOnCards() {
-            const containers = Array.from(document.querySelectorAll('[data-linked-memos-for]'));
-            containers.forEach((container) => {
-                const scheduleId = Number(container.getAttribute('data-linked-memos-for'));
-                const linkedRows = linkedMemosBySchedule.get(scheduleId) || [];
-                if (linkedRows.length === 0) {
-                    container.innerHTML = '';
-                    return;
-                }
-                container.innerHTML = linkedRows.map((m) => `
-                    <div class="detail-text mt-2">
-                        <div class="d-flex justify-content-between align-items-start gap-2">
-                            <div>↳ ${escapeHtml(m.content || '')}</div>
-                            <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="삭제" onclick="deleteMemo(${m.id})">🗑</button>
-                        </div>
-                        <div class="small text-muted mt-1">${escapeHtml(m.last_actor_user || '-')}</div>
-                    </div>
-                `).join('');
-            });
-        }
-
         // [핵심] 일정 데이터 불러오기 함수
         async function loadSchedules() {
             const board = document.getElementById('scheduleBoard');
             const { todayOnly, selectedDate, keyword } = getScheduleFilters();
             const todayStr = formatLocalDateYYYYMMDD();
-                const queryDate = todayOnly ? todayStr : (selectedDate || '');
+            const queryDate = todayOnly ? todayStr : (selectedDate || '');
+            const prevActiveScheduleId = getActiveScheduleCardId();
 
             try {
                 // 백엔드 API 호출
@@ -513,13 +609,6 @@
                 scheduleMap.clear();
                 filteredRows.forEach((item) => scheduleMap.set(String(item.id), item));
 
-                if (filteredRows.length === 0) {
-                    board.innerHTML = '<div class="text-center text-muted py-5 fs-5">현재 등록된 일정이 없습니다.</div>';
-                    updateLastSyncTime();
-                    await Promise.all([loadWorkerStatus(), loadMemos()]);
-                    return;
-                }
-
                 // 1. 데이터를 날짜별로 그룹화
                 const groupedData = filteredRows.reduce((acc, item) => {
                     const dateKey = item.date || '날짜 미상';
@@ -527,92 +616,34 @@
                     acc[dateKey].push(item);
                     return acc;
                 }, {});
-
-                // 2. 날짜 오래된 순 정렬 (과거 -> 오늘 -> 미래)
-                const sortedDates = Object.keys(groupedData).sort((a, b) => a.localeCompare(b));
-
-                // 3. HTML 렌더링
-                let boardHTML = '';
-
-                sortedDates.forEach(date => {
-                    const dayName = getDayName(date);
-                    let headerClass = "text-secondary";
-                    let dateLabel = date;
-
-                    if (date === todayStr) {
-                        headerClass = "text-primary fw-bold fs-5";
-                        dateLabel = `${date} [오늘]`;
-                    }
-
-                    boardHTML += `<div class="schedule-day-block" data-date="${escapeHtml(date)}">`;
-                    boardHTML += `<h5 class="mt-4 mb-3 pb-2 border-bottom ${headerClass}">📅 ${escapeHtml(dateLabel)} ${dayName}</h5>`;
-                    boardHTML += `<div class="schedule-group" data-date="${escapeHtml(date)}">`;
-
-                    groupedData[date].forEach(item => {
-                        let colorClass = '';
-                        if (item.category && item.category.includes('완료')) colorClass = 'category-완료';
-                        if (item.category && item.category.includes('이슈')) colorClass = 'category-이슈';
-                        if (item.category && (item.category === '(작업)' || item.category.includes('(작업)'))) colorClass = 'category-작업';
-
-                        let tagList = [];
-                        if (item.tags) {
-                            tagList = typeof item.tags === 'string' ? item.tags.split(',') : item.tags;
-                        }
-
-                        const locHtml = item.location
-                            ? `<div class="schedule-location-muted mt-1">📍 ${escapeHtml(item.location)}</div>`
-                            : '';
-                        const personHtml = (item.person && String(item.person).trim() && item.person !== '-')
-                            ? `<div class="schedule-person-line mt-1"><span class="text-secondary">👷</span> ${escapeHtml(item.person)}</div>`
-                            : '';
-                        const cat = item.category || '기타';
-                        const safeTags = tagList.filter(t => t.trim() !== '').map((tag) => {
-                            const t = tag.trim();
-                            return `<span class="tag-badge tag-${t}">${escapeHtml(t)}</span>`;
-                        }).join('');
-
-                        boardHTML += `
-                            <div class="schedule-item ${colorClass} shadow-sm" draggable="true" data-id="${item.id}">
-                                <div class="d-flex justify-content-between align-items-start gap-2 mb-2 flex-wrap">
-                                    <div class="flex-grow-1" style="min-width:0;">
-                                        <div class="schedule-task-title">${escapeHtml(item.task || '내용 없음')}</div>
-                                        ${locHtml}
-                                        ${personHtml}
-                                    </div>
-                                    <div class="text-end flex-shrink-0">
-                                        <span class="id-chip">ID #${item.id}</span>
-                                        ${safeTags}
-                                        <span class="memo-chip ms-1" data-memo-count-for="${item.id}">메모 0</span>
-                                        <span class="badge bg-light text-dark border ms-1">${escapeHtml(cat)}</span>
-                                    </div>
-                                </div>
-                                ${item.details ? `<div class="detail-text">📝 ${escapeHtml(item.details)}</div>` : ''}
-                                <div class="linked-memo-list" data-linked-memos-for="${item.id}"></div>
-                                <div class="schedule-meta mt-2 d-flex justify-content-between align-items-center">
-                                    <span></span>
-                                    <span>🕒 등록: ${escapeHtml(item.created_at || '')}</span>
-                                </div>
-                                <div class="schedule-action-panel">
-                                    <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openFieldStaffModal(${item.id})">작업 인원 추가</button>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="openEditRequestById('${item.id}')">수정</button>
-                                        <button class="btn btn-sm btn-outline-danger" onclick="requestDeleteById('${item.id}')">삭제</button>
-                                    </div>
-                                    <div class="mt-2 d-flex gap-2">
-                                        <input id="scheduleMemoInput-${item.id}" class="form-control form-control-sm" placeholder="메모 작성">
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="saveScheduleMemo(${item.id})">메모 작성</button>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+                Object.keys(groupedData).forEach((dateKey) => {
+                    groupedData[dateKey].sort((a, b) => {
+                        const ap = categoryPriority(a.category);
+                        const bp = categoryPriority(b.category);
+                        if (ap !== bp) return ap - bp;
+                        return String(a.task || '').localeCompare(String(b.task || ''), 'ko');
                     });
-                    boardHTML += `</div></div>`;
                 });
 
+                let sortedDates = [];
+                if (todayOnly) {
+                    sortedDates = [todayStr];
+                } else if (selectedDate) {
+                    sortedDates = [selectedDate];
+                } else {
+                    sortedDates = buildDateWindow(todayStr, 7, 7);
+                }
+                Object.keys(groupedData).forEach((dateKey) => {
+                    if (!sortedDates.includes(dateKey)) sortedDates.push(dateKey);
+                });
+                sortedDates = sortedDates.sort((a, b) => a.localeCompare(b));
+
+                const boardHTML = isMobileViewport()
+                    ? renderMobileCalendar(sortedDates, groupedData, todayStr)
+                    : renderDesktopCalendar(sortedDates, groupedData, todayStr);
+
                 board.innerHTML = boardHTML;
-                attachDragHandlers();
-                renderMemoCountsOnCards();
-                renderLinkedMemosOnCards();
+                restoreActiveScheduleCard(prevActiveScheduleId);
                 updateLastSyncTime();
                 await Promise.all([loadWorkerStatus(), loadMemos()]);
 
@@ -629,6 +660,149 @@
             return String(rawTags).split(',').map((t) => t.trim()).filter(Boolean);
         }
 
+        function fullPersonLabel(personRaw) {
+            const raw = String(personRaw || '').trim();
+            if (!raw) return '';
+            const names = raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+            return names.join(', ');
+        }
+
+        function isMobileViewport() {
+            return window.matchMedia('(max-width: 768px)').matches;
+        }
+
+        function categoryPriority(category) {
+            const c = displayCategoryLabel(category || '').trim();
+            if (!c || c === '공사 일정') return 1;
+            if (c === '일반 작업') return 2;
+            if (c === '일정') return 3;
+            return 9;
+        }
+
+        function compactCategoryClass(category) {
+            const c = displayCategoryLabel(category || '').trim();
+            if (!c || c === '공사 일정') return 'cat-construction';
+            if (c === '일반 작업') return 'cat-general';
+            if (c === '일정') return 'cat-schedule';
+            return 'cat-general';
+        }
+
+        function renderCompactScheduleItem(item) {
+            const catClass = compactCategoryClass(item.category);
+            const personLine = fullPersonLabel(item.person);
+            const detailLine = String(item.details || '').trim();
+            return `
+                <div class="schedule-compact-item ${catClass}" data-id="${item.id}" title="${escapeHtml((item.location || '').trim())}">
+                    <div class="schedule-compact-task"><span class="schedule-category-dot ${catClass}"></span>${escapeHtml(item.task || '공사명 미기재')}</div>
+                    ${personLine ? `<div class="schedule-compact-person">👷 ${escapeHtml(personLine)}</div>` : ''}
+                    <div class="schedule-action-panel">
+                        ${detailLine ? `<div class="detail-text">📝 ${escapeHtml(detailLine)}</div>` : ''}
+                        <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openFieldStaffModal(${item.id})">작업 인원 추가</button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openEditRequestById('${item.id}')">수정</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); requestDeleteById('${item.id}')">삭제</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMobileCalendar(sortedDates, groupedData, todayStr) {
+            const todayCount = (groupedData[todayStr] || []).length;
+            let html = `<div class="mobile-today-pin">오늘 일정: ${todayCount}건</div>`;
+            sortedDates.forEach((date) => {
+                const dayName = getDayName(date);
+                const dayItems = groupedData[date] || [];
+                const todayClass = date === todayStr ? 'today' : '';
+                html += `<div class="mobile-day-block"><div class="mobile-day-title ${todayClass}"><span>📅 ${escapeHtml(date)} ${dayName}${date === todayStr ? ' [오늘]' : ''}</span><span class="day-count-badge">${dayItems.length}건</span></div>`;
+                if (dayItems.length === 0) {
+                    html += '<div class="calendar-empty-line">등록된 일정이 없습니다.</div>';
+                } else {
+                    dayItems.forEach((item) => {
+                        html += renderCompactScheduleItem(item);
+                    });
+                }
+                html += '</div>';
+            });
+            return html;
+        }
+
+        function renderDesktopCalendar(sortedDates, groupedData, todayStr) {
+            const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+            let html = '<div class="calendar-week-header">';
+            weekDays.forEach((d, idx) => {
+                const cls = idx === 0 ? 'sun' : (idx === 6 ? 'sat' : '');
+                html += `<div class="calendar-weekday ${cls}">${d}</div>`;
+            });
+            html += '</div>';
+
+            const firstDate = sortedDates[0];
+            const lastDate = sortedDates[sortedDates.length - 1];
+            const start = new Date(`${firstDate}T00:00:00`);
+            const end = new Date(`${lastDate}T00:00:00`);
+            start.setDate(start.getDate() - start.getDay());
+            end.setDate(end.getDate() + (6 - end.getDay()));
+            const visibleSet = new Set(sortedDates);
+
+            html += '<div class="calendar-grid">';
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const dateKey = formatLocalDateYYYYMMDD(d);
+                const dayIdx = d.getDay();
+                const inRange = visibleSet.has(dateKey);
+                const isToday = dateKey === todayStr;
+                const dayItems = groupedData[dateKey] || [];
+                const dayCls = dayIdx === 0 ? 'sun' : (dayIdx === 6 ? 'sat' : '');
+                const classes = `calendar-cell ${dayCls} ${inRange ? '' : 'out-range'} ${isToday ? 'today' : ''}`.trim();
+
+                html += `<div class="${classes}">`;
+                const count = inRange ? dayItems.length : 0;
+                html += `<div class="calendar-date-label"><span>${escapeHtml(dateKey)}${isToday ? ' [오늘]' : ''}</span><span class="day-count-badge">${count}건</span></div>`;
+                if (inRange) {
+                    if (dayItems.length === 0) {
+                        html += '<div class="calendar-empty-line">등록된 일정이 없습니다.</div>';
+                    } else {
+                        dayItems.forEach((item) => {
+                            html += renderCompactScheduleItem(item);
+                        });
+                    }
+                }
+                html += '</div>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function bindCompactItemActions() {
+            const board = document.getElementById('scheduleBoard');
+            board.addEventListener('click', (e) => {
+                if (isMobileViewport()) return;
+                const card = e.target.closest('.schedule-compact-item');
+                if (!card) return;
+                if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
+                document.querySelectorAll('.schedule-compact-item.active').forEach((el) => {
+                    if (el !== card) el.classList.remove('active');
+                });
+                card.classList.toggle('active');
+            });
+            window.addEventListener('resize', () => {
+                if (!isMobileViewport()) return;
+                document.querySelectorAll('.schedule-compact-item.active').forEach((el) => el.classList.remove('active'));
+            });
+        }
+
+        function getActiveScheduleCardId() {
+            const activeCard = document.querySelector('.schedule-compact-item.active');
+            if (!activeCard) return null;
+            const rawId = activeCard.getAttribute('data-id');
+            return rawId ? String(rawId) : null;
+        }
+
+        function restoreActiveScheduleCard(activeId) {
+            if (!activeId || isMobileViewport()) return;
+            const target = document.querySelector(`.schedule-compact-item[data-id="${activeId}"]`);
+            if (target) target.classList.add('active');
+        }
+
         function openEditRequestById(scheduleId) {
             const item = scheduleMap.get(String(scheduleId));
             if (!item) {
@@ -641,7 +815,7 @@
             document.getElementById('editTask').value = item.task || '';
             document.getElementById('editPerson').value = item.person || '';
             document.getElementById('editDetails').value = item.details || '';
-            document.getElementById('editCategory').value = item.category || '공사일정';
+            document.getElementById('editCategory').value = displayCategoryLabel(item.category || '공사 일정');
             document.getElementById('editTags').value = normalizeTags(item.tags).join(', ');
             editRequestModal.show();
         }
@@ -653,7 +827,7 @@
                 return;
             }
 
-            const catVal = document.getElementById('editCategory').value.trim() || '공사일정';
+            const catVal = document.getElementById('editCategory').value.trim() || '공사 일정';
             const payload = {
                 action: 'update',
                 schedule_id: scheduleId,
@@ -673,7 +847,7 @@
                 return;
             }
             if (!isLocationOptionalCategory(payload.schedule_data.category) && !payload.schedule_data.location) {
-                alert('현장 위치가 필요합니다. ((작업)·점검·자재입고·현장답사·일정 카테고리는 지역 생략 가능)');
+                alert('현장 위치가 필요합니다. (일반 작업·레거시 작업 카테고리·일정은 생략 가능)');
                 return;
             }
 
@@ -743,8 +917,11 @@
             }
             list.innerHTML = rows.map((row) => `
                 <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-                    <div><b>${row.user_name}</b> <span class="badge ${statusBadgeClass(row.status)} ms-1">${row.status}</span></div>
-                    <span class="text-muted small">${row.location || ''} ${row.until_time ? '(' + row.until_time + ')' : ''}</span>
+                    <div><b>${row.user_name}</b> <span class="badge status-badge-sm ${statusBadgeClass(row.status)} ms-1">${statusLabelText(row.status)}</span></div>
+                    <span class="text-muted small">
+                        ${escapeHtml(row.location || '')}
+                        ${row.status === '외출' && row.until_time ? `<span class="return-time-emphasis ms-1">복귀 시각: ${escapeHtml(formatReturnTime(row.until_time))}</span>` : ''}
+                    </span>
                 </li>
             `).join('');
         }
@@ -784,17 +961,6 @@
                 return;
             }
             const rows = data.data || [];
-            memoCountBySchedule.clear();
-            linkedMemosBySchedule.clear();
-            rows.forEach((row) => {
-                const linkedId = Number(row.linked_schedule_id || 0);
-                if (!linkedId) return;
-                memoCountBySchedule.set(linkedId, (memoCountBySchedule.get(linkedId) || 0) + 1);
-                if (!linkedMemosBySchedule.has(linkedId)) linkedMemosBySchedule.set(linkedId, []);
-                linkedMemosBySchedule.get(linkedId).push(row);
-            });
-            renderMemoCountsOnCards();
-            renderLinkedMemosOnCards();
             const generalMemos = rows.filter((m) => !m.linked_schedule_id);
             if (generalMemos.length === 0) {
                 memoList.innerHTML = '<div class="text-muted small">오늘 메모가 없습니다.</div>';
@@ -842,36 +1008,8 @@
             loadMemos();
         }
 
-        async function saveScheduleMemo(scheduleId) {
-            const input = document.getElementById(`scheduleMemoInput-${scheduleId}`);
-            if (!input) return;
-            const content = input.value.trim();
-            if (!content) {
-                alert('메모 내용을 입력하세요.');
-                return;
-            }
-            const payload = {
-                content,
-                memo_type: '일반',
-                visibility: 'all',
-                linked_schedule_id: Number(scheduleId)
-            };
-            const response = await fetch('/api/schedules/memos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                alert(data.detail || '메모 등록 실패');
-                return;
-            }
-            input.value = '';
-            await loadMemos();
-        }
-
         async function submitBoardTemplate() {
-            const cat = document.getElementById('boardCategory').value.trim() || '공사일정';
+            const cat = document.getElementById('boardCategory').value.trim() || '공사 일정';
             const loc = document.getElementById('boardLocation').value.trim();
             const task = document.getElementById('boardTask').value.trim();
             const actionType = document.getElementById('boardActionType').value;
@@ -881,7 +1019,7 @@
                     return;
                 }
                 if (!isLocationOptionalCategory(cat) && !loc) {
-                    alert('현장 위치를 입력하거나, (작업)·점검·자재입고·현장답사·일정 카테고리를 선택하세요.');
+                    alert('현장 위치를 입력하거나, 일반 작업·레거시 작업 카테고리·일정을 선택하세요.');
                     return;
                 }
             }
@@ -890,7 +1028,7 @@
                 date: document.getElementById('boardDate').value.trim() || null,
                 location: loc,
                 task: task,
-                person: '전자칠판',
+                person: '',
                 details: document.getElementById('boardDetails').value.trim(),
                 category: cat,
                 request_note: '',
@@ -918,6 +1056,7 @@
                 editRequestModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
                 fieldStaffModal = new bootstrap.Modal(document.getElementById('fieldStaffModal'));
                 updateHeaderDate();
+                bindCompactItemActions();
                 document.getElementById('todayOnlyCheck').addEventListener('change', () => {
                     const targetInput = document.getElementById('scheduleTargetDate');
                     const isTodayOnly = document.getElementById('todayOnlyCheck').checked;
@@ -933,23 +1072,10 @@
                 loadSchedules();
 
                 // 30초(30000ms)마다 백그라운드에서 자동으로 데이터 갱신
-                setInterval(loadSchedules, 30000);
+                setInterval(loadSchedules, 60000);
 
                 // 날짜가 자정을 넘기면 헤더의 날짜도 바뀌도록 1시간마다 날짜 체크
                 setInterval(updateHeaderDate, 3600000);
-                setInterval(flushPendingReorder, 20000);
-                window.addEventListener('beforeunload', () => {
-                    if (pendingReorderBuffer.length === 0) return;
-                    navigator.sendBeacon(
-                        '/api/schedules/reorder-batch',
-                        new Blob([JSON.stringify({ items: pendingReorderBuffer })], { type: 'application/json' })
-                    );
-                });
-                document.addEventListener('visibilitychange', () => {
-                    if (document.visibilityState === 'hidden') {
-                        flushPendingReorder();
-                    }
-                });
             });
         };
     </script>

@@ -9,6 +9,8 @@
         body { background:#0b1f3a; color:#fff; font-family:'Malgun Gothic',sans-serif; }
         .panel { background:#102b4e; border-radius:14px; padding:16px; }
         .item { background:#173a67; border-radius:10px; padding:12px; margin-bottom:10px; }
+        .item.item-construction { background:#0f4aa0; border-left:4px solid #7eb2ff; }
+        .item.item-general { background:#173a67; border-left:4px solid #6f7f95; }
         .memo-chip {
             display: inline-block;
             font-size: 0.75rem;
@@ -88,15 +90,12 @@
                 </select>
                 <label class="form-label small mb-0 text-white-50">카테고리</label>
                 <select id="templateCategory" class="form-select form-select-sm mb-2 kiosk-input">
-                    <option value="공사일정" selected>공사일정</option>
-                    <option value="(작업)">(작업)</option>
-                    <option value="점검">점검</option>
-                    <option value="자재입고">자재입고</option>
-                    <option value="현장답사">현장답사</option>
+                    <option value="공사 일정" selected>공사 일정</option>
+                    <option value="일반 작업">일반 작업</option>
                     <option value="일정">일정</option>
                 </select>
                 <input id="date" class="form-control form-control-sm mb-2 kiosk-input" type="date">
-                <input id="location" class="form-control form-control-sm mb-2 kiosk-input" placeholder="현장 위치 (일부 카테고리는 생략 가능)">
+                <input id="location" class="form-control form-control-sm mb-2 kiosk-input" placeholder="현장 위치 (일반 작업·레거시 작업 카테고리는 생략 가능)">
                 <input id="task" class="form-control form-control-sm mb-2 kiosk-input" placeholder="작업/메모 제목">
                 <textarea id="details" class="form-control form-control-sm mb-2 kiosk-input" rows="2" placeholder="상세 내용"></textarea>
                 <div class="row g-2 mb-2">
@@ -147,10 +146,24 @@
         return `${y}-${m}-${day}`;
     }
 
+    const LEGACY_WORK_CATEGORIES = ['(작업)', '점검', '자재입고', '현장답사'];
+    function displayCategoryLabel(category) {
+        const c = String(category || '').trim();
+        if (!c || c === '공사일정' || c === '공사 일정') return '공사 일정';
+        return c;
+    }
+    function isGeneralWorkCategory(category) {
+        const c = String(category || '').trim();
+        return c === '일반 작업'
+            || c === '(작업)'
+            || LEGACY_WORK_CATEGORIES.includes(c)
+            || c.includes('(작업)');
+    }
     function isLocationOptionalCategory(cat) {
         const c = (cat || '').trim();
+        if (c === '일반 작업') return true;
         if (c.includes('(작업)')) return true;
-        return ['점검', '자재입고', '현장답사', '일정'].includes(c);
+        return [...LEGACY_WORK_CATEGORIES, '일정'].includes(c);
     }
 
     function setSubmitStatus(type, text) {
@@ -173,9 +186,9 @@
             date: document.getElementById('date').value.trim() || null,
             location: document.getElementById('location').value.trim(),
             task: document.getElementById('task').value.trim(),
-            person: '전자칠판',
+            person: '',
             details: document.getElementById('details').value.trim(),
-            category: document.getElementById('templateCategory').value.trim() || '공사일정',
+            category: document.getElementById('templateCategory').value.trim() || '공사 일정',
             request_note: '',
             schedule_id: null
         };
@@ -197,13 +210,15 @@
         if (!res.ok) { list.innerHTML = '<div class="item">조회 실패</div>'; return; }
         const rows = data.data || [];
         list.innerHTML = rows.map(r => {
+            const cardClass = isGeneralWorkCategory(r.category) ? 'item-general' : 'item-construction';
+            const categoryLabel = displayCategoryLabel(r.category || '공사 일정');
             const loc = r.location ? `<div class="small text-white-50 mt-1">📍 ${r.location}</div>` : '';
             return `
-            <div class="item" data-schedule-id="${r.id}" onclick="toggleItemPanel(event, this)">
+            <div class="item ${cardClass}" data-schedule-id="${r.id}" onclick="toggleItemPanel(event, this)">
                 <div class="d-flex justify-content-between align-items-start gap-2">
                     <div>
                         <div class="fw-bold fs-5">${r.task || '제목 없음'}</div>
-                        <div class="small text-white-50">${r.date} · ${r.category || '공사일정'}</div>
+                        <div class="small text-white-50">${r.date} · ${categoryLabel}</div>
                         ${loc}
                     </div>
                     <span class="memo-chip" data-memo-count-for="${r.id}">메모 0</span>
@@ -267,8 +282,8 @@
     async function editScheduleDirect(scheduleId) {
         const date = prompt('날짜(YYYY-MM-DD)를 입력하세요.');
         if (!date) return;
-        const category = prompt('카테고리 (공사일정, (작업), 점검, 자재입고, 현장답사, 일정)', '공사일정') || '공사일정';
-        const location = prompt('현장 위치 ((작업)·점검 등은 비워도 됨)') || '';
+        const category = prompt('카테고리 (공사 일정, 일반 작업, 일정)', '공사 일정') || '공사 일정';
+        const location = prompt('현장 위치 (일반 작업/레거시 작업 카테고리는 비워도 됨)') || '';
         if (!isLocationOptionalCategory(category) && !location.trim()) {
             alert('현장 위치를 입력하거나, 지역 생략 가능한 카테고리를 선택하세요.');
             return;
@@ -285,7 +300,7 @@
                     date,
                     location,
                     task,
-                    person: '전자칠판',
+                    person: '',
                     details,
                     tags: [],
                     category
@@ -323,6 +338,25 @@
 
     function userDataAttr(userName) {
         return encodeURIComponent(String(userName || ''));
+    }
+
+    function statusLabelText(status) {
+        if (status === '야간작업') return '야간 작업';
+        return status || '사무실';
+    }
+
+    function formatReturnTime(untilTime) {
+        const raw = String(untilTime || '').trim();
+        if (!raw) return '';
+        const normalized = raw.replace(' ', 'T');
+        const dt = new Date(normalized);
+        if (!Number.isNaN(dt.getTime())) {
+            const hh = String(dt.getHours()).padStart(2, '0');
+            const mm = String(dt.getMinutes()).padStart(2, '0');
+            return `${hh}:${mm}`;
+        }
+        const matched = raw.match(/(\d{2}):(\d{2})/);
+        return matched ? `${matched[1]}:${matched[2]}` : raw;
     }
 
     async function postWorkerStatus(body) {
@@ -388,8 +422,11 @@
             return `
             <div class="item">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-                    <span><b>${r.user_name}</b> <span class="badge bg-light text-dark">${r.status}</span></span>
-                    <span class="small">${r.location || ''} ${r.until_time ? '(' + r.until_time + ')' : ''}</span>
+                    <span><b>${r.user_name}</b> <span class="badge bg-light text-dark">${statusLabelText(r.status)}</span></span>
+                    <span class="small">
+                        ${r.location || ''}
+                        ${r.status === '외출' && r.until_time ? `<span class="fw-bold text-warning ms-1">복귀 시각: ${formatReturnTime(r.until_time)}</span>` : ''}
+                    </span>
                 </div>
                 <div class="btn-group btn-group-sm w-100" role="group">
                     <button type="button" class="btn btn-success" data-user="${du}" onclick="quickRowStatusFromBtn(this,'사무실')">사무실</button>
@@ -488,14 +525,14 @@
                 return;
             }
             if (!isLocationOptionalCategory(payload.category) && !payload.location) {
-                alert('현장 위치를 입력하거나, (작업)·점검 등 카테고리를 선택하세요.');
+                alert('현장 위치를 입력하거나, 일반 작업·레거시 작업 카테고리를 선택하세요.');
                 return;
             }
         }
         pendingTemplatePayload = payload;
         const summaryRows = [
             `<div class="confirm-item"><b>유형</b>: ${actionTypeLabel(payload.action_type)}</div>`,
-            `<div class="confirm-item"><b>카테고리</b>: ${payload.category || '공사일정'}</div>`,
+            `<div class="confirm-item"><b>카테고리</b>: ${displayCategoryLabel(payload.category || '공사 일정')}</div>`,
             `<div class="confirm-item"><b>날짜</b>: ${payload.date || '오늘'}</div>`,
             `<div class="confirm-item"><b>위치</b>: ${payload.location || '-'}</div>`,
             `<div class="confirm-item"><b>제목</b>: ${payload.task || '-'}</div>`

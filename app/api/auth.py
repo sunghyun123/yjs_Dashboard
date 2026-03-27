@@ -1,3 +1,5 @@
+import sqlite3
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
@@ -13,21 +15,42 @@ db = DBManager(db_path=settings.sqlite_db_path)
 class LoginRequest(BaseModel):
     user_id: str = Field(..., description="사내 계정 ID")
     password: str = Field(..., description="비밀번호")
-    register_code: str = Field(..., description="등록 코드")
+    register_code: str = Field(default="", description="(하위호환) 미사용")
     device_name: str = Field(default="unknown-device", description="기기 식별 이름")
+
+class SignupRequest(BaseModel):
+    user_name: str = Field(..., description="사용자 이름")
+    user_id: str = Field(..., description="새 계정 ID")
+    password: str = Field(..., description="비밀번호")
+
+class FindAccountRequest(BaseModel):
+    user_name: str = Field(..., description="사용자 이름")
 
 
 @router.post("/login")
 def login(request: LoginRequest, response: Response):
     user = db.get_user_by_id(request.user_id)
+
+    # 운영 중 DB 이관/초기화 상태에서도 기본 관리자 계정(admin/1234)으로 진입 가능하도록 보정
+    if not user and request.user_id == "admin" and request.password == "1234":
+        db.create_user(
+            user_name="관리자",
+            user_id="admin",
+            password="1234",
+            role="admin",
+            register_code="",
+        )
+        user = db.get_user_by_id(request.user_id)
+
     if not user:
         raise HTTPException(status_code=401, detail="계정 정보가 올바르지 않습니다.")
 
-    if user["password_hash"] != hash_password(request.password):
+    hashed_input = hash_password(request.password)
+    password_hash = (user.get("password_hash") or "").strip()
+    password_plain = user.get("password_plain") or ""
+    password_ok = (password_hash and password_hash == hashed_input) or (password_plain and password_plain == request.password)
+    if not password_ok:
         raise HTTPException(status_code=401, detail="계정 정보가 올바르지 않습니다.")
-
-    if user["register_code"] != request.register_code:
-        raise HTTPException(status_code=403, detail="미등록 기기입니다.")
 
     session_id = create_session(db, user_id=request.user_id, device_name=request.device_name)
     response.set_cookie(
@@ -38,6 +61,35 @@ def login(request: LoginRequest, response: Response):
         max_age=SESSION_TTL_DAYS * 24 * 60 * 60,
     )
     return {"message": "로그인 성공", "user_id": request.user_id, "role": user["role"]}
+
+
+@router.post("/signup")
+def signup(request: SignupRequest):
+    try:
+        db.create_user(
+            user_name=request.user_name,
+            user_id=request.user_id,
+            password=request.password,
+            role="worker",
+            register_code="",
+        )
+        return {"status": "success", "message": "신규 사용자가 등록되었습니다."}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="이미 사용 중인 아이디입니다.")
+
+
+@router.post("/find-account")
+def find_account(request: FindAccountRequest):
+    row = db.get_user_by_name((request.user_name or "").strip())
+    if not row:
+        raise HTTPException(status_code=404, detail="등록된 계정 정보가 없습니다.")
+    return {
+        "status": "success",
+        "user_id": row["user_id"],
+        "password": row.get("password_plain") or "",
+    }
 
 
 @router.post("/logout")

@@ -1,164 +1,169 @@
-# yjs_Dashboard 저장소 전체 기획안
+# yjs_Dashboard 아키텍처 문서 (현재 구현 기준)
 
-## 1. 제품 목적 (한 줄)
+## 1. 제품 목적
 
-**현장 작업자가 자연어(채팅)로 일정을 등록·수정·삭제·조회하고, 작업일지 등 이미지를 업로드하면 AI가 분류·추출해 파일로 저장하며, 상황판 HTML이 SQLite 일정을 주기적으로 갱신해 보여주는 내부용 웹 앱.**
+현장 사용자가 채팅/상황판/전자칠판으로 일정을 운영하고, 수정·삭제 요청은 관리자 승인 큐 또는 즉시 반영 경로로 처리하며, 이미지 업로드/일일 내보내기까지 단일 FastAPI + SQLite 앱에서 운영한다.
 
 ---
 
 ## 2. 기술 스택
 
+| 구분 | 선택 |
+| --- | --- |
+| 백엔드 | Python, FastAPI, Pydantic v2, `pydantic-settings` |
+| DB | SQLite (`DATABASE_URL` 기반, 기본 `schedule.db`) |
+| 프론트 | 정적 HTML + Bootstrap CDN + 인라인 JS (`index.html`, `dashboard.html`, `board.html`, `admin.html`) |
+| AI | Google GenAI (`app/services/ai_service.py`, `app/services/vision_ai_service.py`) |
+| 배치 | FastAPI `lifespan` + `daily_export_loop` (1시간 주기 전일 내보내기 점검) |
 
-| 구분  | 선택                                                                                                                                                                                                                                                                                             |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 백엔드 | Python, **FastAPI**, Pydantic v2, `pydantic-settings`                                                                                                                                                                                                                                          |
-| DB  | **SQLite** (`schedule.db`), `sqlite3` 직접 사용                                                                                                                                                                                                                                                    |
-| AI  | **Google GenAI** (`google.genai`), 모델명 `gemini-3-flash-preview` ([`app/services/ai_service.py`](../app/services/ai_service.py), [`app/services/vision_ai_service.py`](../app/services/vision_ai_service.py)) |
-| 프론트 | 루트의 **정적 HTML** + Bootstrap 5 CDN + 인라인 JS ([`index.html`](../index.html), [`dashboard.html`](../dashboard.html))                                                                                            |
-| 기타  | 비전 업로드 후 **pandas**로 xlsx 저장 ([`app/api/vision.py`](../app/api/vision.py))                                                                                                                                                                                |
-
-
-앱 진입점은 **저장소 루트의** [`main.py`](../main.py)입니다 (주석에는 `app/main.py`로 적혀 있으나 실제 파일 위치는 루트).
+앱 진입점은 저장소 루트의 `main.py`.
 
 ---
 
-## 3. 디렉터리·역할 맵 (수정할 때 찾기 쉬운 표)
+## 3. 시스템 구성
 
+### 3.1 주요 파일 역할
 
-| 경로                                                                                                                   | 역할                                                          |
-| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| [`main.py`](../main.py)                                                     | FastAPI 앱 생성, CORS, 라우터 마운트, `/`·`/dashboard.html` 정적 파일 서빙 |
-| [`app/api/schedules.py`](../app/api/schedules.py)                           | 일정 API: `/chat`, `/execute`, `/today`                       |
-| [`app/api/vision.py`](../app/api/vision.py)                                 | 이미지 업로드·분석·`자동화_데이터/` 저장                                    |
-| [`app/db/db_manager.py`](../app/db/db_manager.py)                           | `field_schedules` 테이블 CRUD/검색, 마이그레이션성 `ALTER`              |
-| [`app/services/ai_service.py`](../app/services/ai_service.py)               | 자연어 → 의도·JSON 스키마 (`ActionSchema`, `ScheduleSchema`)        |
-| [`app/services/vision_ai_service.py`](../app/services/vision_ai_service.py) | 이미지 → 문서종류·ERP용 필드 JSON                                     |
-| [`app/core/config.py`](../app/core/config.py)                               | `.env` 기반 설정 (`GEMINI_API_KEY`, `DATABASE_URL`)             |
-| [`index.html`](../index.html)                                               | 채팅 UI, `/api/schedules/`*, `/api/vision/upload` 호출          |
-| [`dashboard.html`](../dashboard.html)                                       | 상황판 UI, `/api/schedules/today` 폴링(30초)                      |
-| `schedule.db`                                                                                                        | 런타임 SQLite (`.gitignore`에 `*.db`)                           |
-| `자동화_데이터/`                                                                                                           | 비전 파이프라인 결과물(문서종류별 폴더, xlsx·원본 이미지)                         |
+| 경로 | 역할 |
+| --- | --- |
+| `main.py` | 앱 생성, CORS/TrustedHost, 라우터 등록, 정적 페이지 서빙, 백그라운드 루프 |
+| `app/api/auth.py` | 로그인/회원가입/계정찾기/로그아웃/세션조회 |
+| `app/api/schedules.py` | 일정·메모·상태·전자칠판 템플릿·즉시 수정/삭제·정렬 저장 |
+| `app/api/admin.py` | 관리자 요청 큐 조회/승인·감사로그 조회·현장직 관리·수동 내보내기 |
+| `app/api/vision.py` | 이미지 업로드/분석/카테고리 저장 |
+| `app/db/db_manager.py` | 스키마 초기화, CRUD, 관리자 큐, 감사로그, 상태/메모, 내보내기 이력 |
+| `index.html` | 채팅 입력 화면(로그인 포함) |
+| `dashboard.html` | 일반 상황판(조회/즉시 수정삭제/드래그 정렬/메모/보드 템플릿) |
+| `board.html` | 전자칠판 터치 화면(상태 변경, 템플릿 전송, 즉시 수정삭제) |
+| `admin.html` | 관리자 승인/반려/감사로그/현장직/내보내기 |
 
+### 3.2 런타임 라우팅
 
-`app/` 아래에 `__init__.py`가 없어도 Python 3에서 패키지로 import 되는 환경에서 동작하도록 구성된 형태입니다.
-
----
-
-## 4. 엔드포인트 요약
-
-
-| Method | Path                     | 처리 모듈          | 설명                                           |
-| ------ | ------------------------ | -------------- | -------------------------------------------- |
-| GET    | `/`                      | `main.py`      | `index.html`                                 |
-| GET    | `/dashboard.html`        | `main.py`      | `dashboard.html`                             |
-| POST   | `/api/schedules/chat`    | `schedules.py` | Gemini 의도 분석 + (필요 시) DB 후보 검색, **DB 변경 없음** |
-| POST   | `/api/schedules/execute` | `schedules.py` | 사용자 확인 후 create/update/delete **실제 반영**      |
-| GET    | `/api/schedules/today`   | `schedules.py` | 상황판용 일정 목록 (최대 50건)                          |
-| POST   | `/api/vision/upload`     | `vision.py`    | 이미지 분석 후 디스크 저장                              |
-
-
-OpenAPI는 FastAPI 기본 (`/docs` 등)으로 노출 가능.
+- 페이지: `/`, `/dashboard.html`, `/board.html`, `/admin.html`
+- API: `/api/auth/*`, `/api/schedules/*`, `/api/admin/*`, `/api/vision/*`
 
 ---
 
-## 4.1 앱 라이프사이클/백그라운드 작업
+## 4. 핵심 데이터 흐름
 
-- 앱 생명주기는 FastAPI `lifespan`으로 관리한다 ([`main.py`](../main.py)).
-- 시작 시 `daily_export_loop` 백그라운드 태스크를 생성해 전일 업로드 필요 여부를 주기 점검한다.
-- 종료 시 해당 태스크를 cancel하고 `CancelledError`를 안전하게 무시해 정상 종료한다.
-
----
-
-## 5. 데이터·제어 흐름 (다이어그램)
-
-```mermaid
-flowchart LR
-  subgraph client [Browser]
-    idx[index.html]
-    dash[dashboard.html]
-  end
-  subgraph api [FastAPI main.py]
-    sch[schedules router]
-    vis[vision router]
-  end
-  subgraph services [Services]
-    gem_txt[GeminiService]
-    gem_vis[VisionService]
-  end
-  subgraph data [Persistence]
-    sqlite[(schedule.db)]
-    fs[자동화_데이터]
-  end
-  idx -->|POST chat execute vision| sch
-  idx -->|POST upload| vis
-  dash -->|GET today| sch
-  sch --> gem_txt
-  sch --> sqlite
-  vis --> gem_vis
-  vis --> fs
-```
-
-
-
-**대화형 일정(V2) 패턴:** `chat`에서 `intent`·`candidates`·`schedule_data`만 돌려주고, 사용자가 카드에서 확인하면 `execute`로 한 번 더 호출해 DB를 바꿉니다. 삭제는 후보의 `id`로 `delete_schedule_by_id`를 호출합니다.
+1. 사용자가 `index.html`에서 로그인 후 채팅 입력
+2. `/api/schedules/chat`이 카테고리 기반 라우팅
+   - `memo`: 즉시 메모 저장
+   - `other`, `update_request`, `delete_request`: 관리자 큐 접수
+   - `schedule_create`, `general_work`: AI 분석 후 등록 후보 반환
+3. 사용자가 확인 시 `/api/schedules/execute`
+   - `create`: 즉시 `field_schedules` 반영
+   - `update/delete`: 관리자 큐 접수
+4. 관리자 `admin.html`에서 `/api/admin/requests/review`로 승인/반려
+5. 상황판/전자칠판은 별도로 `/api/schedules/direct-update`, `/api/schedules/direct-delete` 경로로 즉시 반영 가능하며 `audit_events`에 이력 저장
 
 ---
 
-## 6. 데이터 모델
+## 5. API 요약 (현재 동작 기준)
 
-### 6.1 SQLite `field_schedules` (`db_manager._init_db` in [`app/db/db_manager.py`](../app/db/db_manager.py))
+### 5.1 인증 (`/api/auth`)
 
-- `id`, `date`, `location`, `task`, `person`, `details`, `tags`, `category`, `created_at`
-- **Upsert 규칙:** 동일 `(date, location)`이 있으면 UPDATE, 없으면 INSERT (`upsert_schedule`)
+- `POST /login`, `POST /signup`, `POST /find-account`, `POST /logout`, `GET /me`
+- 세션 쿠키: `yjs_session_id` (HttpOnly)
+- 초기 관리자 부트스트랩: `admin / 1234`
 
-### 6.2 AI가 다루는 일정 스키마 (`ScheduleSchema` in [`app/services/ai_service.py`](../app/services/ai_service.py))
+### 5.2 일정/메모/상태 (`/api/schedules`)
 
-- 날짜·위치·작업·담당·상세·태그 리스트·카테고리(공사일정/이슈보고/일반메모 등)
+- 채팅/실행: `POST /chat`, `POST /execute`
+- 조회: `GET /today` (`date` 없으면 과거3+오늘+미래7 윈도우)
+- 메모: `POST /memos`, `GET /memos`, `DELETE /memos/{memo_id}`
+- 외출/야간/사무실: `POST /worker-status`, `GET /worker-status`, `DELETE /worker-status/{user_name}`
+- 전자칠판 템플릿: `POST /board/template-action`
+- 즉시 반영: `POST /direct-update`, `POST /direct-delete`
+- 드래그 저장: `POST /reorder-batch`
+- 현장직 조회: `GET /field-staff`
 
-### 6.3 비전 분석 스키마 (`AnalysisResult` in [`app/services/vision_ai_service.py`](../app/services/vision_ai_service.py))
+### 5.3 관리자 (`/api/admin`)
 
-- 문서 종류, 공사명/코드, 작업일, 야간 여부, 인원·장비 수치 등 → 작업일지인 경우 xlsx 한 행으로 변환
+- 요청 큐: `GET /requests`, `GET /requests/{request_id}/candidates`, `POST /requests/review`
+- 감사로그: `GET /audit-events`
+- 현장직 관리: `POST /field-staff`, `DELETE /field-staff/{staff_id}`
+- 내보내기: `POST /export/daily`
 
----
+### 5.4 비전 (`/api/vision`)
 
-## 7. 환경 변수 ([`app/core/config.py`](../app/core/config.py))
-
-- **필수:** `GEMINI_API_KEY`, `DATABASE_URL` (Pydantic Settings 상 필수 필드로 선언됨)
-- **실사용:** 일정 경로는 `DATABASE_URL`에서 파생된 SQLite 경로를 사용한다 (예: `sqlite:///schedule.db`).
-
-`.env`는 [`.gitignore`](../.gitignore)에 포함.
-
----
-
-## 8. 프론트엔드와 API 계약 (개조 시 체크포인트)
-
-- [`index.html`](../index.html): `POST /api/schedules/chat` body `{ text }`; `POST /api/schedules/execute` body `{ action, schedule_data?, schedule_id? }`; `POST /api/vision/upload` `FormData` 필드명 `file`.
-- [`dashboard.html`](../dashboard.html): `GET /api/schedules/today` → 응답의 `data` 배열을 날짜별 그룹으로 렌더. 우측 “외출/행선표”, “이달의 공지”는 **하드코딩 HTML**이라 API와 무관.
-
----
-
-## 9. 현재 코드베이스 특이사항·기술 부채 (개조 전에 알면 좋은 것)
-
-1. **`get_todays_schedules`의 쿼리 파라미터 `date`**: 라우터는 `date`를 넘기지만, [`get_all_schedules_desc`](../app/db/db_manager.py)는 SQL에서 `target_date`를 **사용하지 않음** (주석에도 “날짜 필터 없음”). “오늘만 보기” 등을 원하면 DB 레이어·API를 맞춰야 함.
-2. **CORS `allow_origins=["*"]`**: 배포 시 보안·도메인 정책을 다시 잡을 여지가 있음 ([`main.py`](../main.py)).
-3. **의존성 목록**: 루트에 `requirements.txt`를 두고 배포 환경을 고정하는 것을 권장.
+- `POST /upload` (카테고리 업로드 또는 AI 문서 분석/저장)
 
 ---
 
-## 10. “이 방향으로 바꿀 때” 빠른 찾기 가이드
+## 6. DB 스키마 핵심
 
+### 6.1 주요 테이블
 
-| 바꾸고 싶은 것             | 우선 볼 파일                                                                                                                                                                                                    |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AI 말투·의도 분류·필드 정의    | [`app/services/ai_service.py`](../app/services/ai_service.py) (시스템 프롬프트, `ActionSchema` / `ScheduleSchema`)                                                       |
-| 일정 API URL·검증·응답 형식  | [`app/api/schedules.py`](../app/api/schedules.py)                                                                                                                 |
-| 테이블 스키마·쿼리·Upsert 규칙 | [`app/db/db_manager.py`](../app/db/db_manager.py)                                                                                                                 |
-| 이미지 분류·추출 필드·저장 규칙   | [`app/services/vision_ai_service.py`](../app/services/vision_ai_service.py), [`app/api/vision.py`](../app/api/vision.py) |
-| 채팅/상황판 UI·폴링 주기      | [`index.html`](../index.html), [`dashboard.html`](../dashboard.html)                                                     |
-| 라우트 추가·CORS·정적 경로    | [`main.py`](../main.py)                                                                                                                                           |
-| 환경 변수·배포 설정          | [`app/core/config.py`](../app/core/config.py) + `.env`                                                                                                            |
+- `field_schedules`
+- `users`, `sessions`
+- `admin_requests`
+- `memo_items`
+- `worker_status`
+- `audit_events`
+- `photo_uploads`
+- `field_staff`
+- `export_jobs`
 
-이 문서는 저장소의 아키텍처·기술 부채 지도로 유지합니다. 동작이나 경로가 크게 바뀌면 함께 갱신하세요.
+### 6.2 운영 규칙
+
+- 일정 삭제는 소프트 삭제(`deleted_at`, `deleted_by`, `delete_reason`)
+- 마지막 변경자 추적(`last_actor_user`, `last_actor_device`, `last_actor_at`)
+- 즉시 수정/삭제는 `audit_events`에 before/after 저장
+- 외출 상태는 조회 시 자동복귀 처리(`until_time` 경과 시 `사무실`)
+- `일반 작업`/레거시 작업 카테고리는 날짜+위치 병합을 건너뛰고 신규 행으로 저장
+
+---
+
+## 7. 프론트엔드 계약 포인트
+
+- `index.html`
+  - 입력 카테고리: `schedule_create`, `general_work`, `memo`, `other`
+  - `general_work` 선택 시 백엔드에서 `category="일반 작업"` 강제
+  - 모바일 레이아웃 보완(`100dvh`, `max-width: 768px` 대응)
+- `dashboard.html`
+  - `오늘만` 해제 시 기본 윈도우 조회, 체크 시 특정 날짜 조회
+  - 일정 카드 인라인 즉시 수정/삭제 + 일정 귀속 메모
+  - 카드 드래그 후 배치 저장(`reorder-batch`)
+  - 외출 영역은 조회 중심(상태 변경은 전자칠판 경로 권장)
+- `board.html`
+  - 카테고리 기본: `공사일정`, `일반 작업`, `일정`
+  - 위치 생략 허용: `일반 작업` + 레거시 작업 카테고리 하위호환
+  - 상태 항목 삭제 및 일정 즉시 수정/삭제 제공
+
+---
+
+## 8. 앱 라이프사이클/배치
+
+- FastAPI `lifespan`에서 `daily_export_loop` 시작
+- 1시간마다 전일 내보내기 필요 여부 점검
+- 종료 시 태스크 취소 후 안전 종료
+
+---
+
+## 9. 11.18 신규 지시사항 반영 상태 (현재 코드 기준)
+
+### 9.1 완료된 항목
+
+- 카테고리 통합: 전자칠판/상황판 템플릿에 `일반 작업` 반영, 레거시 카테고리 하위호환 처리
+- 채팅 카테고리 확장: `index.html`에 `general_work` 추가, 서버에서 `category="일반 작업"` 강제
+- 담당자 기본값: 신규 등록 시 `person` 기본 공란 정책 반영
+- 모바일 반응형: `index.html`, `dashboard.html`에 모바일 스타일/`100dvh` 대응 반영
+
+### 9.2 확인 결과
+
+- 문서 기준 “일반 작업 통합” 핵심 요구사항은 코드에 반영됨.
+- 검증 기준(실기기 해상도별 UI 최종 QA, 운영 데이터 마이그레이션 검증)은 수동 점검이 필요함.
+
+---
+
+## 10. 현재 기술 부채/주의사항
+
+1. 초기 적응 모드 정책으로 `users.password_plain`을 보관 중(운영 보안 강화 단계에서 제거 필요)
+2. `ALLOWED_ORIGINS=*`, `ALLOWED_HOSTS=*` 사용 시 운영 배포에서 제한값으로 전환 필요
+3. SQLite 단일 파일 구조 특성상 고동시성 환경에는 한계
+
+이 문서는 “현재 구현 기준”으로 유지한다. 동작/계약이 바뀌면 함께 갱신한다.
 
 ---
 
@@ -178,8 +183,10 @@ flowchart LR
 ### 11.3 인증/접근 정책
 
 - 로그인은 **DB `id/pw`** 방식 사용
-- 식별자는 **등록 코드(register code)** 기반
-- 미등록 기기에서 앱 실행 시 `"미등록 기기입니다"` 메시지 후 클라이언트 종료
+- 초기 적응 단계 운영 모드에서는 **등록 코드 검증을 기본 비활성화**한다.
+- 초기 관리자 기본 계정은 `admin / 1234`로 부트스트랩한다.
+- 입력 화면에서 `신규 사용자 등록`으로 이름/ID/비밀번호를 즉시 등록할 수 있다.
+- 입력 화면에서 `계정 찾기`로 이름 기준 ID/비밀번호를 조회할 수 있다.
 - 서버의 접근 차단 로직은 최소화하고, 비정상 패킷은 서버 검증 로직으로 방어
 
 ### 11.4 AI 권한 및 채팅 정책
@@ -289,7 +296,7 @@ flowchart LR
 
 ### 11.14 단계적 로드맵
 
-1. 인증 단순화(`id/pw + 등록 코드 + 세션`)
+1. 인증 단순화(`id/pw + 세션`, 초기 적응 단계 셀프 가입 포함)
 2. 카테고리 기반 채팅 UX
 3. AI 권한 축소 + 관리자 승인 큐
 4. Postgres 전환 + `id/version` + 중복 방지
@@ -394,8 +401,8 @@ flowchart LR
 
 계정 운영 정책:
 
-- 관리자만 사용자 계정 발급/비활성/비밀번호 초기화를 수행한다.
-- 기본 계정 의존 운영을 금지하고, 초기 계정은 최초 설정 후 즉시 변경한다.
+- 초기 적응 단계에서는 입력 화면 셀프 가입(`신규 사용자 등록`)으로 계정을 발급한다.
+- 운영 안정화 단계에서 관리자 승인형 계정 발급/비밀번호 재설정 정책으로 전환한다.
 - 사용자별 액션 이력(생성/수정/삭제/승인)은 감사 로그로 보관한다.
 
 서버 이관(다른 PC) 표준 절차:
@@ -419,3 +426,136 @@ flowchart LR
 - 배포 중: `dev` 검증 후 `prod` 반영
 - 배포 후: 핵심 사용자 시나리오 5분 점검
 - 정기 점검: DB 백업 복구 리허설, 계정/권한 점검, 로그 보존 상태 점검
+
+### 11.18 일반 작업 통합 및 모바일 대응 (신규 지시 사항)
+
+적용 범위:
+
+- `index.html`, `dashboard.html`, `board.html`
+- `app/api/schedules.py`, `app/db/db_manager.py`
+
+#### 11.18.1 카테고리 정책 통합
+
+- `dashboard.html`, `board.html` 전자칠판 템플릿 입력의 기존 카테고리 `"(작업)"`, `점검`, `자재입고`, `현장답사`를 단일 카테고리 `일반 작업`으로 통합한다.
+- 기존 운영 데이터 호환을 위해, 조회/검증 로직에서는 레거시 카테고리 값도 인식 가능하게 유지한다.
+- 위치 생략 가능 카테고리 판정은 `일반 작업` 기준으로 운영하되, 레거시 값은 하위 호환으로 허용한다.
+
+#### 11.18.2 채팅 입력 카테고리 확장
+
+- `index.html` 채팅 입력 카테고리에 `일반 작업`을 추가한다.
+- `일반 작업` 선택 시 처리 흐름은 `공사 일정 등록`과 동일한 등록 경로를 사용한다.
+- 단, 등록 데이터의 `category`는 `일반 작업`으로 강제해 상황판에 동일 정책으로 반영한다.
+
+#### 11.18.3 담당자 기본값 정책
+
+- 공사 일정 및 일반 작업 신규 등록 시 `person(담당자)` 기본값은 공란(`""`)으로 저장한다.
+- 전자칠판 등록 payload의 기본 담당자 `"전자칠판"` 자동 채움은 제거한다.
+- DB 저장 계층(`upsert/update`)의 기본 보정값 `"-"`도 공란으로 변경해 정책 일관성을 유지한다.
+
+#### 11.18.4 모바일 반응형 UI 보완
+
+- `index.html`, `dashboard.html`에서 모바일 화면 잘림/가로 넘침을 해소하는 반응형 스타일을 적용한다.
+- 뷰포트 높이 계산은 `100vh` 고정 의존을 줄이고 `100dvh` 기반으로 보완한다.
+- 작은 화면(`max-width: 768px` 기준)에서:
+  - 헤더/버튼/입력 영역을 줄바꿈 가능한 레이아웃으로 전환
+  - 과도한 좌우 패딩 축소
+  - 보드 영역 고정 높이 제한을 완화해 콘텐츠 가림 현상 방지
+
+#### 11.18.5 검증 기준
+
+- `일반 작업` 등록이 상황판에 정상 생성되는지 확인
+- 공사 일정/일반 작업 등록 시 담당자 공란 저장 확인
+- 모바일 해상도(예: 360x800, 390x844)에서 주요 컨트롤 잘림/가로 스크롤 미발생 확인
+
+### 11.19 현황판 작업 인원/카테고리/표시 정책 추가 반영 (신규 지시 사항)
+
+적용 범위:
+
+- `dashboard.html`, `board.html`, `admin.html`
+- `app/api/schedules.py`, `app/db/db_manager.py`
+- `app/services/ai_service.py`, `app/services/export_service.py`
+
+#### 11.19.1 작업 인원 일괄 추가 UX
+
+- `dashboard.html`의 `작업 인원 추가` 모달은 단일 클릭 즉시 반영 방식에서 **다중 선택 후 일괄 추가** 방식으로 변경한다.
+- 사용자는 여러 이름을 선택한 뒤 `선택 인원 추가` 버튼으로 한 번에 반영한다.
+- 기존 담당자 문자열(`person`)에 이미 포함된 이름은 중복 저장하지 않는다.
+- 반영 경로는 기존과 동일하게 `direct-update`를 사용하며, 사유는 `작업 인원 일괄 추가`로 기록한다.
+
+#### 11.19.2 일정 수정 카테고리 선택지 단순화
+
+- `dashboard.html` 일정 수정 모달의 카테고리 선택에서 `"(작업)"`, `점검`, `자재입고`, `현장답사`를 제거한다.
+- 수정 UI의 선택지는 `공사 일정`, `일반 작업`, `일정`으로 제한한다.
+- 레거시 카테고리 데이터는 조회/색상/위치 검증 로직에서 하위 호환으로 계속 인식한다.
+
+#### 11.19.3 빈 날짜 기본 표시 정책
+
+- 현장 보고 실시간 현황(`dashboard.html`)은 기본 조회 범위(`과거 7일 + 오늘 + 미래 7일`)의 날짜 블록을 **항상 표시**한다.
+- 각 날짜에 일정이 없어도 날짜 헤더는 유지하고, 본문에 `등록된 일정이 없습니다.`를 표시한다.
+- 사용자가 `오늘만` 또는 특정 날짜 필터를 적용한 경우에도 해당 기준 날짜 블록은 최소 1개 이상 표시한다.
+- 날짜 헤더/블록 간 간격 및 텍스트 크기를 축소해, 기본 화면에서 최소 10개 이상 날짜 블록이 동시에 보이도록 밀도를 조정한다.
+
+#### 11.19.4 카테고리별 시각 강조 정책
+
+- 현황 카드의 색상은 카테고리별로 구분한다.
+  - `공사 일정`: 상대적으로 눈에 띄는 블루 계열 강조 스타일
+  - `일반 작업`: 중립적인 톤의 스타일
+- 레거시 작업 카테고리(`"(작업)"`, `점검`, `자재입고`, `현장답사`)는 `일반 작업`과 동일 시각 그룹으로 처리한다.
+- `board.html`도 동일한 구분 원칙으로 카드 배경/보더를 분리 적용한다.
+
+#### 11.19.5 표기 통일: `공사일정` -> `공사 일정`
+
+- 사용자 노출 문자열은 전 화면/모달/기본값에서 `공사 일정`으로 통일한다.
+- 내부 하위 호환을 위해, 기존 데이터의 `공사일정` 값은 렌더링 시 `공사 일정`으로 정규화한다.
+- 서버 기본값/템플릿/설명 문자열도 `공사 일정` 기준으로 정리한다.
+- 일일 내보내기 기본 파일명은 `공사 일정.xlsx`를 사용한다.
+
+#### 11.19.6 `오늘만` 필터 기본 상태
+
+- `dashboard.html`의 `오늘만` 체크박스 기본값은 **해제**로 설정한다.
+- 기본 진입 시 `오늘만`이 꺼진 상태에서 `과거 7일 + 오늘 + 미래 7일` 범위를 먼저 노출한다.
+- `board.html`은 `오늘만` UI는 없으며, 기본적으로 날짜 미지정 전체 윈도우 조회 정책을 유지한다.
+
+#### 11.19.7 외출 자동 복귀 안정화 및 상태 정렬 정책
+
+- 외출 자동 복귀는 `worker_status.until_time`과 현재 시각을 **datetime 파싱 기반**으로 비교해 처리한다.
+- 기존의 단순 문자열 비교(`until_time <= now_iso`)는 시간대/포맷 불일치로 오동작할 수 있어 사용하지 않는다.
+- 만료된 외출 상태는 조회 시점(`list_worker_status`)에 자동으로 `사무실`로 전환하며, `location`, `until_time`, `note`를 함께 초기화한다.
+- 외출 및 행선표 정렬 우선순위는 다음과 같이 고정한다.
+  - 1순위: `외출`
+  - 2순위: `사무실`
+  - 3순위: `야간작업`
+  - 동순위 내 보조 정렬: `updated_at DESC`, `user_name ASC`
+
+#### 11.19.8 외출 복귀 시각 표기 정책
+
+- 외출 상태의 종료 시각(`until_time`)은 원본 ISO 문자열 대신 사용자 친화 표기로 노출한다.
+- 표기 형식: `복귀 시각: HH:mm`
+- `dashboard.html`, `board.html` 모두 동일 포맷을 적용하고, 외출 시각 라벨은 강조 스타일(굵기/색상)로 표시한다.
+- 상태 라벨에서 `야간작업`은 사용자 노출 문구를 `야간 작업`으로 표기할 수 있으나, 내부 상태값은 기존 `야간작업`을 유지한다.
+
+#### 11.19.9 현황판 리스트 압축(핵심 필드 고정) 정책
+
+- 현장 보고 실시간 현황 리스트의 필수 노출 정보는 `공사명(task)`과 `작업 인원(person)`으로 고정한다.
+- 기본 화면은 위치/상세/태그/등록 시각 등 보조 정보를 제외하고 핵심 필드만 노출한다.
+- 날짜별 일정은 건수 제한 없이 모두 노출한다.
+- 작업 인원 표기는 축약(`외 n`) 없이 전체 이름을 그대로 펼쳐서 표시한다.
+- 레이아웃은 기존 2단 구조를 유지한다.
+  - 좌측(`col-lg-8`): `달력형(7열)` 일정 보드
+  - 우측(`col-lg-4`): `외출 및 행선표`, `기타 메모`, `전자칠판 템플릿 입력` 패널
+- 좌측 달력형 보드는 빈 가로 여백을 날짜 셀로 활용해 가독성과 정보 밀도를 동시에 확보한다.
+- 모바일(`max-width: 768px`)에서는 동일 데이터셋을 단일 열 날짜 리스트로 자동 전환해 칸 밀집으로 인한 가독성 저하를 방지한다.
+- 모바일 리스트 상단에는 `오늘 일정 n건` 고정 바를 노출해, 스크롤 중에도 오늘 작업량을 빠르게 인지할 수 있게 한다.
+- 모바일 화면은 조회 전용으로 운영하며, 일정 카드의 `수정/삭제/작업 인원 추가` 액션 패널은 노출하지 않는다.
+- 데스크톱 액션 패널에서는 `메모 작성` 기능을 제거하고, `작업 인원 추가/수정/삭제`만 제공한다.
+- 같은 날짜 내부의 일정 노출 순서는 아래 우선순위를 따른다.
+  - `공사 일정` 우선
+  - `일반 작업` 다음
+  - `일정` 마지막
+- 정렬 우선순위가 한눈에 보이도록 항목 좌측에 카테고리 색상 점/보더를 함께 표기한다.
+- 달력형 모드에서는 드래그 정렬 저장 폴링(`reorder-batch` 주기 호출)을 비활성화해 불필요한 네트워크 요청을 줄인다.
+- 현황판 카드에서 작업 인원은 값이 있을 때만 노출하며, 미기재 상태 문구는 표시하지 않는다.
+- 날짜 범위 계산은 기준 윈도우(`과거 7일 + 오늘 + 미래 7일`)를 먼저 만든 뒤, 달력형 7열 그리드 완성을 위해 앞/뒤 날짜를 보조로 추가해 표시한다.
+  - 예: 오늘이 `2026-03-27`이면 기준 윈도우는 `03-20`~`04-03`
+  - 주간 정렬을 맞추기 위해 실제 셀 노출은 `03-15`~`04-04`처럼 확장될 수 있다.
+  - 날짜가 하루 지나면 기준 윈도우와 확장 셀도 함께 하루 단위로 이동한다(슬라이딩 윈도우).

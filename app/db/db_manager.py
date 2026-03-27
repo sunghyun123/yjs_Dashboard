@@ -1,8 +1,6 @@
 # app/db/db_manager.py
 import sqlite3
 import logging
-import os
-import secrets
 from datetime import datetime, timedelta
 from contextlib import closing
 from typing import List, Dict, Any, Optional
@@ -13,6 +11,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+# DB Manager 클래스
 class DBManager:
     def __init__(self, db_path: str = "schedule.db"):
         """
@@ -68,12 +67,19 @@ class DBManager:
                              CREATE TABLE IF NOT EXISTS users
                              (
                                  user_id TEXT PRIMARY KEY,
+                                 user_name TEXT,
                                  password_hash TEXT NOT NULL,
+                                 password_plain TEXT,
                                  register_code TEXT NOT NULL,
                                  role TEXT NOT NULL DEFAULT 'worker',
                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                              )
                              """)
+                user_columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
+                if "user_name" not in user_columns:
+                    conn.execute("ALTER TABLE users ADD COLUMN user_name TEXT")
+                if "password_plain" not in user_columns:
+                    conn.execute("ALTER TABLE users ADD COLUMN password_plain TEXT")
                 conn.execute("""
                              CREATE TABLE IF NOT EXISTS sessions
                              (
@@ -179,34 +185,26 @@ class DBManager:
                 # 초기 운영용 기본 계정 (최초 1회)
                 user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
                 if user_count == 0:
-                    bootstrap_password = (os.getenv("INITIAL_ADMIN_PASSWORD") or "").strip()
-                    bootstrap_register_code = (os.getenv("INITIAL_REGISTER_CODE") or "").strip()
-                    if not bootstrap_password:
-                        bootstrap_password = secrets.token_urlsafe(12)
-                        logger.warning("INITIAL_ADMIN_PASSWORD 미설정: 임시 관리자 비밀번호가 자동 생성되었습니다.")
-                    if not bootstrap_register_code:
-                        bootstrap_register_code = secrets.token_urlsafe(8)
-                        logger.warning("INITIAL_REGISTER_CODE 미설정: 임시 등록 코드가 자동 생성되었습니다.")
-                    logger.warning(
-                        "초기 관리자 계정 생성됨: user_id=admin, password=%s, register_code=%s",
-                        bootstrap_password,
-                        bootstrap_register_code,
-                    )
+                    bootstrap_password = "1234"
+                    bootstrap_register_code = ""
+                    logger.warning("초기 관리자 계정 생성됨: user_id=admin, password=1234")
                     default_pw_hash = hashlib.sha256(bootstrap_password.encode("utf-8")).hexdigest()
                     conn.execute(
-                        "INSERT INTO users (user_id, password_hash, register_code, role) VALUES (?, ?, ?, ?)",
-                        ("admin", default_pw_hash, bootstrap_register_code, "admin")
+                        "INSERT INTO users (user_id, user_name, password_hash, password_plain, register_code, role) VALUES (?, ?, ?, ?, ?, ?)",
+                        ("admin", "관리자", default_pw_hash, bootstrap_password, bootstrap_register_code, "admin")
                     )
 
     @staticmethod
     def _should_skip_date_location_merge(category: str, location: str) -> bool:
         """
-        (작업)·점검 등은 동일 날짜+지역으로 병합하지 않고 항상 신규 행으로 넣는다.
+        일반 작업/레거시 카테고리는 동일 날짜+지역으로 병합하지 않고 항상 신규 행으로 넣는다.
         지역이 비어 있으면 날짜+지역 병합 키를 쓸 수 없으므로 병합하지 않는다.
         """
         cat = (category or "").strip()
         loc = (location or "").strip()
         if not loc:
+            return True
+        if cat == "일반 작업":
             return True
         if "(작업)" in cat:
             return True
@@ -220,9 +218,9 @@ class DBManager:
         생성(create) 및 수정(update) 명령에서 공통으로 사용됩니다.
         """
         db_data = data.copy()
-        db_data['person'] = data.get('person', '-')
+        db_data['person'] = str(data.get('person', '') or '').strip()
         db_data['details'] = data.get('details', '')
-        db_data['category'] = data.get('category', '공사일정')
+        db_data['category'] = data.get('category', '공사 일정')
         db_data['date'] = str(db_data.get('date', "") or "").strip()
         db_data['location'] = str(db_data.get('location', "") or "").strip()
         db_data['task'] = str(db_data.get('task', "") or "").strip()
@@ -261,7 +259,7 @@ class DBManager:
                                  last_actor_user = :last_actor_user,
                                  last_actor_device = :last_actor_device,
                                  last_actor_at = :last_actor_at
-                             WHERE id = ?
+                             WHERE id = :id
                              """
                 conn.execute(update_sql, {
                     **db_data,
@@ -429,10 +427,53 @@ class DBManager:
         with closing(sqlite3.connect(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
-                "SELECT user_id, password_hash, register_code, role FROM users WHERE user_id = ?",
+                "SELECT user_id, user_name, password_hash, password_plain, register_code, role FROM users WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
             return dict(row) if row else None
+
+    def get_user_by_name(self, user_name: str) -> Optional[Dict[str, Any]]:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT user_id, user_name, password_plain
+                FROM users
+                WHERE user_name = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (user_name,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def create_user(
+        self,
+        user_name: str,
+        user_id: str,
+        password: str,
+        role: str = "worker",
+        register_code: str = "",
+    ) -> None:
+        u_name = (user_name or "").strip()
+        u_id = (user_id or "").strip()
+        pw = password or ""
+        if not u_name:
+            raise ValueError("사용자 이름을 입력해 주세요.")
+        if not u_id:
+            raise ValueError("아이디를 입력해 주세요.")
+        if not pw:
+            raise ValueError("비밀번호를 입력해 주세요.")
+        pw_hash = hashlib.sha256(pw.encode("utf-8")).hexdigest()
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO users (user_id, user_name, password_hash, password_plain, register_code, role)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (u_id, u_name, pw_hash, pw, register_code, role),
+                )
 
     def create_session(self, session_id: str, user_id: str, device_name: str, expires_at: str) -> None:
         user = self.get_user_by_id(user_id)
@@ -554,7 +595,7 @@ class DBManager:
                         "date": data.get("date"),
                         "location": str(data.get("location") or "").strip(),
                         "task": data.get("task"),
-                        "person": data.get("person", "-"),
+                        "person": str(data.get("person", "") or "").strip(),
                         "details": data.get("details", ""),
                         "tags": ",".join(data.get("tags", [])) if isinstance(data.get("tags"), list) else data.get("tags", ""),
                         "category": data.get("category", "일반메모"),
@@ -787,25 +828,61 @@ class DBManager:
                     ),
                 )
 
+    @staticmethod
+    def _parse_local_datetime(value: str) -> Optional[datetime]:
+        raw = str(value or "").strip()
+        if not raw:
+            return None
+        # datetime-local 입력값(YYYY-MM-DDTHH:MM[:SS])과 기존 ISO 문자열을 모두 허용한다.
+        normalized = raw.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized)
+        except ValueError:
+            pass
+        for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+            try:
+                return datetime.strptime(raw, fmt)
+            except ValueError:
+                continue
+        return None
+
     def apply_outing_auto_return(self) -> int:
-        now_iso = datetime.utcnow().isoformat()
+        now_local = datetime.now()
         with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
             with conn:
-                cursor = conn.execute(
+                rows = conn.execute(
                     """
+                    SELECT user_name, until_time
+                    FROM worker_status
+                    WHERE status = '외출' AND until_time IS NOT NULL AND until_time != ''
+                    """,
+                ).fetchall()
+                expired_users: List[str] = []
+                for row in rows:
+                    until_dt = self._parse_local_datetime(row["until_time"])
+                    if until_dt and until_dt <= now_local:
+                        expired_users.append(str(row["user_name"]))
+                if not expired_users:
+                    return 0
+                placeholders = ",".join(["?"] * len(expired_users))
+                params: List[Any] = [datetime.utcnow().isoformat(), *expired_users]
+                cursor = conn.execute(
+                    f"""
                     UPDATE worker_status
                     SET status = '사무실',
                         location = '',
+                        until_time = '',
                         note = '',
                         updated_at = CURRENT_TIMESTAMP,
                         last_actor_user = 'auto-system',
                         last_actor_device = 'auto-system',
                         last_actor_at = ?
-                    WHERE status = '외출' AND until_time IS NOT NULL AND until_time != '' AND until_time <= ?
+                    WHERE user_name IN ({placeholders})
                     """,
-                    (now_iso, now_iso),
+                    tuple(params),
                 )
-                return cursor.rowcount
+                return int(cursor.rowcount or 0)
 
     def list_worker_status(self) -> List[Dict[str, Any]]:
         self.apply_outing_auto_return()
@@ -814,7 +891,14 @@ class DBManager:
                    datetime(updated_at, 'localtime') AS updated_at,
                    last_actor_user, last_actor_device, last_actor_at
             FROM worker_status
-            ORDER BY updated_at DESC, user_name ASC
+            ORDER BY CASE status
+                        WHEN '외출' THEN 1
+                        WHEN '사무실' THEN 2
+                        WHEN '야간작업' THEN 3
+                        ELSE 9
+                     END ASC,
+                     updated_at DESC,
+                     user_name ASC
         """
         with closing(sqlite3.connect(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row

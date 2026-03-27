@@ -2,9 +2,36 @@
 
 FastAPI + SQLite 기반의 현장 일정/메모/관리 요청 대시보드입니다.
 
-## 외부 기기(다른 PC/모바일) 접속 설정
+## 주요 기능
 
-### 1) 서버 실행 설정
+- 채팅 기반 일정 등록/조회 (`/`)
+- 상황판 조회 및 편집 (`/dashboard.html`)
+- 전자칠판 화면 (`/board.html`)
+- 관리자 승인/감사 로그 (`/admin.html`)
+- 이미지 업로드 분류 (`/api/vision/upload`)
+
+## 인증/계정 정책 (초기 적응 단계)
+
+- 초기 관리자 계정은 고정값입니다.
+  - `id: admin`
+  - `pw: 1234`
+- 로그인 화면에서 `신규 사용자 등록`으로 일반 사용자를 즉시 생성할 수 있습니다.
+- 로그인 화면에서 `계정 찾기`로 이름 기준 ID/비밀번호를 조회할 수 있습니다.
+- 세션은 쿠키(`yjs_session_id`) 기반으로 동작합니다.
+
+> 초기 적응 단계의 간소화 정책으로 계정 찾기 기능을 제공하고 있습니다.
+
+## 빠른 시작
+
+### 1) 설치
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 2) `.env` 설정
 
 루트에 `.env` 파일을 만들고 아래 값을 넣으세요 (`.env.example` 참고).
 
@@ -12,61 +39,46 @@ FastAPI + SQLite 기반의 현장 일정/메모/관리 요청 대시보드입니
 PROJECT_NAME=yjs_Dashboard
 GEMINI_API_KEY=...
 DATABASE_URL=sqlite:///schedule.db
-INITIAL_ADMIN_PASSWORD=...
-INITIAL_REGISTER_CODE=...
 HOST=0.0.0.0
 PORT=8000
 ALLOWED_ORIGINS=*
 ALLOWED_HOSTS=*
 ```
 
-`INITIAL_ADMIN_PASSWORD`, `INITIAL_REGISTER_CODE`를 비워두면 최초 실행 시 임시 값이 자동 생성되어 로그에 출력됩니다.
-
-서버 실행:
+### 3) 실행
 
 ```bash
 python main.py
 ```
 
-### 2) 같은 Wi-Fi/LAN에서 접속
+브라우저 접속:
 
-- 서버 PC의 사설 IP 확인 (`ipconfig`)
-- 모바일/다른 PC에서 `http://<서버IP>:8000/dashboard.html` 접속
-- Windows 방화벽에서 `8000` 포트 인바운드 허용 필요
+- 입력 화면: `http://localhost:8000/`
+- 상황판: `http://localhost:8000/dashboard.html`
+- 관리자: `http://localhost:8000/admin.html`
+- 전자칠판: `http://localhost:8000/board.html`
 
-### 3) 외부 인터넷(다른 통신망)에서 접속
+## 외부 기기 접속
 
-아래 중 한 가지가 필요합니다.
+- 같은 네트워크: `http://<서버IP>:8000/`
+- 외부망: Cloudflare Tunnel/ngrok 또는 포트포워딩
+- 외부 공개 시 `ALLOWED_ORIGINS`, `ALLOWED_HOSTS`를 실제 도메인으로 제한 권장
 
-- 공유기 포트포워딩: 외부 `8000` -> 서버PC `8000`
-- 또는 터널(권장): Cloudflare Tunnel / ngrok로 공개 HTTPS URL 발급
-
-터널 사용 시 `ALLOWED_ORIGINS`, `ALLOWED_HOSTS`에 발급 도메인을 지정하면 더 안전합니다.
-예:
-
-```bash
-ALLOWED_ORIGINS=https://abc123.trycloudflare.com
-ALLOWED_HOSTS=abc123.trycloudflare.com,localhost,127.0.0.1
-```
-
-## 테스트 실행 방법
-
-아래 명령을 저장소 루트에서 실행하세요.
+## 테스트
 
 ```bash
-python -m pip install pytest python-multipart
 python -m pytest -q
 ```
 
-## 포함된 기본 동작 확인(스모크) 테스트
+스모크 테스트 범위:
 
 - 정적 페이지 서빙: `/`, `/dashboard.html`, `/admin.html`, `/board.html`
 - 인증 흐름: 로그인/내 정보 조회/로그아웃
 - 일정 생성 및 조회: `/api/schedules/execute`, `/api/schedules/today`
-- 메모 및 작업자 상태: `/api/schedules/memos`, `/api/schedules/worker-status`
-- 관리자 요청 큐: `/api/schedules/chat`(delete_request), `/api/admin/requests`
+- 메모/작업자 상태: `/api/schedules/memos`, `/api/schedules/worker-status`
+- 관리자 요청 큐: `/api/schedules/chat`, `/api/admin/requests`
 
-## 테스트 파일
+테스트 파일:
 
 - `tests/conftest.py`
 - `tests/test_smoke_basic_flow.py`

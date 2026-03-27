@@ -18,7 +18,7 @@ class ScheduleSchema(BaseModel):
     person: str = Field(default="-", description="담당자 또는 작업자 이름")
     details: str = Field(default="", description="참여자, 장비, 특이사항 등 상세 내용")
     tags: List[str] = Field(default_factory=list, description="야간, 돌발, 교육, 대기 등의 키워드 리스트")
-    category: str = Field(description="공사일정, 이슈보고, 일반메모 중 하나")
+    category: str = Field(description="공사 일정, 이슈보고, 일반메모 중 하나")
 
 
 # 2. [V2 신규] 대화형 의도 분석 구조
