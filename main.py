@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 async def daily_export_loop():
     """주기적으로 전일 백업을 점검/실행한다."""
-    db = DBManager(db_path="schedule.db")
+    db = DBManager(db_path=settings.sqlite_db_path)
     svc = DailyExportService(db=db)
     while True:
         try:

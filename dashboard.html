@@ -14,6 +14,12 @@
         .schedule-item:hover { transform: translateX(5px); box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important; }
         .schedule-item.category-완료 { border-left-color: #198754; }
         .schedule-item.category-이슈 { border-left-color: #dc3545; }
+        .schedule-item.category-작업 { border-left-color: #6f42c1; }
+        .schedule-day-block { margin-bottom: 0.25rem; }
+        .schedule-group { min-height: 3rem; box-sizing: border-box; }
+        .schedule-task-title { font-size: 1.35rem; font-weight: 700; color: #1a1d21; line-height: 1.35; }
+        .schedule-location-muted { font-size: 0.88rem; color: #6c757d; }
+        .schedule-person-line { font-size: 0.92rem; color: #495057; }
         .worklog-tag { font-size: 0.85rem; background-color: #e9ecef; padding: 3px 8px; border-radius: 12px; margin-right: 5px; }
         .tag-badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; margin-right: 4px; font-weight: bold; }
         .tag-야간 { background-color: #ff4d4d; color: white; }
@@ -42,8 +48,15 @@
 </head>
 <body>
 
-    <header class="dashboard-header d-flex justify-content-between align-items-center">
-        <h3 class="m-0 fw-bold">📊 YJS 공사계획 및 현황판</h3>
+    <header class="dashboard-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <h3 class="m-0 fw-bold">📊 YJS 공사계획 및 현황판</h3>
+            <nav class="d-flex gap-2 flex-wrap">
+                <a href="/" class="btn btn-sm btn-outline-light">🤖 AI 비서</a>
+                <a href="/board.html" class="btn btn-sm btn-outline-light">🖥 전자칠판</a>
+                <a href="/admin.html" class="btn btn-sm btn-outline-light">⚙ 관리자</a>
+            </nav>
+        </div>
         <div class="d-flex align-items-center">
             <h5 class="m-0 me-3" id="currentDate"></h5>
             <span class="badge bg-success fs-6 blink-bg">🟢 실시간 연동 중</span>
@@ -120,9 +133,19 @@
                             </select>
                             <input id="boardDate" class="form-control" type="date">
                         </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">카테고리</label>
+                            <select id="boardCategory" class="form-select form-select-sm">
+                                <option value="공사일정" selected>공사일정</option>
+                                <option value="(작업)">(작업)</option>
+                                <option value="점검">점검</option>
+                                <option value="자재입고">자재입고</option>
+                                <option value="현장답사">현장답사</option>
+                                <option value="일정">일정</option>
+                            </select>
+                        </div>
                         <div class="input-group input-group-sm mb-2">
-                            <input id="boardLocation" class="form-control" placeholder="현장 위치">
-                            <input id="boardCategory" class="form-control" placeholder="카테고리(기본 공사일정)">
+                            <input id="boardLocation" class="form-control" placeholder="현장 위치 (생략 가능: (작업)·점검 등)">
                         </div>
                         <div class="mb-2">
                             <input id="boardTask" class="form-control form-control-sm mb-1" placeholder="작업/메모 제목">
@@ -148,11 +171,19 @@
                     <div class="small text-muted mb-2">현황판 수정은 즉시 반영되며 변경 이력이 저장됩니다.</div>
                     <input id="editScheduleId" class="form-control form-control-sm mb-2" readonly>
                     <input id="editDate" class="form-control form-control-sm mb-2" placeholder="날짜 (YYYY-MM-DD)">
-                    <input id="editLocation" class="form-control form-control-sm mb-2" placeholder="현장 위치">
+                    <input id="editLocation" class="form-control form-control-sm mb-2" placeholder="현장 위치 ((작업)·점검 등은 생략 가능)">
                     <input id="editTask" class="form-control form-control-sm mb-2" placeholder="작업 내용">
-                    <input id="editPerson" class="form-control form-control-sm mb-2" placeholder="담당자">
+                    <input id="editPerson" class="form-control form-control-sm mb-2" placeholder="담당자·작업 인원">
                     <textarea id="editDetails" rows="3" class="form-control form-control-sm mb-2" placeholder="상세 내용"></textarea>
-                    <input id="editCategory" class="form-control form-control-sm mb-2" placeholder="카테고리">
+                    <label class="form-label small mb-0">카테고리</label>
+                    <select id="editCategory" class="form-select form-select-sm mb-2">
+                        <option value="공사일정">공사일정</option>
+                        <option value="(작업)">(작업)</option>
+                        <option value="점검">점검</option>
+                        <option value="자재입고">자재입고</option>
+                        <option value="현장답사">현장답사</option>
+                        <option value="일정">일정</option>
+                    </select>
                     <input id="editTags" class="form-control form-control-sm" placeholder="태그(쉼표 구분)">
                 </div>
                 <div class="modal-footer">
@@ -163,15 +194,119 @@
         </div>
     </div>
 
+    <div class="modal fade" id="fieldStaffModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">작업 인원 추가</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2">이름을 누르면 해당 일정의 담당·작업 인원에 추가됩니다. (관리자에서 현장직 목록을 편집할 수 있습니다.)</p>
+                    <div id="fieldStaffList" class="d-flex flex-wrap gap-2"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const days = ['일', '월', '화', '수', '목', '금', '토'];
+        /** 브라우저 로컬 날짜 기준 YYYY-MM-DD (toISOString은 UTC라 한국에서 하루 밀릴 수 있음) */
+        function formatLocalDateYYYYMMDD(d = new Date()) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
         const scheduleMap = new Map();
         const memoCountBySchedule = new Map();
         const linkedMemosBySchedule = new Map();
         let editRequestModal = null;
+        let fieldStaffModal = null;
+        let scheduleBoardDragBound = false;
+        const fieldStaffNameById = {};
         let pendingReorderBuffer = [];
         let isSavingReorder = false;
+
+        function isLocationOptionalCategory(cat) {
+            const c = (cat || '').trim();
+            if (!c) return false;
+            if (c.includes('(작업)')) return true;
+            return ['점검', '자재입고', '현장답사', '일정'].includes(c);
+        }
+
+        async function openFieldStaffModal(scheduleId) {
+            Object.keys(fieldStaffNameById).forEach((k) => delete fieldStaffNameById[k]);
+            const box = document.getElementById('fieldStaffList');
+            box.innerHTML = '<div class="text-muted small">불러오는 중...</div>';
+            fieldStaffModal.show();
+            try {
+                const res = await fetch('/api/schedules/field-staff');
+                const data = await res.json();
+                if (!res.ok) {
+                    box.innerHTML = `<div class="text-danger small">${escapeHtml(data.detail || '목록을 불러오지 못했습니다.')}</div>`;
+                    return;
+                }
+                const rows = data.data || [];
+                if (rows.length === 0) {
+                    box.innerHTML = '<div class="text-muted small">등록된 현장직이 없습니다. 관리자 화면에서 이름을 추가하세요.</div>';
+                    return;
+                }
+                box.innerHTML = rows.map((r) => {
+                    fieldStaffNameById[r.id] = r.name;
+                    return `<button type="button" class="btn btn-sm btn-outline-primary">${escapeHtml(r.name)}</button>`;
+                }).join('');
+                box.querySelectorAll('button').forEach((btn, idx) => {
+                    const id = rows[idx].id;
+                    btn.addEventListener('click', () => appendFieldStaffToSchedule(scheduleId, id));
+                });
+            } catch (e) {
+                box.innerHTML = '<div class="text-danger small">목록을 불러오지 못했습니다.</div>';
+            }
+        }
+
+        async function appendFieldStaffToSchedule(scheduleId, staffRowId) {
+            const item = scheduleMap.get(String(scheduleId));
+            const name = fieldStaffNameById[staffRowId];
+            if (!item || !name) return;
+            const raw = (item.person || '').trim();
+            const parts = raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+            if (parts.includes(name)) {
+                showSaveToast('이미 포함된 인원입니다.', 'info');
+                return;
+            }
+            const nextPerson = parts.length ? `${parts.join(', ')}, ${name}` : name;
+            const tagsVal = normalizeTags(item.tags);
+            const response = await fetch('/api/schedules/direct-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    schedule_id: Number(scheduleId),
+                    schedule_data: {
+                        date: item.date,
+                        location: item.location || '',
+                        task: item.task,
+                        person: nextPerson,
+                        details: item.details || '',
+                        category: item.category || '공사일정',
+                        tags: tagsVal,
+                    },
+                    reason: '작업 인원 추가',
+                }),
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                alert(result.detail || result.message || '저장 실패');
+                return;
+            }
+            fieldStaffModal.hide();
+            showSaveToast('작업 인원이 반영되었습니다.', 'success');
+            await loadSchedules();
+        }
 
         async function ensureSession() {
             try {
@@ -242,37 +377,48 @@
         }
 
         function attachDragHandlers() {
-            const cards = Array.from(document.querySelectorAll('.schedule-item'));
-            const groups = Array.from(document.querySelectorAll('.schedule-group'));
-            cards.forEach((card) => {
-                card.addEventListener('dragstart', () => card.classList.add('opacity-50'));
-                card.addEventListener('dragend', () => {
-                    card.classList.remove('opacity-50');
-                    pendingReorderBuffer = buildReorderPayloadFromDOM();
-                });
-                card.addEventListener('click', (e) => {
-                    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
-                    document.querySelectorAll('.schedule-item.active').forEach((el) => {
-                        if (el !== card) el.classList.remove('active');
-                    });
-                    card.classList.toggle('active');
-                });
+            const board = document.getElementById('scheduleBoard');
+            if (scheduleBoardDragBound) return;
+            scheduleBoardDragBound = true;
+            board.addEventListener('dragstart', (e) => {
+                const card = e.target.closest('.schedule-item');
+                if (!card) return;
+                card.classList.add('opacity-50');
             });
-            groups.forEach((group) => {
-                group.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    const dragging = document.querySelector('.schedule-item.opacity-50');
-                    if (!dragging) return;
-                    const afterElement = Array.from(group.querySelectorAll('.schedule-item:not(.opacity-50)')).find((child) => {
-                        const box = child.getBoundingClientRect();
-                        return e.clientY < box.top + box.height / 2;
-                    });
-                    if (afterElement) {
-                        group.insertBefore(dragging, afterElement);
-                    } else {
-                        group.appendChild(dragging);
-                    }
+            board.addEventListener('dragend', (e) => {
+                const card = e.target.closest('.schedule-item');
+                if (!card) return;
+                card.classList.remove('opacity-50');
+                pendingReorderBuffer = buildReorderPayloadFromDOM();
+            });
+            board.addEventListener('dragover', (e) => {
+                let group = e.target.closest('.schedule-group');
+                if (!group) {
+                    const block = e.target.closest('.schedule-day-block');
+                    if (block) group = block.querySelector('.schedule-group');
+                }
+                if (!group) return;
+                e.preventDefault();
+                const dragging = board.querySelector('.schedule-item.opacity-50');
+                if (!dragging) return;
+                const afterElement = Array.from(group.querySelectorAll('.schedule-item:not(.opacity-50)')).find((child) => {
+                    const box = child.getBoundingClientRect();
+                    return e.clientY < box.top + box.height / 2;
                 });
+                if (afterElement) {
+                    group.insertBefore(dragging, afterElement);
+                } else {
+                    group.appendChild(dragging);
+                }
+            });
+            board.addEventListener('click', (e) => {
+                const card = e.target.closest('.schedule-item');
+                if (!card) return;
+                if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
+                document.querySelectorAll('.schedule-item.active').forEach((el) => {
+                    if (el !== card) el.classList.remove('active');
+                });
+                card.classList.toggle('active');
             });
         }
 
@@ -349,7 +495,7 @@
         async function loadSchedules() {
             const board = document.getElementById('scheduleBoard');
             const { todayOnly, selectedDate, keyword } = getScheduleFilters();
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = formatLocalDateYYYYMMDD();
                 const queryDate = todayOnly ? todayStr : (selectedDate || '');
 
             try {
@@ -398,41 +544,57 @@
                         dateLabel = `${date} [오늘]`;
                     }
 
-                    boardHTML += `<h5 class="mt-4 mb-3 pb-2 border-bottom ${headerClass}">📅 ${dateLabel} ${dayName}</h5>`;
+                    boardHTML += `<div class="schedule-day-block" data-date="${escapeHtml(date)}">`;
+                    boardHTML += `<h5 class="mt-4 mb-3 pb-2 border-bottom ${headerClass}">📅 ${escapeHtml(dateLabel)} ${dayName}</h5>`;
                     boardHTML += `<div class="schedule-group" data-date="${escapeHtml(date)}">`;
 
                     groupedData[date].forEach(item => {
                         let colorClass = '';
-                        if(item.category && item.category.includes('완료')) colorClass = 'category-완료';
-                        if(item.category && item.category.includes('이슈')) colorClass = 'category-이슈';
+                        if (item.category && item.category.includes('완료')) colorClass = 'category-완료';
+                        if (item.category && item.category.includes('이슈')) colorClass = 'category-이슈';
+                        if (item.category && (item.category === '(작업)' || item.category.includes('(작업)'))) colorClass = 'category-작업';
 
                         let tagList = [];
                         if (item.tags) {
                             tagList = typeof item.tags === 'string' ? item.tags.split(',') : item.tags;
                         }
 
+                        const locHtml = item.location
+                            ? `<div class="schedule-location-muted mt-1">📍 ${escapeHtml(item.location)}</div>`
+                            : '';
+                        const personHtml = (item.person && String(item.person).trim() && item.person !== '-')
+                            ? `<div class="schedule-person-line mt-1"><span class="text-secondary">👷</span> ${escapeHtml(item.person)}</div>`
+                            : '';
+                        const cat = item.category || '기타';
+                        const safeTags = tagList.filter(t => t.trim() !== '').map((tag) => {
+                            const t = tag.trim();
+                            return `<span class="tag-badge tag-${t}">${escapeHtml(t)}</span>`;
+                        }).join('');
+
                         boardHTML += `
                             <div class="schedule-item ${colorClass} shadow-sm" draggable="true" data-id="${item.id}">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <strong class="fs-5">📍 ${item.location || '위치 미상'}</strong>
-                                    <div>
+                                <div class="d-flex justify-content-between align-items-start gap-2 mb-2 flex-wrap">
+                                    <div class="flex-grow-1" style="min-width:0;">
+                                        <div class="schedule-task-title">${escapeHtml(item.task || '내용 없음')}</div>
+                                        ${locHtml}
+                                        ${personHtml}
+                                    </div>
+                                    <div class="text-end flex-shrink-0">
                                         <span class="id-chip">ID #${item.id}</span>
-                                        ${tagList.filter(t => t.trim() !== "").map(tag =>
-                                            `<span class="tag-badge tag-${tag.trim()}">${tag.trim()}</span>`
-                                        ).join('')}
+                                        ${safeTags}
                                         <span class="memo-chip ms-1" data-memo-count-for="${item.id}">메모 0</span>
-                                        <span class="badge bg-light text-dark border ms-1">${item.category || '기타'}</span>
+                                        <span class="badge bg-light text-dark border ms-1">${escapeHtml(cat)}</span>
                                     </div>
                                 </div>
-                                <div class="mb-2 text-dark fs-5 fw-medium">${item.task || '내용 없음'}</div>
-                                ${item.details ? `<div class="detail-text">📝 ${item.details}</div>` : ''}
+                                ${item.details ? `<div class="detail-text">📝 ${escapeHtml(item.details)}</div>` : ''}
                                 <div class="linked-memo-list" data-linked-memos-for="${item.id}"></div>
                                 <div class="schedule-meta mt-2 d-flex justify-content-between align-items-center">
                                     <span></span>
-                                    <span>🕒 등록: ${item.created_at}</span>
+                                    <span>🕒 등록: ${escapeHtml(item.created_at || '')}</span>
                                 </div>
                                 <div class="schedule-action-panel">
-                                    <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end">
+                                    <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openFieldStaffModal(${item.id})">작업 인원 추가</button>
                                         <button class="btn btn-sm btn-outline-primary" onclick="openEditRequestById('${item.id}')">수정</button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="requestDeleteById('${item.id}')">삭제</button>
                                     </div>
@@ -444,7 +606,7 @@
                             </div>
                         `;
                     });
-                    boardHTML += `</div>`;
+                    boardHTML += `</div></div>`;
                 });
 
                 board.innerHTML = boardHTML;
@@ -491,6 +653,7 @@
                 return;
             }
 
+            const catVal = document.getElementById('editCategory').value.trim() || '공사일정';
             const payload = {
                 action: 'update',
                 schedule_id: scheduleId,
@@ -500,13 +663,17 @@
                     task: document.getElementById('editTask').value.trim(),
                     person: document.getElementById('editPerson').value.trim(),
                     details: document.getElementById('editDetails').value.trim(),
-                    category: document.getElementById('editCategory').value.trim() || '공사일정',
+                    category: catVal,
                     tags: document.getElementById('editTags').value.split(',').map((t) => t.trim()).filter(Boolean),
                 }
             };
 
-            if (!payload.schedule_data.location || !payload.schedule_data.task) {
-                alert('현장 위치와 작업 내용은 필수입니다.');
+            if (!payload.schedule_data.task) {
+                alert('공사명·작업 내용(task)은 필수입니다.');
+                return;
+            }
+            if (!isLocationOptionalCategory(payload.schedule_data.category) && !payload.schedule_data.location) {
+                alert('현장 위치가 필요합니다. ((작업)·점검·자재입고·현장답사·일정 카테고리는 지역 생략 가능)');
                 return;
             }
 
@@ -609,7 +776,7 @@
 
         async function loadMemos() {
             const memoList = document.getElementById('memoList');
-            const today = new Date().toISOString().split('T')[0];
+            const today = formatLocalDateYYYYMMDD();
             const response = await fetch(`/api/schedules/memos?date=${today}`);
             const data = await response.json();
             if (!response.ok) {
@@ -704,14 +871,28 @@
         }
 
         async function submitBoardTemplate() {
+            const cat = document.getElementById('boardCategory').value.trim() || '공사일정';
+            const loc = document.getElementById('boardLocation').value.trim();
+            const task = document.getElementById('boardTask').value.trim();
+            const actionType = document.getElementById('boardActionType').value;
+            if (actionType === 'register') {
+                if (!task) {
+                    alert('공사명·작업명을 입력하세요.');
+                    return;
+                }
+                if (!isLocationOptionalCategory(cat) && !loc) {
+                    alert('현장 위치를 입력하거나, (작업)·점검·자재입고·현장답사·일정 카테고리를 선택하세요.');
+                    return;
+                }
+            }
             const payload = {
-                action_type: document.getElementById('boardActionType').value,
+                action_type: actionType,
                 date: document.getElementById('boardDate').value.trim() || null,
-                location: document.getElementById('boardLocation').value.trim(),
-                task: document.getElementById('boardTask').value.trim(),
+                location: loc,
+                task: task,
                 person: '전자칠판',
                 details: document.getElementById('boardDetails').value.trim(),
-                category: document.getElementById('boardCategory').value.trim() || '공사일정',
+                category: cat,
                 request_note: '',
                 schedule_id: null
             };
@@ -735,18 +916,20 @@
             ensureSession().then((ok) => {
                 if (!ok) return;
                 editRequestModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
+                fieldStaffModal = new bootstrap.Modal(document.getElementById('fieldStaffModal'));
                 updateHeaderDate();
                 document.getElementById('todayOnlyCheck').addEventListener('change', () => {
                     const targetInput = document.getElementById('scheduleTargetDate');
                     const isTodayOnly = document.getElementById('todayOnlyCheck').checked;
                     targetInput.disabled = isTodayOnly;
                     if (isTodayOnly) {
-                        targetInput.value = new Date().toISOString().split('T')[0];
+                        targetInput.value = formatLocalDateYYYYMMDD();
                     } else {
                         targetInput.value = '';
                     }
                 });
                 document.getElementById('todayOnlyCheck').dispatchEvent(new Event('change'));
+                document.getElementById('boardDate').value = formatLocalDateYYYYMMDD();
                 loadSchedules();
 
                 // 30초(30000ms)마다 백그라운드에서 자동으로 데이터 갱신

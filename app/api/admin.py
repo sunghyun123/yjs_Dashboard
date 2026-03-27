@@ -1,17 +1,19 @@
 import json
 import re
+import sqlite3
 from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.auth import require_admin
+from app.core.config import settings
 from app.db.db_manager import DBManager
 from app.services.export_service import DailyExportService
 
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
-db = DBManager(db_path="schedule.db")
+db = DBManager(db_path=settings.sqlite_db_path)
 export_svc = DailyExportService(db=db)
 
 
@@ -25,6 +27,11 @@ class ReviewRequest(BaseModel):
 
 class DailyExportRequest(BaseModel):
     target_date: Optional[str] = Field(default=None, description="YYYY-MM-DD, 없으면 어제")
+
+
+class FieldStaffCreate(BaseModel):
+    name: str = Field(..., min_length=1, description="현장직 이름")
+    sort_order: int = Field(default=0, description="정렬 순서")
 
 
 @router.get("/requests")
@@ -173,6 +180,24 @@ def review_request(payload: ReviewRequest, admin=Depends(require_admin)):
     if not applied:
         raise HTTPException(status_code=400, detail="요청 적용에 실패했습니다. 데이터 확인이 필요합니다.")
     return {"status": "success", "message": "요청이 승인 처리되었습니다."}
+
+
+@router.post("/field-staff")
+def add_field_staff(payload: FieldStaffCreate, _admin=Depends(require_admin)):
+    try:
+        new_id = db.add_field_staff(payload.name.strip(), payload.sort_order)
+        return {"status": "success", "id": new_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="이미 등록된 이름입니다.")
+
+
+@router.delete("/field-staff/{staff_id}")
+def delete_field_staff(staff_id: int, _admin=Depends(require_admin)):
+    if not db.delete_field_staff(staff_id):
+        raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다.")
+    return {"status": "success", "message": "삭제되었습니다."}
 
 
 @router.post("/export/daily")

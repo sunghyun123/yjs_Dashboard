@@ -12,11 +12,15 @@ FastAPI + SQLite 기반의 현장 일정/메모/관리 요청 대시보드입니
 PROJECT_NAME=yjs_Dashboard
 GEMINI_API_KEY=...
 DATABASE_URL=sqlite:///schedule.db
+INITIAL_ADMIN_PASSWORD=...
+INITIAL_REGISTER_CODE=...
 HOST=0.0.0.0
 PORT=8000
 ALLOWED_ORIGINS=*
 ALLOWED_HOSTS=*
 ```
+
+`INITIAL_ADMIN_PASSWORD`, `INITIAL_REGISTER_CODE`를 비워두면 최초 실행 시 임시 값이 자동 생성되어 로그에 출력됩니다.
 
 서버 실행:
 

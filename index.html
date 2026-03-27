@@ -57,9 +57,11 @@
 <div class="app-container">
     <header class="chat-header">
         <h5>🤖 YJS 스마트 AI 비서</h5>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <span id="loginUserBadge" class="badge bg-light text-dark d-none"></span>
-            <a href="/dashboard.html" class="btn btn-sm btn-outline-light rounded-pill">📊 상황판 보기</a>
+            <a href="/dashboard.html" class="btn btn-sm btn-outline-light rounded-pill">📊 상황판</a>
+            <a href="/board.html" class="btn btn-sm btn-outline-light rounded-pill">🖥 전자칠판</a>
+            <a href="/admin.html" class="btn btn-sm btn-outline-light rounded-pill">⚙ 관리자</a>
         </div>
     </header>
 
@@ -101,15 +103,15 @@
         <h5 class="mb-3">로그인</h5>
         <div class="mb-2">
             <label class="form-label">ID</label>
-            <input id="loginUserId" class="form-control" value="admin">
+            <input id="loginUserId" class="form-control" placeholder="아이디를 입력하세요">
         </div>
         <div class="mb-2">
             <label class="form-label">비밀번호</label>
-            <input id="loginPassword" class="form-control" type="password" value="admin1234">
+            <input id="loginPassword" class="form-control" type="password" placeholder="비밀번호를 입력하세요">
         </div>
         <div class="mb-3">
             <label class="form-label">등록 코드</label>
-            <input id="loginRegisterCode" class="form-control" value="YJS-REGISTER-001">
+            <input id="loginRegisterCode" class="form-control" placeholder="등록 코드를 입력하세요">
         </div>
         <button class="btn btn-primary w-100" onclick="login()">로그인</button>
         <small class="text-muted d-block mt-2">미등록 기기는 로그인할 수 없습니다.</small>

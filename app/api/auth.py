@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.core.auth import SESSION_COOKIE_NAME, SESSION_TTL_DAYS, create_session, hash_password, require_session
 from app.db.db_manager import DBManager
 
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
-db = DBManager(db_path="schedule.db")
+db = DBManager(db_path=settings.sqlite_db_path)
 
 
 class LoginRequest(BaseModel):

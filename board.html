@@ -46,8 +46,10 @@
 <div class="container-fluid py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="m-0 kiosk-title">전자칠판 상황판 모드</h2>
-        <div class="d-flex gap-2">
-            <a href="/dashboard.html" class="btn btn-outline-light btn-sm">일반 상황판</a>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="/" class="btn btn-outline-light btn-sm">🤖 AI 비서</a>
+            <a href="/dashboard.html" class="btn btn-outline-light btn-sm">📊 일반 상황판</a>
+            <a href="/admin.html" class="btn btn-outline-light btn-sm">⚙ 관리자</a>
             <button class="btn btn-light btn-sm" onclick="loadAll()">새로고침</button>
         </div>
     </div>
@@ -84,8 +86,17 @@
                     <option value="register">등록</option>
                     <option value="memo">메모</option>
                 </select>
+                <label class="form-label small mb-0 text-white-50">카테고리</label>
+                <select id="templateCategory" class="form-select form-select-sm mb-2 kiosk-input">
+                    <option value="공사일정" selected>공사일정</option>
+                    <option value="(작업)">(작업)</option>
+                    <option value="점검">점검</option>
+                    <option value="자재입고">자재입고</option>
+                    <option value="현장답사">현장답사</option>
+                    <option value="일정">일정</option>
+                </select>
                 <input id="date" class="form-control form-control-sm mb-2 kiosk-input" type="date">
-                <input id="location" class="form-control form-control-sm mb-2 kiosk-input" placeholder="현장 위치">
+                <input id="location" class="form-control form-control-sm mb-2 kiosk-input" placeholder="현장 위치 (일부 카테고리는 생략 가능)">
                 <input id="task" class="form-control form-control-sm mb-2 kiosk-input" placeholder="작업/메모 제목">
                 <textarea id="details" class="form-control form-control-sm mb-2 kiosk-input" rows="2" placeholder="상세 내용"></textarea>
                 <div class="row g-2 mb-2">
@@ -129,6 +140,19 @@
     const memoCountBySchedule = new Map();
     const linkedMemosBySchedule = new Map();
 
+    function formatLocalDateYYYYMMDD(d = new Date()) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    function isLocationOptionalCategory(cat) {
+        const c = (cat || '').trim();
+        if (c.includes('(작업)')) return true;
+        return ['점검', '자재입고', '현장답사', '일정'].includes(c);
+    }
+
     function setSubmitStatus(type, text) {
         const chip = document.getElementById('submitStatusChip');
         chip.className = `status-chip status-${type}`;
@@ -151,7 +175,7 @@
             task: document.getElementById('task').value.trim(),
             person: '전자칠판',
             details: document.getElementById('details').value.trim(),
-            category: '공사일정',
+            category: document.getElementById('templateCategory').value.trim() || '공사일정',
             request_note: '',
             schedule_id: null
         };
@@ -172,14 +196,19 @@
         const list = document.getElementById('scheduleList');
         if (!res.ok) { list.innerHTML = '<div class="item">조회 실패</div>'; return; }
         const rows = data.data || [];
-        list.innerHTML = rows.map(r => `
+        list.innerHTML = rows.map(r => {
+            const loc = r.location ? `<div class="small text-white-50 mt-1">📍 ${r.location}</div>` : '';
+            return `
             <div class="item" data-schedule-id="${r.id}" onclick="toggleItemPanel(event, this)">
-                <div class="d-flex justify-content-between align-items-center gap-2">
-                    <div><b>${r.date}</b> · ${r.location}</div>
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <div class="fw-bold fs-5">${r.task || '제목 없음'}</div>
+                        <div class="small text-white-50">${r.date} · ${r.category || '공사일정'}</div>
+                        ${loc}
+                    </div>
                     <span class="memo-chip" data-memo-count-for="${r.id}">메모 0</span>
                 </div>
-                <div>${r.task}</div>
-                <div class="small text-light-emphasis">${r.details || ''}</div>
+                <div class="small text-light-emphasis mt-1">${r.details || ''}</div>
                 <div data-linked-memos-for="${r.id}"></div>
                 <div class="item-action-panel">
                     <div class="d-flex gap-2 mt-2">
@@ -192,7 +221,8 @@
                     </div>
                 </div>
             </div>
-        `).join('') || '<div class="item">일정 없음</div>';
+        `;
+        }).join('') || '<div class="item">일정 없음</div>';
         renderMemoCountsOnCards();
         renderLinkedMemosOnCards();
     }
@@ -237,8 +267,12 @@
     async function editScheduleDirect(scheduleId) {
         const date = prompt('날짜(YYYY-MM-DD)를 입력하세요.');
         if (!date) return;
-        const location = prompt('현장 위치를 입력하세요.');
-        if (!location) return;
+        const category = prompt('카테고리 (공사일정, (작업), 점검, 자재입고, 현장답사, 일정)', '공사일정') || '공사일정';
+        const location = prompt('현장 위치 ((작업)·점검 등은 비워도 됨)') || '';
+        if (!isLocationOptionalCategory(category) && !location.trim()) {
+            alert('현장 위치를 입력하거나, 지역 생략 가능한 카테고리를 선택하세요.');
+            return;
+        }
         const task = prompt('작업 내용을 입력하세요.');
         if (!task) return;
         const details = prompt('상세 내용을 입력하세요.') || '';
@@ -254,7 +288,7 @@
                     person: '전자칠판',
                     details,
                     tags: [],
-                    category: '공사일정'
+                    category
                 },
                 reason: '전자칠판 인라인 수정'
             })
@@ -369,7 +403,7 @@
     }
 
     async function loadMemos() {
-        const today = new Date().toISOString().split('T')[0];
+        const today = formatLocalDateYYYYMMDD();
         const res = await fetch(`/api/schedules/memos?date=${today}`);
         const data = await res.json();
         const list = document.getElementById('memoList');
@@ -448,9 +482,20 @@
             alert('작업/메모 제목 또는 상세 내용을 입력하세요.');
             return;
         }
+        if (payload.action_type === 'register') {
+            if (!payload.task) {
+                alert('공사명·작업명을 입력하세요.');
+                return;
+            }
+            if (!isLocationOptionalCategory(payload.category) && !payload.location) {
+                alert('현장 위치를 입력하거나, (작업)·점검 등 카테고리를 선택하세요.');
+                return;
+            }
+        }
         pendingTemplatePayload = payload;
         const summaryRows = [
             `<div class="confirm-item"><b>유형</b>: ${actionTypeLabel(payload.action_type)}</div>`,
+            `<div class="confirm-item"><b>카테고리</b>: ${payload.category || '공사일정'}</div>`,
             `<div class="confirm-item"><b>날짜</b>: ${payload.date || '오늘'}</div>`,
             `<div class="confirm-item"><b>위치</b>: ${payload.location || '-'}</div>`,
             `<div class="confirm-item"><b>제목</b>: ${payload.task || '-'}</div>`
@@ -507,6 +552,7 @@
     ensureSession().then(ok => {
         if (!ok) return;
         templateConfirmModal = new bootstrap.Modal(document.getElementById('templateConfirmModal'));
+        document.getElementById('date').value = formatLocalDateYYYYMMDD();
         document.getElementById('task').focus();
         loadAll();
         setInterval(loadAll, 30000);

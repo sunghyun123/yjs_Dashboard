@@ -1,6 +1,8 @@
 # app/db/db_manager.py
 import sqlite3
 import logging
+import os
+import secrets
 from datetime import datetime, timedelta
 from contextlib import closing
 from typing import List, Dict, Any, Optional
@@ -151,6 +153,14 @@ class DBManager:
                              )
                              """)
                 conn.execute("""
+                             CREATE TABLE IF NOT EXISTS field_staff
+                             (
+                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 name TEXT NOT NULL UNIQUE,
+                                 sort_order INTEGER DEFAULT 0
+                             )
+                             """)
+                conn.execute("""
                              CREATE TABLE IF NOT EXISTS audit_events
                              (
                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -169,11 +179,40 @@ class DBManager:
                 # 초기 운영용 기본 계정 (최초 1회)
                 user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
                 if user_count == 0:
-                    default_pw_hash = hashlib.sha256("admin1234".encode("utf-8")).hexdigest()
+                    bootstrap_password = (os.getenv("INITIAL_ADMIN_PASSWORD") or "").strip()
+                    bootstrap_register_code = (os.getenv("INITIAL_REGISTER_CODE") or "").strip()
+                    if not bootstrap_password:
+                        bootstrap_password = secrets.token_urlsafe(12)
+                        logger.warning("INITIAL_ADMIN_PASSWORD 미설정: 임시 관리자 비밀번호가 자동 생성되었습니다.")
+                    if not bootstrap_register_code:
+                        bootstrap_register_code = secrets.token_urlsafe(8)
+                        logger.warning("INITIAL_REGISTER_CODE 미설정: 임시 등록 코드가 자동 생성되었습니다.")
+                    logger.warning(
+                        "초기 관리자 계정 생성됨: user_id=admin, password=%s, register_code=%s",
+                        bootstrap_password,
+                        bootstrap_register_code,
+                    )
+                    default_pw_hash = hashlib.sha256(bootstrap_password.encode("utf-8")).hexdigest()
                     conn.execute(
                         "INSERT INTO users (user_id, password_hash, register_code, role) VALUES (?, ?, ?, ?)",
-                        ("admin", default_pw_hash, "YJS-REGISTER-001", "admin")
+                        ("admin", default_pw_hash, bootstrap_register_code, "admin")
                     )
+
+    @staticmethod
+    def _should_skip_date_location_merge(category: str, location: str) -> bool:
+        """
+        (작업)·점검 등은 동일 날짜+지역으로 병합하지 않고 항상 신규 행으로 넣는다.
+        지역이 비어 있으면 날짜+지역 병합 키를 쓸 수 없으므로 병합하지 않는다.
+        """
+        cat = (category or "").strip()
+        loc = (location or "").strip()
+        if not loc:
+            return True
+        if "(작업)" in cat:
+            return True
+        if cat in ("점검", "자재입고", "현장답사", "일정"):
+            return True
+        return False
 
     def upsert_schedule(self, data: Dict[str, Any], actor_user: str = "", actor_device: str = "") -> str:
         """
@@ -184,6 +223,9 @@ class DBManager:
         db_data['person'] = data.get('person', '-')
         db_data['details'] = data.get('details', '')
         db_data['category'] = data.get('category', '공사일정')
+        db_data['date'] = str(db_data.get('date', "") or "").strip()
+        db_data['location'] = str(db_data.get('location', "") or "").strip()
+        db_data['task'] = str(db_data.get('task', "") or "").strip()
         # tags가 리스트 형태면 쉼표로 연결된 문자열로 변환
         if isinstance(db_data.get('tags'), list):
             db_data['tags'] = ",".join(db_data.get('tags', []))
@@ -192,15 +234,19 @@ class DBManager:
         elif not isinstance(db_data.get('tags'), str):
             db_data['tags'] = str(db_data.get('tags'))
 
-        # 필수 키 누락 방어: 프론트/AI 응답에서 일부 필드가 빠져도 DB 바인딩 실패를 막는다.
-        for required_key in ['date', 'location', 'task']:
-            if required_key not in db_data or db_data[required_key] in [None, ""]:
-                raise ValueError(f"'{required_key}' 값이 누락되었습니다.")
+        if not db_data['date']:
+            raise ValueError("'date' 값이 누락되었습니다.")
+        if not db_data['task']:
+            raise ValueError("'task' 값이 누락되었습니다.")
+
+        skip_merge = self._should_skip_date_location_merge(db_data['category'], db_data['location'])
+        loc_label = db_data['location'] or "지역 미정"
 
         with closing(sqlite3.connect(self.db_path)) as conn:
-            # 1. 같은 날짜와 장소가 이미 있는지 확인
-            check_sql = "SELECT id FROM field_schedules WHERE date = ? AND location = ? AND deleted_at IS NULL"
-            existing = conn.execute(check_sql, (db_data['date'], db_data['location'])).fetchone()
+            existing = None
+            if not skip_merge:
+                check_sql = "SELECT id FROM field_schedules WHERE date = ? AND location = ? AND deleted_at IS NULL"
+                existing = conn.execute(check_sql, (db_data['date'], db_data['location'])).fetchone()
 
             if existing:
                 # 2. 존재하면 UPDATE (수정)
@@ -225,7 +271,7 @@ class DBManager:
                     "last_actor_at": datetime.utcnow().isoformat(),
                 })
                 conn.commit()
-                return f"📍 {db_data['location']} ({db_data['date']}) 일정이 수정되었습니다. (ID: {existing[0]})"
+                return f"📍 {loc_label} ({db_data['date']}) 일정이 수정되었습니다. (ID: {existing[0]})"
             else:
                 # 3. 존재하지 않으면 INSERT (신규)
                 insert_sql = """
@@ -251,7 +297,7 @@ class DBManager:
                     "display_order": next_order,
                 })
                 conn.commit()
-                return f"➕ {db_data['location']} ({db_data['date']}) 신규 일정이 등록되었습니다. (ID: {cursor.lastrowid})"
+                return f"➕ {loc_label} ({db_data['date']}) 신규 일정이 등록되었습니다. (ID: {cursor.lastrowid})"
 
     def search_schedules_by_keyword(self, date: Optional[str] = None, keyword: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -506,7 +552,7 @@ class DBManager:
                     {
                         "id": schedule_id,
                         "date": data.get("date"),
-                        "location": data.get("location"),
+                        "location": str(data.get("location") or "").strip(),
                         "task": data.get("task"),
                         "person": data.get("person", "-"),
                         "details": data.get("details", ""),
@@ -784,6 +830,32 @@ class DBManager:
                 )
                 return cursor.rowcount > 0
 
+    def list_field_staff(self) -> List[Dict[str, Any]]:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT id, name, sort_order FROM field_staff ORDER BY sort_order ASC, name ASC"
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def add_field_staff(self, name: str, sort_order: int = 0) -> int:
+        n = (name or "").strip()
+        if not n:
+            raise ValueError("이름이 필요합니다.")
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                cursor = conn.execute(
+                    "INSERT INTO field_staff (name, sort_order) VALUES (?, ?)",
+                    (n, sort_order),
+                )
+                return int(cursor.lastrowid)
+
+    def delete_field_staff(self, staff_id: int) -> bool:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                cursor = conn.execute("DELETE FROM field_staff WHERE id = ?", (staff_id,))
+                return cursor.rowcount > 0
+
     def get_daily_schedules(self, target_date: str) -> List[Dict[str, Any]]:
         query = """
             SELECT id, date, location, task, person, details, tags, category,
@@ -832,25 +904,3 @@ class DBManager:
                 (target_date,),
             ).fetchone()
             return bool(row)
-
-    def insert_worklog(self, data: Dict[str, Any]) -> int:
-        insert_query = """
-                       INSERT INTO work_logs (project_name, project_code, regular_workers, daily_workers)
-                       VALUES (:project_name, :project_code, :regular_workers, :daily_workers)
-                       """
-        # List 형태인 작업자 명단을 쉼표로 연결된 문자열로 변환
-        db_data = {
-            "project_name": data.get("project_name", ""),
-            "project_code": data.get("project_code", ""),
-            "regular_workers": ", ".join(data.get("regular_workers", [])),
-            "daily_workers": ", ".join(data.get("daily_workers", []))
-        }
-
-        try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
-                with conn:
-                    cursor = conn.execute(insert_query, db_data)
-                    return cursor.lastrowid
-        except sqlite3.Error as e:
-            logger.error(f"[DB 에러] 작업일지 Insert 중 오류 발생: {e}")
-            raise

@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 
 from fastapi import Cookie, HTTPException, Depends
 
+from app.core.config import settings
 from app.db.db_manager import DBManager
 
 
@@ -27,7 +28,7 @@ def require_session(session_id: Optional[str] = Cookie(default=None, alias=SESSI
     if not session_id:
         raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
 
-    db = DBManager(db_path="schedule.db")
+    db = DBManager(db_path=settings.sqlite_db_path)
     session = db.get_session(session_id)
     if not session:
         raise HTTPException(status_code=401, detail="세션이 만료되었거나 유효하지 않습니다.")

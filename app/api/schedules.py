@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/schedules", tags=["Schedules"])
 
 # 2. 의존성 객체 초기화
 ai_svc = GeminiService(api_key=settings.GEMINI_API_KEY)
-db = DBManager(db_path="schedule.db")
+db = DBManager(db_path=settings.sqlite_db_path)
 
 
 # 3. Request 모델
@@ -233,6 +233,11 @@ async def execute_action(request: ExecuteRequest, user_session=Depends(require_s
         if isinstance(e, ValueError):
             raise HTTPException(status_code=400, detail=str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/field-staff", summary="현장직 이름 목록 (작업 인원 선택)")
+def list_field_staff(_user_session=Depends(require_session)):
+    return {"status": "success", "data": db.list_field_staff()}
 
 
 @router.get("/today", summary="상황판용 오늘자 일정 조회")

@@ -10,7 +10,7 @@ from app.core.auth import require_session
 
 router = APIRouter(prefix="/api/vision", tags=["Vision"])
 vision_svc = VisionService(api_key=settings.GEMINI_API_KEY)
-db = DBManager(db_path="schedule.db")
+db = DBManager(db_path=settings.sqlite_db_path)
 
 # 자동화 데이터가 저장될 루트 폴더
 BASE_STORAGE = Path("자동화_데이터")
