@@ -200,6 +200,24 @@ def delete_field_staff(staff_id: int, _admin=Depends(require_admin)):
     return {"status": "success", "message": "삭제되었습니다."}
 
 
+@router.post("/outing-staff")
+def add_outing_staff(payload: FieldStaffCreate, _admin=Depends(require_admin)):
+    try:
+        new_id = db.add_outing_staff(payload.name.strip(), payload.sort_order)
+        return {"status": "success", "id": new_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="이미 등록된 이름입니다.")
+
+
+@router.delete("/outing-staff/{staff_id}")
+def delete_outing_staff(staff_id: int, _admin=Depends(require_admin)):
+    if not db.delete_outing_staff(staff_id):
+        raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다.")
+    return {"status": "success", "message": "삭제되었습니다."}
+
+
 @router.post("/export/daily")
 def run_daily_export(payload: DailyExportRequest, _admin=Depends(require_admin)):
     target_date = payload.target_date or DailyExportService.yesterday_str()

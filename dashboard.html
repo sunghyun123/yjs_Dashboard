@@ -73,6 +73,17 @@
             margin-top: 3px;
         }
         .detail-text { font-size: 0.74rem; color: #666; background: #f0f2f5; padding: 4px 7px; border-radius: 4px; margin-top: 5px; line-height: 1.2; }
+        .detail-preview-content {
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 0.92rem;
+            line-height: 1.45;
+            color: #2d3742;
+            background: #f8f9fc;
+            border: 1px solid #e5e9f0;
+            border-radius: 8px;
+            padding: 10px;
+        }
         .schedule-actions .btn {
             min-width: 84px;
             padding: 4px 8px;
@@ -142,6 +153,27 @@
             background: #212529; color: #fff; border-radius: 10px; padding: 10px 12px; display: none;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
+        .time-stepper {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .time-stepper-value {
+            text-align: center;
+            font-weight: 700;
+            color: #0b4ea2;
+            background: #eff5ff;
+            border: 1px solid #cfe0fb;
+            border-radius: 8px;
+            padding: 6px 10px;
+            min-width: 92px;
+        }
+        .time-stepper .btn {
+            min-width: 42px;
+            font-weight: 700;
+        }
         @media (max-width: 768px) {
             .dashboard-header { padding: 10px 12px; }
             .dashboard-header h3 { font-size: 1.05rem; }
@@ -204,45 +236,52 @@
             <h3 class="m-0 fw-bold">📊 YJS 공사계획 및 현황판</h3>
             <nav class="d-flex gap-2 flex-wrap">
                 <a href="/" class="btn btn-sm btn-outline-light">🤖 AI 비서</a>
-                <a href="/board.html" class="btn btn-sm btn-outline-light">🖥 전자칠판</a>
-                <a href="/admin.html" class="btn btn-sm btn-outline-light">⚙ 관리자</a>
+                <a href="/admin.html" id="adminLinkBtn" class="btn btn-sm btn-outline-light d-none">⚙ 관리자</a>
+                <button type="button" id="logoutBtn" class="btn btn-sm btn-outline-light" onclick="logout()">로그아웃</button>
             </nav>
         </div>
-        <div class="d-flex align-items-center">
-            <h5 class="m-0 me-3" id="currentDate"></h5>
+        <div class="d-flex align-items-center flex-wrap gap-2 justify-content-end">
+            <h5 class="m-0" id="currentDate"></h5>
+            <small class="text-white-50 text-nowrap" id="lastUpdated">업데이트 중...</small>
             <span class="badge bg-success fs-6 blink-bg">🟢 실시간 연동 중</span>
         </div>
     </header>
 
     <div class="container-fluid mt-4 px-4">
-        <div class="row">
+        <div class="row g-3">
 
-            <div class="col-lg-8">
+            <div class="col-xl-9 col-lg-8">
                 <div class="toolbar-card">
                     <div class="row g-2 align-items-center">
-                        <div class="col-sm-5">
+                        <div class="col-12 col-md-4 col-lg-3">
                             <input id="scheduleSearchKeyword" class="form-control form-control-sm" placeholder="현장/작업 검색">
                         </div>
-                        <div class="col-sm-3">
+                        <div class="col-6 col-md-3 col-lg-2">
                             <input id="scheduleTargetDate" class="form-control form-control-sm" type="date">
                         </div>
-                        <div class="col-sm-2">
+                        <div class="col-6 col-md-2 col-lg-2">
                             <div class="form-check mt-1">
                                 <input class="form-check-input" type="checkbox" id="todayOnlyCheck">
                                 <label class="form-check-label small" for="todayOnlyCheck">오늘만</label>
                             </div>
                         </div>
-                        <div class="col-sm-2 text-end">
-                            <button class="btn btn-sm btn-outline-primary w-100" onclick="loadSchedules()">필터 적용</button>
+                        <div class="col-6 col-md-3 col-lg-2 d-grid">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openPersonFilterModal()">인원 검색</button>
+                        </div>
+                        <div class="col-6 col-md-12 col-lg-3 d-grid">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadSchedules()">필터 적용</button>
                         </div>
                     </div>
+                    <div class="small text-muted mt-1" id="personFilterSummary" style="display: none;"></div>
                 </div>
                 <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center py-3">
-                        <span>📋 현장 보고 실시간 현황</span>
-                        <div class="text-end">
-                            <small class="text-muted me-3" id="lastUpdated">업데이트 중...</small>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="loadSchedules()">🔄 수동 갱신</button>
+                    <div class="card-header flex-column align-items-stretch gap-2 py-3">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div class="d-flex flex-wrap align-items-center gap-2 min-w-0">
+                                <span class="fw-bold">📋 현장 보고 실시간 현황</span>
+                                <span id="dashboardNotice" class="badge rounded-pill text-bg-light text-dark border small fw-normal text-wrap text-start" style="max-width: 100%;">공지: 중요 안내는 관리자에게 문의하세요.</span>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" onclick="loadSchedules()">🔄 수동 갱신</button>
                         </div>
                     </div>
                     <div class="card-body" id="scheduleBoard" style="max-height: 80vh; max-height: 80dvh; overflow-y: auto;">
@@ -254,11 +293,11 @@
                 </div>
             </div>
 
-            <div class="col-lg-4">
+            <div class="col-xl-3 col-lg-4">
                 <div class="card">
                     <div class="card-header py-3">🏃‍♂️ 외출 및 행선표</div>
                     <div class="card-body">
-                        <div class="small text-muted mb-2">현황판에서는 상태 조회만 제공합니다. 상태 변경은 전자칠판에서 진행하세요.</div>
+                        <div class="small text-muted mb-2">관리자 등록 인원 기준으로 상태를 클릭 편집할 수 있으며, 행선/복귀 시각은 외출 상태에서만 표시됩니다.</div>
                         <ul class="list-group list-group-flush" id="workerStatusList"></ul>
                     </div>
                 </div>
@@ -275,13 +314,10 @@
                 </div>
 
                 <div class="card mt-3">
-                    <div class="card-header py-3">🧩 전자칠판 템플릿 입력</div>
+                    <div class="card-header py-3">🧩 상황판 등록</div>
                     <div class="card-body">
                         <div class="input-group input-group-sm mb-2">
-                            <select id="boardActionType" class="form-select">
-                                <option value="register">등록</option>
-                                <option value="memo">메모</option>
-                            </select>
+                            <span class="input-group-text small">등록</span>
                             <input id="boardDate" class="form-control" type="date">
                         </div>
                         <div class="mb-2">
@@ -293,7 +329,7 @@
                             </select>
                         </div>
                         <div class="input-group input-group-sm mb-2">
-                            <input id="boardLocation" class="form-control" placeholder="현장 위치 (생략 가능: 일반 작업 등)">
+                            <input id="boardLocation" class="form-control" placeholder="현장 위치 (생략 가능)">
                         </div>
                         <div class="mb-2">
                             <input id="boardTask" class="form-control form-control-sm mb-1" placeholder="작업/메모 제목">
@@ -319,7 +355,7 @@
                     <div class="small text-muted mb-2">현황판 수정은 즉시 반영되며 변경 이력이 저장됩니다.</div>
                     <input id="editScheduleId" class="form-control form-control-sm mb-2" readonly>
                     <input id="editDate" class="form-control form-control-sm mb-2" placeholder="날짜 (YYYY-MM-DD)">
-                    <input id="editLocation" class="form-control form-control-sm mb-2" placeholder="현장 위치 (일반 작업·레거시 작업 카테고리는 생략 가능)">
+                    <input id="editLocation" class="form-control form-control-sm mb-2" placeholder="현장 위치 (공사 일정·일반 작업·일정 모두 생략 가능)">
                     <input id="editTask" class="form-control form-control-sm mb-2" placeholder="작업 내용">
                     <input id="editPerson" class="form-control form-control-sm mb-2" placeholder="담당자·작업 인원">
                     <textarea id="editDetails" rows="3" class="form-control form-control-sm mb-2" placeholder="상세 내용"></textarea>
@@ -334,6 +370,26 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
                     <button type="button" class="btn btn-sm btn-primary" onclick="submitDirectEdit()">즉시 수정</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="personFilterModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">인원 검색 필터</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2">관리자가 등록한 현장직 이름을 복수 선택한 뒤 필터 적용 시, 해당 인원이 작업 인원에 포함된 일정만 표시합니다.</p>
+                    <div id="personFilterStaffList" class="d-flex flex-wrap gap-2"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearPersonFilter()">필터 해제</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="applyPersonFilterFromModal()">필터 적용</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
                 </div>
             </div>
         </div>
@@ -358,6 +414,47 @@
         </div>
     </div>
 
+    <div class="modal fade" id="detailPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">상세 정보</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="detailPreviewContent" class="detail-preview-content"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="workerReturnTimeModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">복귀 시각 설정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-2">30분 단위로 선택하세요. (예: 17:00, 17:30)</div>
+                    <input id="workerReturnTimeInput" class="form-control" type="time" step="1800">
+                    <div class="time-stepper">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" title="30분 감소" onclick="shiftWorkerReturnTime(-30)">▼</button>
+                        <div id="workerReturnTimePreview" class="time-stepper-value">--:--</div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" title="30분 증가" onclick="shiftWorkerReturnTime(30)">▲</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearWorkerReturnTime()">초기화</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="saveWorkerReturnTime()">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const days = ['일', '월', '화', '수', '목', '금', '토'];
@@ -371,17 +468,106 @@
         const scheduleMap = new Map();
         let editRequestModal = null;
         let fieldStaffModal = null;
+        let personFilterModal = null;
+        let workerReturnTimeModal = null;
+        let detailPreviewModal = null;
+        let workerReturnTimeTargetUser = '';
+        let dashboardNotice = '';
         const fieldStaffNameById = {};
         const selectedFieldStaffIds = new Set();
         let fieldStaffTargetScheduleId = null;
+        const personFilterSelectedNames = new Set();
+        let personFilterAppliedNames = [];
 
         const LEGACY_WORK_CATEGORIES = ['(작업)', '점검', '자재입고', '현장답사'];
         function isLocationOptionalCategory(cat) {
             const c = (cat || '').trim();
-            if (!c) return false;
+            if (!c) return true;
+            if (c === '공사일정' || c === '공사 일정') return true;
             if (c === '일반 작업') return true;
+            if (c === '일정') return true;
             if (c.includes('(작업)')) return true;
-            return [...LEGACY_WORK_CATEGORIES, '일정'].includes(c);
+            return LEGACY_WORK_CATEGORIES.includes(c);
+        }
+
+        function personTokens(personRaw) {
+            return String(personRaw || '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+        }
+
+        function scheduleMatchesAppliedPersonFilter(item) {
+            if (!personFilterAppliedNames.length) return true;
+            const tokens = new Set(personTokens(item.person));
+            return personFilterAppliedNames.some((name) => tokens.has(name));
+        }
+
+        function updatePersonFilterSummary() {
+            const el = document.getElementById('personFilterSummary');
+            if (!personFilterAppliedNames.length) {
+                el.style.display = 'none';
+                el.textContent = '';
+                return;
+            }
+            el.style.display = 'block';
+            el.textContent = `인원 필터 적용 중: ${personFilterAppliedNames.join(', ')}`;
+        }
+
+        async function openPersonFilterModal() {
+            personFilterSelectedNames.clear();
+            personFilterAppliedNames.forEach((n) => personFilterSelectedNames.add(n));
+            const box = document.getElementById('personFilterStaffList');
+            box.innerHTML = '<div class="text-muted small">불러오는 중...</div>';
+            personFilterModal.show();
+            try {
+                const res = await fetch('/api/schedules/field-staff');
+                const data = await res.json();
+                if (!res.ok) {
+                    box.innerHTML = `<div class="text-danger small">${escapeHtml(data.detail || '목록을 불러오지 못했습니다.')}</div>`;
+                    return;
+                }
+                const rows = data.data || [];
+                if (rows.length === 0) {
+                    box.innerHTML = '<div class="text-muted small">등록된 현장직이 없습니다. 관리자 화면에서 이름을 추가하세요.</div>';
+                    return;
+                }
+                box.innerHTML = rows.map((r) => {
+                    const name = String(r.name || '').trim();
+                    if (!name) return '';
+                    const active = personFilterSelectedNames.has(name);
+                    const cls = active ? 'btn-primary' : 'btn-outline-primary';
+                    return `<button type="button" class="btn btn-sm ${cls} person-filter-name-btn" data-name="${encodeURIComponent(name)}">${escapeHtml(name)}</button>`;
+                }).join('');
+                box.querySelectorAll('.person-filter-name-btn').forEach((btn) => {
+                    const name = decodeURIComponent(btn.getAttribute('data-name') || '');
+                    btn.addEventListener('click', () => {
+                        if (personFilterSelectedNames.has(name)) {
+                            personFilterSelectedNames.delete(name);
+                            btn.classList.remove('btn-primary');
+                            btn.classList.add('btn-outline-primary');
+                        } else {
+                            personFilterSelectedNames.add(name);
+                            btn.classList.remove('btn-outline-primary');
+                            btn.classList.add('btn-primary');
+                        }
+                    });
+                });
+            } catch (e) {
+                box.innerHTML = '<div class="text-danger small">목록을 불러오지 못했습니다.</div>';
+            }
+        }
+
+        function applyPersonFilterFromModal() {
+            personFilterAppliedNames = Array.from(personFilterSelectedNames);
+            personFilterModal.hide();
+            updatePersonFilterSummary();
+            loadSchedules();
+        }
+
+        function clearPersonFilter() {
+            personFilterSelectedNames.clear();
+            personFilterAppliedNames = [];
+            updatePersonFilterSummary();
+            personFilterModal.hide();
+            loadSchedules();
         }
 
         function displayCategoryLabel(category) {
@@ -525,11 +711,20 @@
                     window.location.href = '/';
                     return false;
                 }
+                const me = await response.json();
+                const adminLink = document.getElementById('adminLinkBtn');
+                if (me.role === 'admin') adminLink.classList.remove('d-none');
+                else adminLink.classList.add('d-none');
                 return true;
             } catch (e) {
                 window.location.href = '/';
                 return false;
             }
+        }
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/';
         }
 
         // 상단 헤더의 오늘 날짜 업데이트
@@ -561,6 +756,52 @@
                 .replaceAll('>', '&gt;')
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#39;');
+        }
+
+        function loadDashboardNotice() {
+            dashboardNotice = localStorage.getItem('yjs_dashboard_notice_v1') || '공지: 중요 안내는 관리자에게 문의하세요.';
+            renderDashboardNotice();
+        }
+
+        function renderDashboardNotice() {
+            const el = document.getElementById('dashboardNotice');
+            el.textContent = dashboardNotice;
+            el.title = '클릭하여 공지 수정';
+        }
+
+        function beginEditDashboardNotice() {
+            const el = document.getElementById('dashboardNotice');
+            const current = dashboardNotice;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control form-control-sm';
+            input.value = current;
+            input.style.maxWidth = '460px';
+            const commit = () => {
+                dashboardNotice = input.value.trim() || '공지: 중요 안내는 관리자에게 문의하세요.';
+                localStorage.setItem('yjs_dashboard_notice_v1', dashboardNotice);
+                renderDashboardNotice();
+                bindDashboardNoticeEditor();
+            };
+            const cancel = () => {
+                renderDashboardNotice();
+                bindDashboardNoticeEditor();
+            };
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') commit();
+                if (e.key === 'Escape') cancel();
+            });
+            input.addEventListener('blur', commit);
+            el.replaceWith(input);
+            input.id = 'dashboardNotice';
+            input.focus();
+            input.select();
+        }
+
+        function bindDashboardNoticeEditor() {
+            const el = document.getElementById('dashboardNotice');
+            el.style.cursor = 'pointer';
+            el.addEventListener('click', beginEditDashboardNotice, { once: true });
         }
 
         function getScheduleFilters() {
@@ -600,12 +841,13 @@
                 const response = await fetch(url);
                 const data = await response.json();
                 const rows = Array.isArray(data.data) ? data.data : [];
-                const filteredRows = keyword
+                let filteredRows = keyword
                     ? rows.filter((item) => {
                         const merged = `${item.location || ''} ${item.task || ''} ${item.person || ''} ${item.details || ''}`.toLowerCase();
                         return merged.includes(keyword);
                     })
                     : rows;
+                filteredRows = filteredRows.filter(scheduleMatchesAppliedPersonFilter);
                 scheduleMap.clear();
                 filteredRows.forEach((item) => scheduleMap.set(String(item.id), item));
 
@@ -687,16 +929,34 @@
             return 'cat-general';
         }
 
+        function detailLineCount(text) {
+            const lines = String(text || '')
+                .replace(/\r\n/g, '\n')
+                .split('\n')
+                .map((s) => s.trim())
+                .filter(Boolean);
+            return lines.length;
+        }
+
+        function detailInlineHtml(text) {
+            return String(text || '')
+                .split('\n')
+                .map((line) => escapeHtml(line))
+                .join('<br>');
+        }
+
         function renderCompactScheduleItem(item) {
             const catClass = compactCategoryClass(item.category);
             const personLine = fullPersonLabel(item.person);
             const detailLine = String(item.details || '').trim();
+            const detailLines = detailLineCount(detailLine);
             return `
                 <div class="schedule-compact-item ${catClass}" data-id="${item.id}" title="${escapeHtml((item.location || '').trim())}">
                     <div class="schedule-compact-task"><span class="schedule-category-dot ${catClass}"></span>${escapeHtml(item.task || '공사명 미기재')}</div>
                     ${personLine ? `<div class="schedule-compact-person">👷 ${escapeHtml(personLine)}</div>` : ''}
                     <div class="schedule-action-panel">
-                        ${detailLine ? `<div class="detail-text">📝 ${escapeHtml(detailLine)}</div>` : ''}
+                        ${detailLine && detailLines <= 2 ? `<div class="detail-text">📝 ${detailInlineHtml(detailLine)}</div>` : ''}
+                        ${detailLine && detailLines >= 3 ? `<button type="button" class="btn btn-sm btn-outline-dark mt-1" onclick="event.stopPropagation(); openDetailPreviewModal('${encodeURIComponent(detailLine)}')">상세 보기</button>` : ''}
                         <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
                             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openFieldStaffModal(${item.id})">작업 인원 추가</button>
                             <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openEditRequestById('${item.id}')">수정</button>
@@ -902,42 +1162,35 @@
             return 'bg-success';
         }
 
-        async function loadWorkerStatus() {
-            const list = document.getElementById('workerStatusList');
-            const response = await fetch('/api/schedules/worker-status');
-            const data = await response.json();
-            if (!response.ok) {
-                list.innerHTML = '<li class="list-group-item text-danger">상태 조회 실패</li>';
-                return;
-            }
-            const rows = data.data || [];
-            if (rows.length === 0) {
-                list.innerHTML = '<li class="list-group-item text-muted">등록된 상태가 없습니다.</li>';
-                return;
-            }
-            list.innerHTML = rows.map((row) => `
-                <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-                    <div><b>${row.user_name}</b> <span class="badge status-badge-sm ${statusBadgeClass(row.status)} ms-1">${statusLabelText(row.status)}</span></div>
-                    <span class="text-muted small">
-                        ${escapeHtml(row.location || '')}
-                        ${row.status === '외출' && row.until_time ? `<span class="return-time-emphasis ms-1">복귀 시각: ${escapeHtml(formatReturnTime(row.until_time))}</span>` : ''}
-                    </span>
-                </li>
-            `).join('');
+        function nextStatus(current) {
+            if (current === '사무실') return '외출';
+            if (current === '외출') return '야간작업';
+            return '사무실';
         }
 
-        async function saveWorkerStatus() {
+        function parseTimeText(value) {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+            const m = raw.match(/^(\d{2}):(\d{2})$/);
+            if (!m) return '';
+            const hh = Number(m[1]);
+            const mm = Number(m[2]);
+            if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || (mm !== 0 && mm !== 30)) return '';
+            return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+        }
+
+        async function saveWorkerStatusPatch(userName, patch) {
+            const currentRowsRes = await fetch('/api/schedules/worker-status');
+            const currentRowsJson = await currentRowsRes.json();
+            const rows = currentRowsJson.data || [];
+            const row = rows.find((r) => String(r.user_name) === String(userName)) || { user_name: userName, status: '사무실', location: '', until_time: '', note: '' };
             const payload = {
-                user_name: document.getElementById('statusUserName').value.trim(),
-                status: document.getElementById('statusType').value,
-                location: document.getElementById('statusLocation').value.trim(),
-                until_time: document.getElementById('statusUntilTime').value.trim(),
+                user_name: userName,
+                status: patch.status ?? row.status ?? '사무실',
+                location: patch.location ?? row.location ?? '',
+                until_time: patch.until_time ?? row.until_time ?? '',
                 note: ''
             };
-            if (!payload.user_name) {
-                alert('이름을 입력하세요.');
-                return;
-            }
             const response = await fetch('/api/schedules/worker-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -946,9 +1199,131 @@
             const data = await response.json();
             if (!response.ok) {
                 alert(data.detail || '상태 저장 실패');
+                return false;
+            }
+            return true;
+        }
+
+        async function handleWorkerStatusClick(userName, currentStatus) {
+            const decodedName = decodeURIComponent(userName || '');
+            const decodedStatus = decodeURIComponent(currentStatus || '사무실');
+            const ok = await saveWorkerStatusPatch(decodedName, { status: nextStatus(decodedStatus) });
+            if (ok) await loadWorkerStatus();
+        }
+
+        async function handleWorkerLocationClick(userName, currentLocation) {
+            const decodedName = decodeURIComponent(userName || '');
+            const decodedLocation = decodeURIComponent(currentLocation || '');
+            const next = prompt('행선(목적지)을 입력하세요.', decodedLocation || '');
+            if (next === null) return;
+            const ok = await saveWorkerStatusPatch(decodedName, { location: next.trim() });
+            if (ok) await loadWorkerStatus();
+        }
+
+        async function handleWorkerUntilClick(userName, currentUntil) {
+            const decodedName = decodeURIComponent(userName || '');
+            const decodedUntil = decodeURIComponent(currentUntil || '');
+            const currentText = formatReturnTime(decodedUntil);
+            workerReturnTimeTargetUser = decodedName;
+            document.getElementById('workerReturnTimeInput').value = currentText || '';
+            updateWorkerReturnTimePreview();
+            workerReturnTimeModal.show();
+        }
+
+        async function saveWorkerReturnTime() {
+            const target = workerReturnTimeTargetUser;
+            if (!target) return;
+            const picked = document.getElementById('workerReturnTimeInput').value;
+            const normalized = parseTimeText(picked);
+            if (picked && !normalized) {
+                alert('복귀 시각은 HH:mm 형식이며 분은 00 또는 30만 가능합니다.');
                 return;
             }
-            loadWorkerStatus();
+            const nextUntil = normalized ? `${formatLocalDateYYYYMMDD()}T${normalized}` : '';
+            const ok = await saveWorkerStatusPatch(target, { until_time: nextUntil });
+            if (!ok) return;
+            workerReturnTimeModal.hide();
+            await loadWorkerStatus();
+        }
+
+        function shiftWorkerReturnTime(deltaMinutes) {
+            const inputEl = document.getElementById('workerReturnTimeInput');
+            const current = String(inputEl.value || '').trim();
+            let hh = 9;
+            let mm = 0;
+            if (current) {
+                const matched = current.match(/^(\d{2}):(\d{2})$/);
+                if (matched) {
+                    hh = Number(matched[1]);
+                    mm = Number(matched[2]);
+                }
+            }
+            const total = ((hh * 60 + mm + deltaMinutes) % 1440 + 1440) % 1440;
+            const snapped = total - (total % 30);
+            const nextH = Math.floor(snapped / 60);
+            const nextM = snapped % 60;
+            inputEl.value = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
+            updateWorkerReturnTimePreview();
+        }
+
+        function updateWorkerReturnTimePreview() {
+            const inputEl = document.getElementById('workerReturnTimeInput');
+            const previewEl = document.getElementById('workerReturnTimePreview');
+            const normalized = parseTimeText(inputEl.value);
+            previewEl.textContent = normalized || '--:--';
+        }
+
+        async function clearWorkerReturnTime() {
+            const target = workerReturnTimeTargetUser;
+            if (!target) return;
+            const ok = await saveWorkerStatusPatch(target, { until_time: '' });
+            if (!ok) return;
+            workerReturnTimeModal.hide();
+            await loadWorkerStatus();
+        }
+
+        function openDetailPreviewModal(encodedDetail) {
+            const detail = decodeURIComponent(encodedDetail || '');
+            document.getElementById('detailPreviewContent').textContent = detail || '상세 정보가 없습니다.';
+            detailPreviewModal.show();
+        }
+
+        async function loadWorkerStatus() {
+            const list = document.getElementById('workerStatusList');
+            const [statusRes, outingRes] = await Promise.all([
+                fetch('/api/schedules/worker-status'),
+                fetch('/api/schedules/outing-staff')
+            ]);
+            const data = await statusRes.json();
+            const outingData = await outingRes.json();
+            if (!statusRes.ok || !outingRes.ok) {
+                list.innerHTML = '<li class="list-group-item text-danger">상태 조회 실패</li>';
+                return;
+            }
+            const statusMap = new Map((data.data || []).map((r) => [String(r.user_name), r]));
+            const outingStaff = outingData.data || [];
+            if (outingStaff.length === 0) {
+                list.innerHTML = '<li class="list-group-item text-muted">외출/행선표 인원 목록이 없습니다. 관리자 화면에서 인원을 등록하세요.</li>';
+                return;
+            }
+            list.innerHTML = outingStaff.map((staff) => {
+                const row = statusMap.get(String(staff.name)) || { user_name: staff.name, status: '사무실', location: '', until_time: '' };
+                return `
+                <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                    <div>
+                        <b>${escapeHtml(row.user_name)}</b>
+                        <button type="button" class="btn btn-sm badge status-badge-sm ${statusBadgeClass(row.status)} ms-1" onclick="handleWorkerStatusClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.status || '사무실')}')">${statusLabelText(row.status)}</button>
+                    </div>
+                    <span class="text-muted small">
+                        ${row.status === '외출'
+                            ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted" onclick="handleWorkerLocationClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${escapeHtml(row.location || '행선 입력')}</button>
+                               <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none return-time-emphasis" onclick="handleWorkerUntilClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${row.until_time ? `복귀 시각: ${escapeHtml(formatReturnTime(row.until_time))}` : '복귀 시각 설정'}</button>`
+                            : ''
+                        }
+                    </span>
+                </li>
+            `;
+            }).join('');
         }
 
         async function loadMemos() {
@@ -1012,19 +1387,12 @@
             const cat = document.getElementById('boardCategory').value.trim() || '공사 일정';
             const loc = document.getElementById('boardLocation').value.trim();
             const task = document.getElementById('boardTask').value.trim();
-            const actionType = document.getElementById('boardActionType').value;
-            if (actionType === 'register') {
-                if (!task) {
-                    alert('공사명·작업명을 입력하세요.');
-                    return;
-                }
-                if (!isLocationOptionalCategory(cat) && !loc) {
-                    alert('현장 위치를 입력하거나, 일반 작업·레거시 작업 카테고리·일정을 선택하세요.');
-                    return;
-                }
+            if (!task) {
+                alert('공사명·작업명을 입력하세요.');
+                return;
             }
             const payload = {
-                action_type: actionType,
+                action_type: 'register',
                 date: document.getElementById('boardDate').value.trim() || null,
                 location: loc,
                 task: task,
@@ -1042,7 +1410,7 @@
             });
             const data = await response.json();
             if (!response.ok) {
-                alert(data.detail || '전자칠판 템플릿 전송 실패');
+                alert(data.detail || '상황판 등록 전송 실패');
                 return;
             }
             alert(data.message || '처리 완료');
@@ -1055,7 +1423,14 @@
                 if (!ok) return;
                 editRequestModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
                 fieldStaffModal = new bootstrap.Modal(document.getElementById('fieldStaffModal'));
+                personFilterModal = new bootstrap.Modal(document.getElementById('personFilterModal'));
+                workerReturnTimeModal = new bootstrap.Modal(document.getElementById('workerReturnTimeModal'));
+                detailPreviewModal = new bootstrap.Modal(document.getElementById('detailPreviewModal'));
+                document.getElementById('workerReturnTimeInput').addEventListener('input', updateWorkerReturnTimePreview);
                 updateHeaderDate();
+                loadDashboardNotice();
+                bindDashboardNoticeEditor();
+                updatePersonFilterSummary();
                 bindCompactItemActions();
                 document.getElementById('todayOnlyCheck').addEventListener('change', () => {
                     const targetInput = document.getElementById('scheduleTargetDate');

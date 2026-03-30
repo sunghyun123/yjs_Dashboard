@@ -80,6 +80,9 @@ class DBManager:
                     conn.execute("ALTER TABLE users ADD COLUMN user_name TEXT")
                 if "password_plain" not in user_columns:
                     conn.execute("ALTER TABLE users ADD COLUMN password_plain TEXT")
+                # 보안 강화: 레거시 평문 비밀번호는 더 이상 사용하지 않으므로 초기화
+                if "password_plain" in user_columns:
+                    conn.execute("UPDATE users SET password_plain = NULL WHERE password_plain IS NOT NULL AND password_plain != ''")
                 conn.execute("""
                              CREATE TABLE IF NOT EXISTS sessions
                              (
@@ -167,6 +170,14 @@ class DBManager:
                              )
                              """)
                 conn.execute("""
+                             CREATE TABLE IF NOT EXISTS outing_staff
+                             (
+                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 name TEXT NOT NULL UNIQUE,
+                                 sort_order INTEGER DEFAULT 0
+                             )
+                             """)
+                conn.execute("""
                              CREATE TABLE IF NOT EXISTS audit_events
                              (
                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -190,8 +201,8 @@ class DBManager:
                     logger.warning("초기 관리자 계정 생성됨: user_id=admin, password=1234")
                     default_pw_hash = hashlib.sha256(bootstrap_password.encode("utf-8")).hexdigest()
                     conn.execute(
-                        "INSERT INTO users (user_id, user_name, password_hash, password_plain, register_code, role) VALUES (?, ?, ?, ?, ?, ?)",
-                        ("admin", "관리자", default_pw_hash, bootstrap_password, bootstrap_register_code, "admin")
+                        "INSERT INTO users (user_id, user_name, password_hash, register_code, role) VALUES (?, ?, ?, ?, ?)",
+                        ("admin", "관리자", default_pw_hash, bootstrap_register_code, "admin")
                     )
 
     @staticmethod
@@ -427,7 +438,7 @@ class DBManager:
         with closing(sqlite3.connect(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
-                "SELECT user_id, user_name, password_hash, password_plain, register_code, role FROM users WHERE user_id = ?",
+                "SELECT user_id, user_name, password_hash, register_code, role FROM users WHERE user_id = ?",
                 (user_id,),
             ).fetchone()
             return dict(row) if row else None
@@ -437,7 +448,7 @@ class DBManager:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 """
-                SELECT user_id, user_name, password_plain
+                SELECT user_id, user_name
                 FROM users
                 WHERE user_name = ?
                 ORDER BY created_at DESC
@@ -469,11 +480,30 @@ class DBManager:
             with conn:
                 conn.execute(
                     """
-                    INSERT INTO users (user_id, user_name, password_hash, password_plain, register_code, role)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO users (user_id, user_name, password_hash, register_code, role)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
-                    (u_id, u_name, pw_hash, pw, register_code, role),
+                    (u_id, u_name, pw_hash, register_code, role),
                 )
+
+    def reset_user_password(self, user_id: str, user_name: str, new_password: str) -> bool:
+        u_id = (user_id or "").strip()
+        u_name = (user_name or "").strip()
+        pw = new_password or ""
+        if not u_id or not u_name or not pw:
+            return False
+        pw_hash = hashlib.sha256(pw.encode("utf-8")).hexdigest()
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                cursor = conn.execute(
+                    """
+                    UPDATE users
+                    SET password_hash = ?, password_plain = NULL
+                    WHERE user_id = ? AND user_name = ?
+                    """,
+                    (pw_hash, u_id, u_name),
+                )
+                return cursor.rowcount > 0
 
     def create_session(self, session_id: str, user_id: str, device_name: str, expires_at: str) -> None:
         user = self.get_user_by_id(user_id)
@@ -940,6 +970,32 @@ class DBManager:
                 cursor = conn.execute("DELETE FROM field_staff WHERE id = ?", (staff_id,))
                 return cursor.rowcount > 0
 
+    def list_outing_staff(self) -> List[Dict[str, Any]]:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT id, name, sort_order FROM outing_staff ORDER BY sort_order ASC, id ASC"
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def add_outing_staff(self, name: str, sort_order: int = 0) -> int:
+        n = (name or "").strip()
+        if not n:
+            raise ValueError("이름이 필요합니다.")
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                cursor = conn.execute(
+                    "INSERT INTO outing_staff (name, sort_order) VALUES (?, ?)",
+                    (n, sort_order),
+                )
+                return int(cursor.lastrowid)
+
+    def delete_outing_staff(self, staff_id: int) -> bool:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                cursor = conn.execute("DELETE FROM outing_staff WHERE id = ?", (staff_id,))
+                return cursor.rowcount > 0
+
     def get_daily_schedules(self, target_date: str) -> List[Dict[str, Any]]:
         query = """
             SELECT id, date, location, task, person, details, tags, category,
@@ -974,7 +1030,7 @@ class DBManager:
             with conn:
                 cursor = conn.execute(
                     """
-                    INSERT INTO export_jobs (target_date, status, output_path, message)
+                    INSERT INTO export_jobs (target_date, status, output_path, message) 
                     VALUES (?, ?, ?, ?)
                     """,
                     (target_date, status, output_path, message),

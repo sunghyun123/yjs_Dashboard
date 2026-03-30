@@ -243,6 +243,11 @@ def list_field_staff(_user_session=Depends(require_session)):
     return {"status": "success", "data": db.list_field_staff()}
 
 
+@router.get("/outing-staff", summary="외출/행선표 고정 인원 목록")
+def list_outing_staff(_user_session=Depends(require_session)):
+    return {"status": "success", "data": db.list_outing_staff()}
+
+
 @router.get("/today", summary="상황판용 오늘자 일정 조회")
 def get_todays_schedules(date: Optional[str] = None, _user_session=Depends(require_session)):
     """
