@@ -6,7 +6,7 @@ FastAPI + SQLite 기반의 현장 일정/메모/관리 요청 대시보드입니
 
 - 채팅 기반 일정 등록/조회 (`/`)
 - 상황판 조회 및 편집 (`/dashboard.html`)
-- 전자칠판 화면 (`/board.html`)
+- 전자칠판 레거시 경로 (`/board.html` -> `/dashboard.html` 리다이렉트)
 - 관리자 승인/감사 로그 (`/admin.html`)
 - 이미지 업로드 분류 (`/api/vision/upload`)
 
@@ -56,7 +56,7 @@ python main.py
 - 입력 화면: `http://localhost:8000/`
 - 상황판: `http://localhost:8000/dashboard.html`
 - 관리자: `http://localhost:8000/admin.html`
-- 전자칠판: `http://localhost:8000/board.html`
+- 전자칠판 레거시 경로: `http://localhost:8000/board.html` (자동으로 상황판으로 이동)
 
 ## 외부 기기 접속
 
@@ -72,7 +72,7 @@ python -m pytest -q
 
 스모크 테스트 범위:
 
-- 정적 페이지 서빙: `/`, `/dashboard.html`, `/admin.html`, `/board.html`
+- 정적 페이지 서빙: `/`, `/dashboard.html`, `/admin.html`, `/board.html`(리다이렉트 포함)
 - 인증 흐름: 로그인/내 정보 조회/로그아웃
 - 일정 생성 및 조회: `/api/schedules/execute`, `/api/schedules/today`
 - 메모/작업자 상태: `/api/schedules/memos`, `/api/schedules/worker-status`

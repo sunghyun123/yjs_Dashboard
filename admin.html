@@ -22,9 +22,9 @@
         <div class="d-flex gap-2 flex-wrap">
             <a href="/" class="btn btn-outline-secondary btn-sm">채팅</a>
             <a href="/dashboard.html" class="btn btn-outline-secondary btn-sm">상황판</a>
-            <a href="/board.html" class="btn btn-outline-secondary btn-sm">전자칠판</a>
             <button class="btn btn-outline-primary btn-sm" onclick="runDailyExport()">전일 업로드</button>
             <button class="btn btn-primary btn-sm" onclick="loadRequests()">새로고침</button>
+            <button class="btn btn-outline-danger btn-sm" onclick="logout()">로그아웃</button>
         </div>
     </div>
 
@@ -75,6 +75,22 @@
                 </div>
             </div>
             <div id="fieldStaffAdminList" class="mt-2 small text-muted">불러오는 중...</div>
+        </div>
+    </div>
+
+    <div class="card mb-3 queue-card">
+        <div class="card-header py-2">외출/행선표 인원 관리 (자유 등록/삭제)</div>
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label small mb-0">이름 추가</label>
+                    <input id="outingStaffNameInput" class="form-control form-control-sm" placeholder="예: 홍길동">
+                </div>
+                <div class="col-md-3">
+                    <button type="button" class="btn btn-sm btn-primary w-100" onclick="addOutingStaff()">등록</button>
+                </div>
+            </div>
+            <div id="outingStaffAdminList" class="mt-2 small text-muted">불러오는 중...</div>
         </div>
     </div>
 
@@ -231,6 +247,27 @@
         `).join('');
     }
 
+    async function loadOutingStaffAdmin() {
+        const box = document.getElementById('outingStaffAdminList');
+        const res = await fetch('/api/schedules/outing-staff');
+        const data = await res.json();
+        if (!res.ok) {
+            box.textContent = data.detail || '목록을 불러오지 못했습니다.';
+            return;
+        }
+        const rows = data.data || [];
+        if (rows.length === 0) {
+            box.innerHTML = '<span class="text-muted">등록된 이름이 없습니다.</span>';
+            return;
+        }
+        box.innerHTML = rows.map((r) => `
+            <div class="d-flex justify-content-between align-items-center border rounded px-2 py-1 mb-1">
+                <span>${escapeHtml(r.name)}</span>
+                <button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="deleteOutingStaff(${r.id})">삭제</button>
+            </div>
+        `).join('');
+    }
+
     async function addFieldStaff() {
         const name = document.getElementById('fieldStaffNameInput').value.trim();
         if (!name) {
@@ -260,6 +297,42 @@
             return;
         }
         await loadFieldStaffAdmin();
+    }
+
+    async function addOutingStaff() {
+        const name = document.getElementById('outingStaffNameInput').value.trim();
+        if (!name) {
+            alert('이름을 입력하세요.');
+            return;
+        }
+        const res = await fetch('/api/admin/outing-staff', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, sort_order: 0 })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '등록 실패');
+            return;
+        }
+        document.getElementById('outingStaffNameInput').value = '';
+        await loadOutingStaffAdmin();
+    }
+
+    async function deleteOutingStaff(id) {
+        if (!confirm('삭제할까요?')) return;
+        const res = await fetch(`/api/admin/outing-staff/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '삭제 실패');
+            return;
+        }
+        await loadOutingStaffAdmin();
+    }
+
+    async function logout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        location.href = '/';
     }
 
     function renderItem(item) {
@@ -736,6 +809,7 @@
         restoreFilters();
         loadRequests();
         loadFieldStaffAdmin();
+        loadOutingStaffAdmin();
     });
 </script>
 </body>

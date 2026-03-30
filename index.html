@@ -69,8 +69,8 @@
         <div class="d-flex align-items-center gap-2 flex-wrap">
             <span id="loginUserBadge" class="badge bg-light text-dark d-none"></span>
             <a href="/dashboard.html" class="btn btn-sm btn-outline-light rounded-pill">📊 상황판</a>
-            <a href="/board.html" class="btn btn-sm btn-outline-light rounded-pill">🖥 전자칠판</a>
-            <a href="/admin.html" class="btn btn-sm btn-outline-light rounded-pill">⚙ 관리자</a>
+            <a href="/admin.html" id="adminLinkBtn" class="btn btn-sm btn-outline-light rounded-pill d-none">⚙ 관리자</a>
+            <button type="button" id="logoutBtn" class="btn btn-sm btn-outline-light rounded-pill d-none" onclick="logout()">로그아웃</button>
         </div>
     </header>
 
@@ -186,17 +186,22 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">계정 찾기</h5>
+                <h5 class="modal-title">계정 찾기 / 비밀번호 재설정</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <label class="form-label">사용자 이름</label>
                 <input id="findUserName" class="form-control" placeholder="이름을 입력하세요">
+                <label class="form-label mt-2">계정 ID</label>
+                <input id="findUserId" class="form-control" placeholder="조회 후 자동 입력됩니다">
+                <label class="form-label mt-2">새 비밀번호</label>
+                <input id="resetNewPassword" class="form-control" type="password" placeholder="새 비밀번호를 입력하세요">
                 <div id="findAccountResult" class="small mt-2 text-muted"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
-                <button type="button" class="btn btn-primary btn-sm" onclick="findAccount()">조회</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="findAccount()">ID 조회</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="resetPassword()">비밀번호 재설정</button>
             </div>
         </div>
     </div>
@@ -209,6 +214,8 @@
     const typingIndicator = document.getElementById('typingIndicator');
     const loginOverlay = document.getElementById('loginOverlay');
     const loginUserBadge = document.getElementById('loginUserBadge');
+    const adminLinkBtn = document.getElementById('adminLinkBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
     const imageInput = document.getElementById('imageInput');
     const uploadCategorySelect = document.getElementById('uploadCategorySelect');
 
@@ -335,11 +342,15 @@
         else if (intent === 'search') {
             if (data.candidates && data.candidates.length > 0) {
                 data.candidates.forEach(cand => {
+                    const personLine = (cand.person && String(cand.person).trim())
+                        ? `<small class="text-secondary">작업 인원: ${String(cand.person).trim()}</small><br>`
+                        : '';
                     html += `
                         <div class="candidate-item">
-                            <strong>${cand.location}</strong> (${cand.date})<br>
+                            <strong>${cand.location || '위치 미기재'}</strong> (${cand.date})<br>
                             <span class="text-dark">${cand.task}</span><br>
-                            <small class="text-muted">${cand.details || '상세내용 없음'}</small>
+                            <small class="text-muted">${cand.details || '상세내용 없음'}</small><br>
+                            ${personLine}
                         </div>
                     `;
                 });
@@ -465,6 +476,9 @@
             currentUserId = me.user_id;
             loginUserBadge.textContent = `${me.user_id}`;
             loginUserBadge.classList.remove('d-none');
+            if (me.role === 'admin') adminLinkBtn.classList.remove('d-none');
+            else adminLinkBtn.classList.add('d-none');
+            logoutBtn.classList.remove('d-none');
             loginOverlay.style.display = 'none';
             return true;
         } catch (e) {
@@ -492,6 +506,9 @@
             currentUserId = data.user_id;
             loginUserBadge.textContent = `${data.user_id}`;
             loginUserBadge.classList.remove('d-none');
+            if (data.role === 'admin') adminLinkBtn.classList.remove('d-none');
+            else adminLinkBtn.classList.add('d-none');
+            logoutBtn.classList.remove('d-none');
             loginOverlay.style.display = 'none';
             appendBubble('bot', `안녕하세요 ${data.user_id}님. 요청을 도와드릴게요.`);
         } catch (e) {
@@ -539,6 +556,7 @@
 
     async function findAccount() {
         const userName = document.getElementById('findUserName').value.trim();
+        const userIdInput = document.getElementById('findUserId');
         const resultBox = document.getElementById('findAccountResult');
         if (!userName) {
             resultBox.textContent = '이름을 입력해 주세요.';
@@ -555,10 +573,43 @@
                 resultBox.textContent = data.detail || '등록된 계정 정보가 없습니다.';
                 return;
             }
-            resultBox.innerHTML = `ID: <strong>${data.user_id}</strong><br>비밀번호: <strong>${data.password}</strong>`;
+            userIdInput.value = data.user_id || '';
+            resultBox.innerHTML = `ID: <strong>${data.user_id}</strong><br>${data.message || '비밀번호는 조회되지 않습니다.'}`;
         } catch (e) {
             resultBox.textContent = '계정 조회 중 통신 오류가 발생했습니다.';
         }
+    }
+
+    async function resetPassword() {
+        const userName = document.getElementById('findUserName').value.trim();
+        const userId = document.getElementById('findUserId').value.trim();
+        const newPassword = document.getElementById('resetNewPassword').value;
+        const resultBox = document.getElementById('findAccountResult');
+        if (!userName || !userId || !newPassword) {
+            resultBox.textContent = '이름, 계정 ID, 새 비밀번호를 모두 입력해 주세요.';
+            return;
+        }
+        try {
+            const res = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_name: userName, user_id: userId, new_password: newPassword })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                resultBox.textContent = data.detail || '비밀번호 재설정에 실패했습니다.';
+                return;
+            }
+            resultBox.textContent = data.message || '비밀번호가 재설정되었습니다.';
+            document.getElementById('resetNewPassword').value = '';
+        } catch (e) {
+            resultBox.textContent = '비밀번호 재설정 중 통신 오류가 발생했습니다.';
+        }
+    }
+
+    async function logout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        location.href = '/';
     }
 
     uploadCategoryModal = new bootstrap.Modal(document.getElementById('uploadCategoryModal'));

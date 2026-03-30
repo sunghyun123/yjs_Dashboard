@@ -27,6 +27,12 @@ class FindAccountRequest(BaseModel):
     user_name: str = Field(..., description="사용자 이름")
 
 
+class ResetPasswordRequest(BaseModel):
+    user_name: str = Field(..., description="사용자 이름")
+    user_id: str = Field(..., description="계정 ID")
+    new_password: str = Field(..., description="새 비밀번호")
+
+
 @router.post("/login")
 def login(request: LoginRequest, response: Response):
     user = db.get_user_by_id(request.user_id)
@@ -47,8 +53,7 @@ def login(request: LoginRequest, response: Response):
 
     hashed_input = hash_password(request.password)
     password_hash = (user.get("password_hash") or "").strip()
-    password_plain = user.get("password_plain") or ""
-    password_ok = (password_hash and password_hash == hashed_input) or (password_plain and password_plain == request.password)
+    password_ok = bool(password_hash and password_hash == hashed_input)
     if not password_ok:
         raise HTTPException(status_code=401, detail="계정 정보가 올바르지 않습니다.")
 
@@ -88,8 +93,22 @@ def find_account(request: FindAccountRequest):
     return {
         "status": "success",
         "user_id": row["user_id"],
-        "password": row.get("password_plain") or "",
+        "message": "비밀번호는 보안상 제공되지 않습니다. 비밀번호 재설정을 진행해 주세요.",
     }
+
+
+@router.post("/reset-password")
+def reset_password(request: ResetPasswordRequest):
+    if len(request.new_password or "") < 4:
+        raise HTTPException(status_code=400, detail="새 비밀번호는 4자 이상이어야 합니다.")
+    updated = db.reset_user_password(
+        user_id=request.user_id,
+        user_name=request.user_name,
+        new_password=request.new_password,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="일치하는 계정 정보를 찾을 수 없습니다.")
+    return {"status": "success", "message": "비밀번호가 재설정되었습니다."}
 
 
 @router.post("/logout")

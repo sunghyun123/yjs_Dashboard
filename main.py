@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 async def daily_export_loop():
     """주기적으로 전일 백업을 점검/실행한다."""
-    db = DBManager(db_path=settings.sqlite_db_path)
-    svc = DailyExportService(db=db)
+    db = DBManager(db_path=settings.sqlite_db_path) # DB 초기화
+    svc = DailyExportService(db=db) # 내보내기 서비스 초기화
     while True:
         try:
             result = svc.export_yesterday_if_needed()
@@ -55,7 +55,7 @@ app = FastAPI(
 allow_origins = settings.cors_origin_list
 allow_credentials = "*" not in allow_origins
 
-app.add_middleware(
+app.add_middleware( # 모든 경로에 대해 CORS 허용
     CORSMiddleware,
     allow_origins=allow_origins,
     allow_credentials=allow_credentials,
@@ -85,9 +85,9 @@ async def serve_admin():
     return FileResponse("admin.html")
 
 
-@app.get("/board.html", summary="전자칠판 전용 화면", tags=["Pages"])
+@app.get("/board.html", summary="레거시 경로 → 상황판 리다이렉트", tags=["Pages"])
 async def serve_board():
-    return FileResponse("board.html")
+    return RedirectResponse(url="/dashboard.html", status_code=307)
 
 
 if __name__ == "__main__":

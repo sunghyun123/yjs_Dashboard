@@ -19,16 +19,19 @@ def test_static_pages_are_served(client):
         "/": ["사진 카테고리 선택", "요청 접수"],
         "/dashboard.html": ["일정 수정", "오늘만"],
         "/admin.html": ["요청 반려", "전일 업로드 실행"],
-        "/board.html": ["템플릿 전송 확인", "대기 중"],
     }
 
-    for path in ["/", "/dashboard.html", "/admin.html", "/board.html"]:
+    for path in ["/", "/dashboard.html", "/admin.html"]:
         res = client.get(path)
         assert res.status_code == 200
         assert "text/html" in res.headers.get("content-type", "")
         body = res.text
         for marker in page_markers[path]:
             assert marker in body
+
+    board_redirect = client.get("/board.html", follow_redirects=False)
+    assert board_redirect.status_code == 307
+    assert board_redirect.headers.get("location") == "/dashboard.html"
 
 
 def test_auth_login_me_logout_flow(client):
@@ -46,6 +49,38 @@ def test_auth_login_me_logout_flow(client):
 
     unauthorized_me = client.get("/api/auth/me")
     assert unauthorized_me.status_code == 401
+
+
+def test_find_account_does_not_return_password_and_supports_reset(client):
+    signup_res = client.post(
+        "/api/auth/signup",
+        json={"user_name": "보안테스터", "user_id": "security-user", "password": "oldpass"},
+    )
+    assert signup_res.status_code == 200
+
+    find_res = client.post("/api/auth/find-account", json={"user_name": "보안테스터"})
+    assert find_res.status_code == 200
+    find_body = find_res.json()
+    assert find_body["user_id"] == "security-user"
+    assert "password" not in find_body
+
+    reset_res = client.post(
+        "/api/auth/reset-password",
+        json={"user_name": "보안테스터", "user_id": "security-user", "new_password": "newpass"},
+    )
+    assert reset_res.status_code == 200
+
+    old_login = client.post(
+        "/api/auth/login",
+        json={"user_id": "security-user", "password": "oldpass", "device_name": "pytest-device"},
+    )
+    assert old_login.status_code == 401
+
+    new_login = client.post(
+        "/api/auth/login",
+        json={"user_id": "security-user", "password": "newpass", "device_name": "pytest-device"},
+    )
+    assert new_login.status_code == 200
 
 
 def test_schedule_create_and_today_read(client):
@@ -302,3 +337,14 @@ def test_admin_review_approve_update_and_delete(client):
 
     final_rows = client.get("/api/schedules/today").json()["data"]
     assert all(r["id"] != schedule_id for r in final_rows)
+
+
+def test_direct_update_delete_require_auth(client):
+    update_res = client.post(
+        "/api/schedules/direct-update",
+        json={"schedule_id": 1, "schedule_data": {"date": "2026-03-30", "location": "의정부", "task": "점검"}},
+    )
+    assert update_res.status_code == 401
+
+    delete_res = client.post("/api/schedules/direct-delete", json={"schedule_id": 1})
+    assert delete_res.status_code == 401
