@@ -223,7 +223,13 @@ def run_daily_export(payload: DailyExportRequest, _admin=Depends(require_admin))
     target_date = payload.target_date or DailyExportService.yesterday_str()
     try:
         result = export_svc.export_date(target_date)
-        return {"status": "success", "message": "일일 내보내기가 완료되었습니다.", "data": result}
+        archive = export_svc.archive_old_daily_reports(keep_days=90)
+        return {
+            "status": "success",
+            "message": "백업 데이터 생성이 완료되었습니다.",
+            "data": result,
+            "archive": archive,
+        }
     except Exception as e:
         db.create_export_job(target_date=target_date, status="failed", output_path="", message=str(e))
         raise HTTPException(status_code=500, detail=f"일일 내보내기 실패: {e}")

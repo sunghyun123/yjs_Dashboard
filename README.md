@@ -9,6 +9,7 @@ FastAPI + SQLite 기반의 현장 일정/메모/관리 요청 대시보드입니
 - 전자칠판 레거시 경로 (`/board.html` -> `/dashboard.html` 리다이렉트)
 - 관리자 승인/감사 로그 (`/admin.html`)
 - 이미지 업로드 분류 (`/api/vision/upload`)
+- 일일 백업데이터 생성 + 90일 경과본 월별 ZIP 아카이브
 
 ## 인증/계정 정책 (초기 적응 단계)
 
@@ -82,3 +83,13 @@ python -m pytest -q
 
 - `tests/conftest.py`
 - `tests/test_smoke_basic_flow.py`
+
+## 백업/증빙 데이터 정책
+
+- 일일 백업 엑셀: `자동화_데이터/YYYY-MM-DD_백업데이터.xlsx`
+- 사진 증빙: 엑셀에 포함하지 않고 `자동화_데이터/YYYY-MM-DD/<카테고리>/` 폴더에 원본 저장
+- 사진 메타데이터(`file_size`, `file_sha256`)는 DB(`photo_uploads`)에 저장
+- 서버 백그라운드 루프에서 1시간마다 점검:
+  - 전일 백업 생성 여부 확인
+  - 90일 지난 일별 백업 엑셀은 `자동화_데이터/archives/YYYY-MM_백업데이터.zip`으로 압축/정리
+- 관리자 화면의 `백업데이터 생성` 버튼도 동일한 백업/아카이브 정책을 사용

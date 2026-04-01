@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # 1. 일정 데이터 구조 (create, update 시 후보 데이터 작성용)
 class ScheduleSchema(BaseModel):
     date: str = Field(description="YYYY-MM-DD 형식의 날짜")
-    location: str = Field(description="현장 위치 (예: 안양, 군포 지중화 등)")
+    location: str = Field(description="현장 위치 (예: 안양, 군포 등)")
     task: str = Field(description="주요 작업 명칭")
     person: str = Field(default="-", description="담당자 또는 작업자 이름")
     details: str = Field(default="", description="참여자, 장비, 특이사항 등 상세 내용")

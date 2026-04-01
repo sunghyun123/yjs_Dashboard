@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     PORT: int = 8000
     ALLOWED_ORIGINS: str = "*"
     ALLOWED_HOSTS: str = "*"
+    # 빈 DB 최초 기본 관리자(admin) 비밀번호. 배포 시 .env에서 반드시 강한 값으로 변경.
+    INITIAL_ADMIN_PASSWORD: str = "1234"
+    # 공개 배포 시 false 권장 (무인 가입 차단)
+    SIGNUP_ENABLED: bool = True
+    # HTTPS 리버스 프록시 뒤에서 true (쿠키 Secure)
+    COOKIE_SECURE: bool = False
 
     model_config = SettingsConfigDict(env_file=".env")  # .env 파일을 읽어오도록 설정
 

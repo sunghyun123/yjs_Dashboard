@@ -37,12 +37,13 @@ class ResetPasswordRequest(BaseModel):
 def login(request: LoginRequest, response: Response):
     user = db.get_user_by_id(request.user_id)
 
-    # 운영 중 DB 이관/초기화 상태에서도 기본 관리자 계정(admin/1234)으로 진입 가능하도록 보정
-    if not user and request.user_id == "admin" and request.password == "1234":
+    # DB에 admin 행이 없을 때만 INITIAL_ADMIN_PASSWORD로 최초 관리자 생성 (이관/수동 DB 삭제 대비)
+    bootstrap_pw = (settings.INITIAL_ADMIN_PASSWORD or "1234").strip() or "1234"
+    if not user and request.user_id == "admin" and request.password == bootstrap_pw:
         db.create_user(
             user_name="관리자",
             user_id="admin",
-            password="1234",
+            password=request.password,
             role="admin",
             register_code="",
         )
@@ -61,8 +62,10 @@ def login(request: LoginRequest, response: Response):
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
+        path="/",
         httponly=True,
         samesite="lax",
+        secure=settings.COOKIE_SECURE,
         max_age=SESSION_TTL_DAYS * 24 * 60 * 60,
     )
     return {"message": "로그인 성공", "user_id": request.user_id, "role": user["role"]}
@@ -70,6 +73,8 @@ def login(request: LoginRequest, response: Response):
 
 @router.post("/signup")
 def signup(request: SignupRequest):
+    if not settings.SIGNUP_ENABLED:
+        raise HTTPException(status_code=403, detail="회원가입이 비활성화되어 있습니다.")
     try:
         db.create_user(
             user_name=request.user_name,
@@ -114,7 +119,12 @@ def reset_password(request: ResetPasswordRequest):
 @router.post("/logout")
 def logout(response: Response, session=Depends(require_session)):
     db.delete_session(session["session_id"])
-    response.delete_cookie(SESSION_COOKIE_NAME)
+    response.delete_cookie(
+        SESSION_COOKIE_NAME,
+        path="/",
+        samesite="lax",
+        secure=settings.COOKIE_SECURE,
+    )
     return {"message": "로그아웃되었습니다."}
 
 

@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
+import hashlib
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends
 from app.services.vision_ai_service import VisionService
 from app.core.config import settings
@@ -23,6 +24,8 @@ async def process_document(
     user_session=Depends(require_session),
 ):
     content = await file.read()
+    file_hash = hashlib.sha256(content).hexdigest()
+    file_size = len(content)
 
     # 사용자 지정 카테고리 업로드 (모바일/PC 사진 전송)
     if upload_category:
@@ -39,6 +42,8 @@ async def process_document(
             uploaded_by=user_session["user_id"],
             uploaded_device=user_session.get("device_name", "unknown-device"),
             related_date=date_dir,
+            file_size=file_size,
+            file_sha256=file_hash,
         )
         return {"message": "사진 저장 완료", "folder": str(folder), "filename": save_path.name}
 
@@ -48,7 +53,8 @@ async def process_document(
         raise HTTPException(status_code=500, detail="AI 분석 실패")
 
     # 1. 문서 종류별 폴더 생성
-    folder = BASE_STORAGE / data['doc_type']
+    date_dir = datetime.now().strftime("%Y-%m-%d")
+    folder = BASE_STORAGE / date_dir / data['doc_type']
     folder.mkdir(parents=True, exist_ok=True)
 
     # 2. 파일명 조합 (YYYY-MM-DD_공사명_코드)
@@ -67,5 +73,15 @@ async def process_document(
     # 4. 원본 사진 저장 (검수용)
     with open(folder / f"{safe_name}{Path(file.filename).suffix}", "wb") as f:
         f.write(content)
+
+    db.save_photo_upload(
+        category=data['doc_type'],
+        file_path=str(folder / f"{safe_name}{Path(file.filename).suffix}"),
+        uploaded_by=user_session["user_id"],
+        uploaded_device=user_session.get("device_name", "unknown-device"),
+        related_date=date_dir,
+        file_size=file_size,
+        file_sha256=file_hash,
+    )
 
     return {"message": "분류 및 저장 완료", "folder": str(folder), "filename": safe_name}

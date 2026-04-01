@@ -100,6 +100,17 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
     (이 단계에서는 실제 DB 변경이 일어나지 않습니다.)
     """
     logger.info(f"새로운 채팅 메시지 수신: {request.text}")
+    response_intent = "incomplete"
+    response_status = "success"
+
+    def record_chat_event() -> None:
+        db.log_chat_event(
+            user_id=user_session.get("user_id", ""),
+            input_category=request.input_category,
+            message_text=request.text,
+            intent=response_intent,
+            response_status=response_status,
+        )
 
     # 카테고리 기반 즉시 관리자 큐 라우팅
     if request.input_category in ["other", "update_request", "delete_request"]:
@@ -111,6 +122,8 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
             payload_json="",
             requested_by=user_session["user_id"],
         )
+        response_intent = "incomplete"
+        record_chat_event()
         return {
             "intent": "incomplete",
             "reply_message": f"요청이 관리자 검토 큐로 접수되었습니다. (요청번호: #{req_id})",
@@ -128,6 +141,8 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
             actor_user=user_session["user_id"],
             actor_device=user_session.get("device_name", "unknown-device"),
         )
+        response_intent = "incomplete"
+        record_chat_event()
         return {
             "intent": "incomplete",
             "reply_message": f"메모가 등록되었습니다. (메모번호: #{memo_id})",
@@ -139,6 +154,9 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
     action_data = await ai_svc.process_command(request.text)
 
     if not action_data:
+        response_status = "error"
+        response_intent = "ai_parse_failed"
+        record_chat_event()
         raise HTTPException(status_code=400, detail="AI가 메시지를 분석하지 못했습니다.")
 
     intent = action_data.get('intent')
@@ -164,6 +182,8 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
                 payload_json=json.dumps(action_data, ensure_ascii=False),
                 requested_by=user_session["user_id"],
             )
+            response_intent = "incomplete"
+            record_chat_event()
             return {
                 "intent": "incomplete",
                 "reply_message": f"요청이 관리자 승인 큐로 접수되었습니다. (요청번호: #{req_id})",
@@ -179,6 +199,8 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
                 reply_message = "말씀하신 조건의 조회 결과가 없습니다. 날짜나 장소를 다시 알려주세요."
                 intent = "incomplete"
 
+        response_intent = str(intent or "incomplete")
+        record_chat_event()
         return {
             "intent": intent,
             "reply_message": reply_message,
@@ -187,6 +209,12 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
         }
 
     except Exception as e:
+        response_status = "error"
+        response_intent = str(intent or "server_error")
+        try:
+            record_chat_event()
+        except Exception:
+            pass
         logger.error(f"채팅 의도 분석 중 에러 발생: {e}")
         raise HTTPException(status_code=500, detail="서버 내부 오류가 발생했습니다.")
 
@@ -249,16 +277,29 @@ def list_outing_staff(_user_session=Depends(require_session)):
 
 
 @router.get("/today", summary="상황판용 오늘자 일정 조회")
-def get_todays_schedules(date: Optional[str] = None, _user_session=Depends(require_session)):
+def get_todays_schedules(
+    date: Optional[str] = None,
+    range_start: Optional[str] = None,
+    range_end: Optional[str] = None,
+    _user_session=Depends(require_session),
+):
     """
     (기존 유지) 대시보드 화면을 그릴 때 전체 일정을 가져오는 엔드포인트
     """
     try:
-        if date:
+        if range_start and range_end:
+            start_dt = datetime.strptime(range_start, "%Y-%m-%d")
+            end_dt = datetime.strptime(range_end, "%Y-%m-%d")
+            if start_dt > end_dt:
+                raise HTTPException(status_code=400, detail="range_start는 range_end보다 이전 날짜여야 합니다.")
+            schedules = db.search_schedules_by_date_range(range_start, range_end)
+        elif date:
             schedules = db.search_schedules_by_keyword(date=date, keyword=None)
         else:
             schedules = db.get_schedules_for_window(base_date=None, past_days=3, future_days=7)
         return {"message": "조회 성공", "count": len(schedules), "data": schedules}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="날짜 형식은 YYYY-MM-DD 이어야 합니다.")
     except Exception as e:
         logger.error(f"일정 조회 실패: {e}")
         raise HTTPException(status_code=500, detail="서버 내부 오류가 발생했습니다.")
