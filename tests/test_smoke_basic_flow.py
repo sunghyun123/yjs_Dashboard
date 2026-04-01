@@ -1,3 +1,11 @@
+from datetime import date
+
+
+def _iso_today() -> str:
+    """기본 /today 조회 창(과거 며칠~미래 며칠) 안에 들어가도록 오늘 날짜 사용."""
+    return date.today().isoformat()
+
+
 def login_as_admin(client):
     res = client.post(
         "/api/auth/login",
@@ -18,7 +26,7 @@ def test_static_pages_are_served(client):
     page_markers = {
         "/": ["사진 카테고리 선택", "요청 접수"],
         "/dashboard.html": ["일정 수정", "오늘만"],
-        "/admin.html": ["요청 반려", "전일 업로드 실행"],
+        "/admin.html": ["요청 반려", "백업데이터 생성 실행"],
     }
 
     for path in ["/", "/dashboard.html", "/admin.html"]:
@@ -85,13 +93,14 @@ def test_find_account_does_not_return_password_and_supports_reset(client):
 
 def test_schedule_create_and_today_read(client):
     login_as_admin(client)
+    d = _iso_today()
 
     create_res = client.post(
         "/api/schedules/execute",
         json={
             "action": "create",
             "schedule_data": {
-                "date": "2026-03-26",
+                "date": d,
                 "location": "안양",
                 "task": "지중화 공사",
                 "person": "김대리",
@@ -114,13 +123,14 @@ def test_schedule_create_and_today_read(client):
 
 def test_schedule_create_with_missing_optional_fields(client):
     login_as_admin(client)
+    d = _iso_today()
 
     create_res = client.post(
         "/api/schedules/execute",
         json={
             "action": "create",
             "schedule_data": {
-                "date": "2026-03-26",
+                "date": d,
                 "location": "군포",
                 "task": "야간작업",
             },
@@ -134,7 +144,7 @@ def test_schedule_create_with_missing_optional_fields(client):
     inserted = next((row for row in rows if row["location"] == "군포" and row["task"] == "야간작업"), None)
     assert inserted is not None
     assert inserted["details"] in ["", None]
-    assert inserted["category"] == "공사일정"
+    assert inserted["category"] == "공사 일정"
 
 
 def test_memo_and_worker_status_flow(client):
@@ -192,6 +202,7 @@ def test_admin_request_queue_basic_flow(client):
 
 def test_execute_update_delete_go_to_admin_queue(client):
     login_as_admin(client)
+    d = _iso_today()
 
     # Create a base schedule first.
     create_res = client.post(
@@ -199,7 +210,7 @@ def test_execute_update_delete_go_to_admin_queue(client):
         json={
             "action": "create",
             "schedule_data": {
-                "date": "2026-03-26",
+                "date": d,
                 "location": "의왕",
                 "task": "맨홀 정비",
                 "person": "박대리",
@@ -224,7 +235,7 @@ def test_execute_update_delete_go_to_admin_queue(client):
             "action": "update",
             "schedule_id": schedule_id,
             "schedule_data": {
-                "date": "2026-03-26",
+                "date": d,
                 "location": "의왕",
                 "task": "맨홀 정비(수정요청)",
                 "person": "박대리",
@@ -255,6 +266,7 @@ def test_execute_update_delete_go_to_admin_queue(client):
 
 def test_admin_review_approve_update_and_delete(client):
     login_as_admin(client)
+    d = _iso_today()
 
     # 1) Create original schedule.
     create_res = client.post(
@@ -262,7 +274,7 @@ def test_admin_review_approve_update_and_delete(client):
         json={
             "action": "create",
             "schedule_data": {
-                "date": "2026-03-27",
+                "date": d,
                 "location": "안산",
                 "task": "케이블 포설",
                 "person": "이대리",
@@ -286,7 +298,7 @@ def test_admin_review_approve_update_and_delete(client):
             "action": "update",
             "schedule_id": schedule_id,
             "schedule_data": {
-                "date": "2026-03-27",
+                "date": d,
                 "location": "안산",
                 "task": "케이블 포설(승인수정)",
                 "person": "이대리",

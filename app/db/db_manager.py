@@ -6,6 +6,8 @@ from contextlib import closing
 from typing import List, Dict, Any, Optional
 import hashlib
 
+from app.core.config import settings
+
 # 로거 설정
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -117,9 +119,16 @@ class DBManager:
                                  uploaded_by TEXT,
                                  uploaded_device TEXT,
                                  related_date TEXT,
+                                 file_size INTEGER DEFAULT 0,
+                                 file_sha256 TEXT DEFAULT '',
                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                              )
                              """)
+                photo_columns = [row[1] for row in conn.execute("PRAGMA table_info(photo_uploads)").fetchall()]
+                if "file_size" not in photo_columns:
+                    conn.execute("ALTER TABLE photo_uploads ADD COLUMN file_size INTEGER DEFAULT 0")
+                if "file_sha256" not in photo_columns:
+                    conn.execute("ALTER TABLE photo_uploads ADD COLUMN file_sha256 TEXT DEFAULT ''")
                 conn.execute("""
                              CREATE TABLE IF NOT EXISTS memo_items
                              (
@@ -192,13 +201,25 @@ class DBManager:
                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                              )
                              """)
+                conn.execute("""
+                             CREATE TABLE IF NOT EXISTS chat_events
+                             (
+                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 user_id TEXT,
+                                 input_category TEXT,
+                                 intent TEXT,
+                                 message_text TEXT,
+                                 response_status TEXT NOT NULL DEFAULT 'success',
+                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                             )
+                             """)
 
                 # 초기 운영용 기본 계정 (최초 1회)
                 user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
                 if user_count == 0:
-                    bootstrap_password = "1234"
+                    bootstrap_password = (settings.INITIAL_ADMIN_PASSWORD or "1234").strip() or "1234"
                     bootstrap_register_code = ""
-                    logger.warning("초기 관리자 계정 생성됨: user_id=admin, password=1234")
+                    logger.warning("초기 관리자 계정 생성됨: user_id=admin (비밀번호는 INITIAL_ADMIN_PASSWORD)")
                     default_pw_hash = hashlib.sha256(bootstrap_password.encode("utf-8")).hexdigest()
                     conn.execute(
                         "INSERT INTO users (user_id, user_name, password_hash, register_code, role) VALUES (?, ?, ?, ?, ?)",
@@ -407,6 +428,21 @@ class DBManager:
             today = datetime.now().date()
         start_date = (today - timedelta(days=past_days)).strftime("%Y-%m-%d")
         end_date = (today + timedelta(days=future_days)).strftime("%Y-%m-%d")
+        query = """
+            SELECT id, date, location, task, person, details, tags, category,
+                   datetime(created_at, 'localtime') as created_at
+            FROM field_schedules
+            WHERE deleted_at IS NULL
+              AND date >= ?
+              AND date <= ?
+            ORDER BY date ASC, display_order ASC, created_at ASC
+        """
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(query, (start_date, end_date)).fetchall()
+            return [dict(row) for row in rows]
+
+    def search_schedules_by_date_range(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         query = """
             SELECT id, date, location, task, person, details, tags, category,
                    datetime(created_at, 'localtime') as created_at
@@ -753,15 +789,17 @@ class DBManager:
         uploaded_by: str,
         uploaded_device: str,
         related_date: str,
+        file_size: int = 0,
+        file_sha256: str = "",
     ) -> int:
         with closing(sqlite3.connect(self.db_path)) as conn:
             with conn:
                 cursor = conn.execute(
                     """
-                    INSERT INTO photo_uploads (category, file_path, uploaded_by, uploaded_device, related_date)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO photo_uploads (category, file_path, uploaded_by, uploaded_device, related_date, file_size, file_sha256)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (category, file_path, uploaded_by, uploaded_device, related_date),
+                    (category, file_path, uploaded_by, uploaded_device, related_date, int(file_size or 0), str(file_sha256 or "")),
                 )
                 return int(cursor.lastrowid)
 
@@ -1011,6 +1049,20 @@ class DBManager:
             rows = conn.execute(query, (target_date,)).fetchall()
             return [dict(row) for row in rows]
 
+    def get_all_schedules_for_backup(self) -> List[Dict[str, Any]]:
+        query = """
+            SELECT id, date, location, task, person, details, tags, category,
+                   deleted_at, deleted_by, delete_reason,
+                   last_actor_user, last_actor_device, last_actor_at,
+                   datetime(created_at, 'localtime') AS created_at
+            FROM field_schedules
+            ORDER BY date ASC, created_at ASC, id ASC
+        """
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(query).fetchall()
+            return [dict(row) for row in rows]
+
     def get_daily_memos(self, target_date: str) -> List[Dict[str, Any]]:
         query = """
             SELECT id, memo_type, content, target_date, linked_schedule_id, visibility, status,
@@ -1044,3 +1096,246 @@ class DBManager:
                 (target_date,),
             ).fetchone()
             return bool(row)
+
+    def get_daily_admin_requests(self, target_date: str) -> List[Dict[str, Any]]:
+        query = """
+            SELECT id, request_type, source_category, request_text, summary, payload_json, requested_by, status,
+                   datetime(created_at, 'localtime') AS created_at
+            FROM admin_requests
+            WHERE date(datetime(created_at, 'localtime')) = ?
+            ORDER BY created_at DESC
+        """
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(query, (target_date,)).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_daily_photo_uploads(self, target_date: str) -> List[Dict[str, Any]]:
+        query = """
+            SELECT id, category, file_path, uploaded_by, uploaded_device, related_date,
+                   datetime(created_at, 'localtime') AS created_at
+            FROM photo_uploads
+            WHERE related_date = ?
+               OR date(datetime(created_at, 'localtime')) = ?
+            ORDER BY created_at DESC
+        """
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(query, (target_date, target_date)).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_daily_audit_events(self, target_date: str) -> List[Dict[str, Any]]:
+        query = """
+            SELECT id, entity_type, entity_id, action, reason, actor_user, actor_device,
+                   datetime(created_at, 'localtime') AS created_at
+            FROM audit_events
+            WHERE date(datetime(created_at, 'localtime')) = ?
+            ORDER BY created_at DESC
+        """
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(query, (target_date,)).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_daily_login_sessions(self, target_date: str) -> List[Dict[str, Any]]:
+        query = """
+            SELECT session_id, user_id, role, device_name, expires_at,
+                   datetime(created_at, 'localtime') AS created_at
+            FROM sessions
+            WHERE date(datetime(created_at, 'localtime')) = ?
+            ORDER BY created_at DESC
+        """
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(query, (target_date,)).fetchall()
+            return [dict(row) for row in rows]
+
+    def log_chat_event(
+        self,
+        user_id: str,
+        input_category: str,
+        message_text: str,
+        intent: str = "",
+        response_status: str = "success",
+    ) -> int:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO chat_events (user_id, input_category, intent, message_text, response_status)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        (user_id or "").strip(),
+                        (input_category or "").strip(),
+                        (intent or "").strip(),
+                        (message_text or "").strip(),
+                        (response_status or "success").strip(),
+                    ),
+                )
+                return int(cursor.lastrowid)
+
+    def get_daily_chat_events(self, target_date: str) -> List[Dict[str, Any]]:
+        query = """
+            SELECT id, user_id, input_category, intent, message_text, response_status,
+                   datetime(created_at, 'localtime') AS created_at
+            FROM chat_events
+            WHERE date(datetime(created_at, 'localtime')) = ?
+            ORDER BY created_at DESC
+        """
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(query, (target_date,)).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_daily_backup_metrics(self, target_date: str) -> Dict[str, Any]:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            active_schedule_count = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM field_schedules
+                WHERE date = ? AND deleted_at IS NULL
+                """,
+                (target_date,),
+            ).fetchone()["cnt"]
+            schedule_created_count = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM field_schedules
+                WHERE date(datetime(created_at, 'localtime')) = ?
+                """,
+                (target_date,),
+            ).fetchone()["cnt"]
+            memo_count = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM memo_items WHERE target_date = ?",
+                (target_date,),
+            ).fetchone()["cnt"]
+            outing_status_count = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM worker_status",
+            ).fetchone()["cnt"]
+            admin_request_count = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM admin_requests
+                WHERE date(datetime(created_at, 'localtime')) = ?
+                """,
+                (target_date,),
+            ).fetchone()["cnt"]
+            photo_upload_count = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM photo_uploads
+                WHERE related_date = ?
+                   OR date(datetime(created_at, 'localtime')) = ?
+                """,
+                (target_date, target_date),
+            ).fetchone()["cnt"]
+            audit_count = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM audit_events
+                WHERE date(datetime(created_at, 'localtime')) = ?
+                """,
+                (target_date,),
+            ).fetchone()["cnt"]
+            login_count = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM sessions
+                WHERE date(datetime(created_at, 'localtime')) = ?
+                """,
+                (target_date,),
+            ).fetchone()["cnt"]
+            chat_count = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM chat_events
+                WHERE date(datetime(created_at, 'localtime')) = ?
+                """,
+                (target_date,),
+            ).fetchone()["cnt"]
+            update_count = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM audit_events
+                WHERE entity_type = 'schedule'
+                  AND action = 'update'
+                  AND date(datetime(created_at, 'localtime')) = ?
+                """,
+                (target_date,),
+            ).fetchone()["cnt"]
+            delete_count = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM audit_events
+                WHERE entity_type = 'schedule'
+                  AND action = 'delete'
+                  AND date(datetime(created_at, 'localtime')) = ?
+                """,
+                (target_date,),
+            ).fetchone()["cnt"]
+
+            active_users_query = """
+                SELECT DISTINCT actor_user AS user_name FROM (
+                    SELECT COALESCE(last_actor_user, '') AS actor_user
+                    FROM field_schedules
+                    WHERE date(last_actor_at) = ?
+                    UNION ALL
+                    SELECT COALESCE(last_actor_user, '') AS actor_user
+                    FROM memo_items
+                    WHERE date(last_actor_at) = ?
+                    UNION ALL
+                    SELECT COALESCE(requested_by, '') AS actor_user
+                    FROM admin_requests
+                    WHERE date(datetime(created_at, 'localtime')) = ?
+                    UNION ALL
+                    SELECT COALESCE(uploaded_by, '') AS actor_user
+                    FROM photo_uploads
+                    WHERE related_date = ?
+                       OR date(datetime(created_at, 'localtime')) = ?
+                    UNION ALL
+                    SELECT COALESCE(actor_user, '') AS actor_user
+                    FROM audit_events
+                    WHERE date(datetime(created_at, 'localtime')) = ?
+                    UNION ALL
+                    SELECT COALESCE(user_id, '') AS actor_user
+                    FROM sessions
+                    WHERE date(datetime(created_at, 'localtime')) = ?
+                    UNION ALL
+                    SELECT COALESCE(user_id, '') AS actor_user
+                    FROM chat_events
+                    WHERE date(datetime(created_at, 'localtime')) = ?
+                )
+                WHERE user_name != ''
+            """
+            daily_active_users = conn.execute(
+                active_users_query,
+                (
+                    target_date,
+                    target_date,
+                    target_date,
+                    target_date,
+                    target_date,
+                    target_date,
+                    target_date,
+                    target_date,
+                ),
+            ).fetchall()
+            dau_count = len(daily_active_users)
+
+            return {
+                "target_date": target_date,
+                "active_schedule_count": int(active_schedule_count or 0),
+                "schedule_created_count": int(schedule_created_count or 0),
+                "memo_count": int(memo_count or 0),
+                "outing_status_snapshot_count": int(outing_status_count or 0),
+                "admin_request_count": int(admin_request_count or 0),
+                "photo_upload_count": int(photo_upload_count or 0),
+                "audit_event_count": int(audit_count or 0),
+                "login_session_count": int(login_count or 0),
+                "chat_count": int(chat_count or 0),
+                "schedule_update_count": int(update_count or 0),
+                "schedule_delete_count": int(delete_count or 0),
+                "daily_active_user_count": int(dau_count),
+            }

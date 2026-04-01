@@ -12,8 +12,7 @@ from app.db.db_manager import DBManager
 # Ensure required settings exist before app modules import `settings`.
 os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.setdefault("DATABASE_URL", "sqlite:///test.db")
-os.environ.setdefault("INITIAL_ADMIN_PASSWORD", "admin1234")
-os.environ.setdefault("INITIAL_REGISTER_CODE", "YJS-REGISTER-001")
+os.environ.setdefault("INITIAL_ADMIN_PASSWORD", "1234")
 
 
 def _install_google_genai_stub():

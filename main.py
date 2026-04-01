@@ -26,9 +26,12 @@ async def daily_export_loop():
         try:
             result = svc.export_yesterday_if_needed()
             if not result.get("skipped"):
-                logger.info(f"전일 업로드 완료: {result}")
+                logger.info(f"전일 백업데이터 생성 완료: {result}")
+            archive_result = svc.archive_old_daily_reports(keep_days=90)
+            if archive_result.get("archived_count", 0) > 0:
+                logger.info(f"백업 아카이브 정리 완료: {archive_result}")
         except Exception as e:
-            logger.error(f"전일 업로드 자동 점검 실패: {e}")
+            logger.error(f"전일 백업데이터 자동 점검 실패: {e}")
         # 1시간마다 점검
         await asyncio.sleep(3600)
 

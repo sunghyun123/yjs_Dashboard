@@ -93,8 +93,31 @@
         }
         .schedule-action-panel { border-top: 1px dashed #d7dbe0; margin-top: 5px; padding-top: 5px; display: none; }
         #workerStatusList .list-group-item { padding-top: 0.4rem; padding-bottom: 0.4rem; font-size: 0.9rem; }
-        .return-time-emphasis { color: #0b4ea2; font-weight: 700; }
+        .return-time-emphasis { color: #0b4ea2; font-weight: 700; font-size: 12px !important; }
         .status-badge-sm { font-size: 0.72rem; }
+        .worker-outing-meta {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            max-width: 62%;
+            overflow: hidden;
+        }
+        .worker-location-btn {
+            display: inline-block;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.2;
+            font-size: 13px;
+        }
+        .worker-location-btn.allow-wrap {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: unset;
+            word-break: break-word;
+        }
         .schedule-compact-item {
             border-left: 3px solid #9cb6da;
             background: #f8f9fc;
@@ -148,6 +171,23 @@
             white-space: nowrap;
         }
         .toolbar-card { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); background: #fff; padding: 12px; margin-bottom: 14px; }
+        .month-nav .btn {
+            border-color: #8fa5bf;
+            color: #1f4f8f;
+            background: #f8fbff;
+            font-weight: 700;
+            min-width: 78px;
+        }
+        .month-nav .btn:hover {
+            border-color: #3f75b8;
+            color: #0f3f7f;
+            background: #e9f3ff;
+        }
+        .board-mode-badge {
+            border: 1px solid #d2e2f7;
+            background: #edf4ff;
+            color: #1d4f8e;
+        }
         .save-toast {
             position: fixed; right: 16px; bottom: 16px; z-index: 1080; min-width: 240px;
             background: #212529; color: #fff; border-radius: 10px; padding: 10px 12px; display: none;
@@ -218,6 +258,8 @@
                 font-size: 0.78rem;
                 font-weight: 700;
             }
+            .month-nav .btn { min-width: 64px; padding-left: 6px; padding-right: 6px; }
+            .worker-outing-meta { max-width: 58%; }
             /* 모바일은 조회 전용: 액션 패널 비노출 */
             .schedule-compact-item .schedule-action-panel { display: none !important; }
         }
@@ -279,6 +321,13 @@
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                             <div class="d-flex flex-wrap align-items-center gap-2 min-w-0">
                                 <span class="fw-bold">📋 현장 보고 실시간 현황</span>
+                                <div class="btn-group btn-group-sm month-nav" role="group" aria-label="월 이동">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="shiftBoardMonth(-1)">◀ 이전달</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="jumpToCurrentMonth()">이번달</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="shiftBoardMonth(1)">다음달 ▶</button>
+                                </div>
+                                <span id="currentBoardMonthLabel" class="badge text-bg-primary">-</span>
+                                <span id="boardViewModeLabel" class="badge rounded-pill board-mode-badge">조회 모드: -</span>
                                 <span id="dashboardNotice" class="badge rounded-pill text-bg-light text-dark border small fw-normal text-wrap text-start" style="max-width: 100%;">공지: 중요 안내는 관리자에게 문의하세요.</span>
                             </div>
                             <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" onclick="loadSchedules()">🔄 수동 갱신</button>
@@ -478,6 +527,7 @@
         let fieldStaffTargetScheduleId = null;
         const personFilterSelectedNames = new Set();
         let personFilterAppliedNames = [];
+        let currentBoardMonth = '';
 
         const LEGACY_WORK_CATEGORIES = ['(작업)', '점검', '자재입고', '현장답사'];
         function isLocationOptionalCategory(cat) {
@@ -685,6 +735,77 @@
             return out;
         }
 
+        function getMonthStart(dateStr) {
+            const d = new Date(`${dateStr}T00:00:00`);
+            if (Number.isNaN(d.getTime())) return formatLocalDateYYYYMMDD();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        }
+
+        function addMonths(monthStartStr, offset) {
+            const base = new Date(`${monthStartStr}T00:00:00`);
+            if (Number.isNaN(base.getTime())) return getMonthStart(formatLocalDateYYYYMMDD());
+            base.setMonth(base.getMonth() + offset, 1);
+            return getMonthStart(formatLocalDateYYYYMMDD(base));
+        }
+
+        function buildMonthDates(monthStartStr) {
+            const first = new Date(`${monthStartStr}T00:00:00`);
+            if (Number.isNaN(first.getTime())) return [];
+            const year = first.getFullYear();
+            const month = first.getMonth();
+            const lastDate = new Date(year, month + 1, 0).getDate();
+            const out = [];
+            for (let day = 1; day <= lastDate; day++) {
+                out.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+            }
+            return out;
+        }
+
+        function getMonthRange(monthStartStr) {
+            const dates = buildMonthDates(monthStartStr);
+            if (!dates.length) {
+                const todayStr = formatLocalDateYYYYMMDD();
+                return { start: todayStr, end: todayStr, dates: [todayStr] };
+            }
+            return { start: dates[0], end: dates[dates.length - 1], dates };
+        }
+
+        function updateCurrentBoardMonthLabel() {
+            const el = document.getElementById('currentBoardMonthLabel');
+            const d = new Date(`${currentBoardMonth}T00:00:00`);
+            if (Number.isNaN(d.getTime())) {
+                el.textContent = '-';
+                return;
+            }
+            el.textContent = `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월`;
+        }
+
+        function setCurrentBoardMonth(dateStr) {
+            currentBoardMonth = getMonthStart(dateStr);
+            updateCurrentBoardMonthLabel();
+        }
+
+        function shiftBoardMonth(offset) {
+            currentBoardMonth = addMonths(currentBoardMonth || getMonthStart(formatLocalDateYYYYMMDD()), offset);
+            updateCurrentBoardMonthLabel();
+            const todayOnly = document.getElementById('todayOnlyCheck');
+            const targetDate = document.getElementById('scheduleTargetDate');
+            todayOnly.checked = false;
+            targetDate.disabled = false;
+            targetDate.value = '';
+            loadSchedules();
+        }
+
+        function jumpToCurrentMonth() {
+            setCurrentBoardMonth(formatLocalDateYYYYMMDD());
+            const todayOnly = document.getElementById('todayOnlyCheck');
+            const targetDate = document.getElementById('scheduleTargetDate');
+            todayOnly.checked = false;
+            targetDate.disabled = false;
+            targetDate.value = '';
+            loadSchedules();
+        }
+
         function statusLabelText(status) {
             if (status === '야간작업') return '야간 작업';
             return status || '사무실';
@@ -811,6 +932,25 @@
             return { todayOnly, selectedDate, keyword };
         }
 
+        function updateBoardViewModeLabel(todayOnly, selectedDate) {
+            const el = document.getElementById('boardViewModeLabel');
+            if (!el) return;
+            if (todayOnly) {
+                el.textContent = '조회 모드: 오늘만';
+                return;
+            }
+            if (selectedDate) {
+                el.textContent = `조회 모드: 특정일(${selectedDate})`;
+                return;
+            }
+            const d = new Date(`${currentBoardMonth}T00:00:00`);
+            if (Number.isNaN(d.getTime())) {
+                el.textContent = '조회 모드: 월 전체';
+                return;
+            }
+            el.textContent = `조회 모드: ${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 전체`;
+        }
+
         function showSaveToast(message, type = 'info') {
             const el = document.getElementById('saveToast');
             el.textContent = message;
@@ -832,12 +972,19 @@
             const board = document.getElementById('scheduleBoard');
             const { todayOnly, selectedDate, keyword } = getScheduleFilters();
             const todayStr = formatLocalDateYYYYMMDD();
+            const monthlyRange = getMonthRange(currentBoardMonth || getMonthStart(todayStr));
             const queryDate = todayOnly ? todayStr : (selectedDate || '');
             const prevActiveScheduleId = getActiveScheduleCardId();
+            updateBoardViewModeLabel(todayOnly, selectedDate);
 
             try {
                 // 백엔드 API 호출
-                const url = queryDate ? `/api/schedules/today?date=${encodeURIComponent(queryDate)}` : '/api/schedules/today';
+                let url = '/api/schedules/today';
+                if (queryDate) {
+                    url = `/api/schedules/today?date=${encodeURIComponent(queryDate)}`;
+                } else {
+                    url = `/api/schedules/today?range_start=${encodeURIComponent(monthlyRange.start)}&range_end=${encodeURIComponent(monthlyRange.end)}`;
+                }
                 const response = await fetch(url);
                 const data = await response.json();
                 const rows = Array.isArray(data.data) ? data.data : [];
@@ -873,12 +1020,8 @@
                 } else if (selectedDate) {
                     sortedDates = [selectedDate];
                 } else {
-                    sortedDates = buildDateWindow(todayStr, 7, 7);
+                    sortedDates = monthlyRange.dates;
                 }
-                Object.keys(groupedData).forEach((dateKey) => {
-                    if (!sortedDates.includes(dateKey)) sortedDates.push(dateKey);
-                });
-                sortedDates = sortedDates.sort((a, b) => a.localeCompare(b));
 
                 const boardHTML = isMobileViewport()
                     ? renderMobileCalendar(sortedDates, groupedData, todayStr)
@@ -1273,6 +1416,29 @@
             previewEl.textContent = normalized || '--:--';
         }
 
+        function autoFitWorkerLocationText() {
+            const MAX_FONT_PX = 13;
+            const MIN_NOWRAP_FONT_PX = 8;
+            const WRAP_FONT_PX = 10;
+            const STEP_PX = 0.5;
+            const buttons = document.querySelectorAll('.worker-location-btn');
+            buttons.forEach((btn) => {
+                btn.classList.remove('allow-wrap');
+                let size = MAX_FONT_PX;
+                btn.style.fontSize = `${size}px`;
+                btn.title = btn.textContent || '';
+                while (size > MIN_NOWRAP_FONT_PX && btn.scrollWidth > btn.clientWidth) {
+                    size -= STEP_PX;
+                    btn.style.fontSize = `${size}px`;
+                }
+                if (btn.scrollWidth > btn.clientWidth) {
+                    // 임계값 이하로 더 줄이지 않고 줄바꿈을 허용해 가독성을 지킨다.
+                    btn.style.fontSize = `${WRAP_FONT_PX}px`;
+                    btn.classList.add('allow-wrap');
+                }
+            });
+        }
+
         async function clearWorkerReturnTime() {
             const target = workerReturnTimeTargetUser;
             if (!target) return;
@@ -1314,16 +1480,17 @@
                         <b>${escapeHtml(row.user_name)}</b>
                         <button type="button" class="btn btn-sm badge status-badge-sm ${statusBadgeClass(row.status)} ms-1" onclick="handleWorkerStatusClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.status || '사무실')}')">${statusLabelText(row.status)}</button>
                     </div>
-                    <span class="text-muted small">
+                    <span class="text-muted small worker-outing-meta">
                         ${row.status === '외출'
-                            ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted" onclick="handleWorkerLocationClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${escapeHtml(row.location || '행선 입력')}</button>
-                               <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none return-time-emphasis" onclick="handleWorkerUntilClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${row.until_time ? `복귀 시각: ${escapeHtml(formatReturnTime(row.until_time))}` : '복귀 시각 설정'}</button>`
+                            ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted worker-location-btn" onclick="handleWorkerLocationClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${escapeHtml(row.location || '행선 입력')}</button>
+                               <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none return-time-emphasis" onclick="handleWorkerUntilClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${row.until_time ? `복귀: ${escapeHtml(formatReturnTime(row.until_time))}` : '복귀 설정'}</button>`
                             : ''
                         }
                     </span>
                 </li>
             `;
             }).join('');
+            autoFitWorkerLocationText();
         }
 
         async function loadMemos() {
@@ -1428,6 +1595,7 @@
                 detailPreviewModal = new bootstrap.Modal(document.getElementById('detailPreviewModal'));
                 document.getElementById('workerReturnTimeInput').addEventListener('input', updateWorkerReturnTimePreview);
                 updateHeaderDate();
+                setCurrentBoardMonth(formatLocalDateYYYYMMDD());
                 loadDashboardNotice();
                 bindDashboardNoticeEditor();
                 updatePersonFilterSummary();
@@ -1438,9 +1606,14 @@
                     targetInput.disabled = isTodayOnly;
                     if (isTodayOnly) {
                         targetInput.value = formatLocalDateYYYYMMDD();
+                        setCurrentBoardMonth(targetInput.value);
                     } else {
                         targetInput.value = '';
                     }
+                });
+                document.getElementById('scheduleTargetDate').addEventListener('change', (e) => {
+                    const picked = String(e.target.value || '').trim();
+                    if (picked) setCurrentBoardMonth(picked);
                 });
                 document.getElementById('todayOnlyCheck').dispatchEvent(new Event('change'));
                 document.getElementById('boardDate').value = formatLocalDateYYYYMMDD();
@@ -1451,6 +1624,7 @@
 
                 // 날짜가 자정을 넘기면 헤더의 날짜도 바뀌도록 1시간마다 날짜 체크
                 setInterval(updateHeaderDate, 3600000);
+                window.addEventListener('resize', autoFitWorkerLocationText);
             });
         };
     </script>

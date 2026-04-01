@@ -22,7 +22,7 @@
         <div class="d-flex gap-2 flex-wrap">
             <a href="/" class="btn btn-outline-secondary btn-sm">채팅</a>
             <a href="/dashboard.html" class="btn btn-outline-secondary btn-sm">상황판</a>
-            <button class="btn btn-outline-primary btn-sm" onclick="runDailyExport()">전일 업로드</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="runDailyExport()">백업데이터 생성</button>
             <button class="btn btn-primary btn-sm" onclick="loadRequests()">새로고침</button>
             <button class="btn btn-outline-danger btn-sm" onclick="logout()">로그아웃</button>
         </div>
@@ -123,7 +123,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">전일 업로드 실행</h5>
+                <h5 class="modal-title">백업데이터 생성 실행</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -795,11 +795,11 @@
         });
         const data = await res.json();
         if (!res.ok) {
-            alert(data.detail || '내보내기 실패');
+            alert(data.detail || '백업데이터 생성 실패');
             return;
         }
         exportModal.hide();
-        alert(`내보내기 완료: ${data.data.output_dir}`);
+        alert(`백업데이터 생성 완료: ${data.data.output_file}`);
     }
 
     ensureAdminSession().then((ok) => {
