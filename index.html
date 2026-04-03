@@ -36,6 +36,8 @@
         .status-chip.status-request { background: #fff4e5; color: #9a5c00; border: 1px solid #ffe0b2; }
         .status-chip.status-info { background: #ebf3ff; color: #0b4ea2; border: 1px solid #c9defe; }
         .upload-help { font-size: 0.82rem; color: #6c757d; margin-top: 4px; }
+        .quick-meta-row { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .quick-meta-row select, .quick-meta-row input { font-size: 0.82rem; }
 
         /* 하단 입력 영역 */
         .input-area { background-color: #fff; padding: 10px 15px; display: flex; gap: 10px; align-items: center; border-top: 1px solid #ccc; z-index: 10; padding-bottom: calc(10px + env(safe-area-inset-bottom)); flex-wrap: wrap; }
@@ -58,6 +60,7 @@
             .input-area { padding: 8px 10px; gap: 8px; }
             #inputCategory { max-width: none !important; flex: 1 1 140px; }
             #chatInput { width: 100%; min-width: 0; }
+            .quick-meta-row { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -99,6 +102,16 @@
             <option value="memo">메모</option>
             <option value="other">기타(관리자에게 전송)</option>
         </select>
+
+        <div class="quick-meta-row" id="scheduleMetaRow">
+            <select id="quickShiftType" class="form-select form-select-sm">
+                <option value="" selected>근무 구분(미지정)</option>
+                <option value="주간">주간</option>
+                <option value="야간">야간</option>
+                <option value="심야">심야</option>
+            </select>
+            <input id="quickWorkCode" type="text" class="form-control form-control-sm" placeholder="공사 코드 (예: JY25-244)">
+        </div>
 
         <input type="text" id="chatInput" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
 
@@ -226,6 +239,17 @@
     let signupModal = null;
     let findAccountModal = null;
 
+    function isScheduleCategory(category) {
+        return category === 'schedule_create' || category === 'general_work';
+    }
+
+    function toggleScheduleMetaInputs() {
+        const inputCategory = document.getElementById('inputCategory').value;
+        const row = document.getElementById('scheduleMetaRow');
+        if (isScheduleCategory(inputCategory)) row.style.display = 'grid';
+        else row.style.display = 'none';
+    }
+
     // 말풍선 추가 함수
     function appendBubble(sender, text) { 
         const div = document.createElement('div');
@@ -256,6 +280,13 @@
             return;
         }
         const inputCategory = document.getElementById('inputCategory').value;
+        const quickShiftType = document.getElementById('quickShiftType').value.trim();
+        const quickWorkCode = document.getElementById('quickWorkCode').value.trim();
+        let composedText = text;
+        if (isScheduleCategory(inputCategory)) {
+            if (quickWorkCode) composedText += `\n공사코드: ${quickWorkCode}`;
+            if (quickShiftType) composedText += `\n근무구분: ${quickShiftType}`;
+        }
 
         // 내 메시지 화면에 표시
         appendBubble('me', text);
@@ -270,7 +301,7 @@
             const response = await fetch('/api/schedules/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text, input_category: inputCategory })
+                body: JSON.stringify({ text: composedText, input_category: inputCategory })
             });
             const data = await response.json();
 
@@ -322,14 +353,21 @@
         // [등록/수정]인 경우: 제안하는 데이터 확인
         if (intent === 'create') {
             const sd = data.schedule_data;
+            const inputCategory = document.getElementById('inputCategory').value;
+            if (isScheduleCategory(inputCategory)) {
+                const quickShiftType = document.getElementById('quickShiftType').value.trim();
+                const quickWorkCode = document.getElementById('quickWorkCode').value.trim();
+                if (quickShiftType && !sd.shift_type) sd.shift_type = quickShiftType;
+                if (quickWorkCode && !sd.work_code) sd.work_code = quickWorkCode;
+            }
             currentPendingData = sd; // 데이터 임시 저장
+            const taskWithCode = `${sd.task || ''}${sd.work_code ? `(${sd.work_code})` : ''}`;
 
             html += `
                 <div class="mb-2">
-                    <strong>📍 ${sd.location}</strong> <span class="badge bg-light text-dark border">${sd.category}</span><br>
-                    작업: ${sd.task}<br>
+                    <strong>🗂 ${taskWithCode || '작업명 미기재'}</strong> <span class="badge bg-light text-dark border">${sd.category}</span>${sd.shift_type ? ` <span class="badge bg-info-subtle text-info border">${sd.shift_type}</span>` : ''}<br>
                     날짜: ${sd.date} | 담당: ${sd.person}<br>
-                    ${sd.tags && sd.tags.length > 0 ? `<small class="text-primary">태그: ${sd.tags.join(', ')}</small>` : ''}
+                    ${sd.details ? `<small class="text-muted">${sd.details}</small>` : ''}
                 </div>
                 <div class="d-flex gap-2 mt-3">
                     <button class="btn btn-sm btn-primary flex-grow-1" onclick="executeAction('${intent}', null, this)">⭕ 등록 확인</button>
@@ -347,8 +385,7 @@
                         : '';
                     html += `
                         <div class="candidate-item">
-                            <strong>${cand.location || '위치 미기재'}</strong> (${cand.date})<br>
-                            <span class="text-dark">${cand.task}</span><br>
+                            <strong>${cand.task || '작업명 미기재'}${cand.work_code ? `(${cand.work_code})` : ''}</strong>${cand.shift_type ? ` <span class="badge bg-info-subtle text-info border">${cand.shift_type}</span>` : ''} (${cand.date})<br>
                             <small class="text-muted">${cand.details || '상세내용 없음'}</small><br>
                             ${personLine}
                         </div>
@@ -615,6 +652,8 @@
     uploadCategoryModal = new bootstrap.Modal(document.getElementById('uploadCategoryModal'));
     signupModal = new bootstrap.Modal(document.getElementById('signupModal'));
     findAccountModal = new bootstrap.Modal(document.getElementById('findAccountModal'));
+    document.getElementById('inputCategory').addEventListener('change', toggleScheduleMetaInputs);
+    toggleScheduleMetaInputs();
     document.getElementById('signupModal').addEventListener('hidden.bs.modal', () => {
         if (!currentUserId) loginOverlay.style.display = 'flex';
     });

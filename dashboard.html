@@ -125,9 +125,9 @@
             padding: 4px 7px;
             margin-bottom: 3px;
         }
-        .schedule-compact-item.cat-construction { border-left-color: #2166cf; background: #edf4ff; }
-        .schedule-compact-item.cat-general { border-left-color: #6f7f95; background: #f5f7fa; }
-        .schedule-compact-item.cat-schedule { border-left-color: #9a6dd7; background: #f6f1ff; }
+        .schedule-compact-item.cat-construction { border-left-color: #b30000; background: #ffe3e3; box-shadow: inset 0 0 0 1px #ffd0d0; }
+        .schedule-compact-item.cat-general { border-left-color: #5f6f85; background: #eef3f8; }
+        .schedule-compact-item.cat-schedule { border-left-color: #8d63c7; background: #f4ecff; }
         .schedule-compact-task {
             font-size: 0.88rem;
             font-weight: 700;
@@ -135,6 +135,26 @@
             line-height: 1.2;
             white-space: normal;
             word-break: break-word;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            column-gap: 6px;
+            row-gap: 4px;
+        }
+        .schedule-task-head {
+            min-width: 0;
+            flex: 1 1 12rem;
+        }
+        .schedule-meta-badges {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+            flex: 0 1 auto;
+        }
+        .schedule-meta-badges .schedule-shift-badge,
+        .schedule-meta-badges .schedule-workcode-badge {
+            margin-left: 0;
         }
         .schedule-category-dot {
             display: inline-block;
@@ -146,15 +166,127 @@
             transform: translateY(-1px);
             background: #9cb6da;
         }
-        .schedule-category-dot.cat-construction { background: #2166cf; }
-        .schedule-category-dot.cat-general { background: #6f7f95; }
-        .schedule-category-dot.cat-schedule { background: #9a6dd7; }
+        .schedule-category-dot.cat-construction { background: #b30000; }
+        .schedule-category-dot.cat-general { background: #5f6f85; }
+        .schedule-category-dot.cat-schedule { background: #8d63c7; }
         .schedule-compact-person {
             font-size: 0.76rem;
             color: #4d5a67;
             line-height: 1.18;
             white-space: normal;
             word-break: break-word;
+        }
+        .schedule-compact-detail-preview {
+            font-size: 0.72rem;
+            color: #616b78;
+            line-height: 1.2;
+            margin-top: 3px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .schedule-view-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .side-panel-header-btn {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0;
+            font-weight: 700;
+            color: inherit;
+        }
+        .side-panel-header-btn .toggle-indicator {
+            font-size: 0.78rem;
+            color: #617285;
+        }
+        .side-panel-body.collapsed {
+            display: none;
+        }
+        .worker-panel-note.compact-hidden {
+            display: none;
+        }
+        /* 우측 패널 ‘가로 접기’: 컬럼을 없애지 않고 좁은 레일로 유지 */
+        .right-column-rail {
+            flex: 0 0 220px;
+            width: 220px;
+            max-width: 240px;
+            min-width: 200px;
+        }
+        .right-column-rail .card {
+            margin-bottom: 0.5rem;
+        }
+        .right-column-rail .card.mt-3 {
+            margin-top: 0.5rem !important;
+        }
+        .right-column-rail .card-header {
+            padding: 0.45rem 0.35rem;
+        }
+        .right-column-rail .card-header .side-panel-header-btn {
+            font-size: 0.78rem;
+            line-height: 1.2;
+        }
+        .right-column-rail .card-body {
+            padding: 0.35rem 0.25rem;
+        }
+        .right-column-rail #workerStatusList .list-group-item {
+            padding: 0.35rem 0.3rem;
+            font-size: 0.78rem;
+            flex-wrap: nowrap;
+            gap: 4px;
+        }
+        .right-column-rail #workerStatusList .worker-row-name {
+            max-width: 52% !important;
+            font-size: 0.76rem;
+            font-weight: 700;
+        }
+        .right-column-rail #workerStatusList .status-badge-sm {
+            font-size: 0.62rem;
+            padding: 0.15rem 0.35rem;
+            flex-shrink: 0;
+        }
+        .right-column-rail .worker-outing-meta {
+            display: none !important;
+        }
+        .right-column-rail .side-panel-header-btn .toggle-indicator {
+            display: none;
+        }
+        .schedule-shift-badge {
+            display: inline-block;
+            font-size: 0.66rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            border-radius: 999px;
+            padding: 2px 7px;
+            margin-left: 4px;
+            vertical-align: middle;
+            border: 1px solid transparent;
+        }
+        .schedule-shift-badge.shift-day { color: #0d4d1c; background: #e6f6ea; border-color: #a8dcb5; }
+        .schedule-shift-badge.shift-night { color: #0a3570; background: #e8f0fb; border-color: #b3c9ea; }
+        .schedule-shift-badge.shift-midnight { color: #5a1a73; background: #f3ebfa; border-color: #d4b8e8; }
+        .schedule-workcode-badge {
+            display: inline-block;
+            font-size: 0.66rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            border-radius: 999px;
+            padding: 2px 7px;
+            margin-left: 4px;
+            vertical-align: middle;
+            color: #3d4f63;
+            background: #eef2f7;
+            border: 1px solid #c5d0dc;
+        }
+        .schedule-work-code {
+            font-size: 0.7rem;
+            color: #5c6572;
+            margin-top: 2px;
         }
         .schedule-compact-item .schedule-action-panel { display: none; }
         .schedule-compact-item.active .schedule-action-panel { display: block; }
@@ -277,7 +409,7 @@
         <div class="d-flex align-items-center gap-3 flex-wrap">
             <h3 class="m-0 fw-bold">📊 YJS 공사계획 및 현황판</h3>
             <nav class="d-flex gap-2 flex-wrap">
-                <a href="/" class="btn btn-sm btn-outline-light">🤖 AI 비서</a>
+                <a href="/index.html" class="btn btn-sm btn-outline-light">🤖 AI 비서</a>
                 <a href="/admin.html" id="adminLinkBtn" class="btn btn-sm btn-outline-light d-none">⚙ 관리자</a>
                 <button type="button" id="logoutBtn" class="btn btn-sm btn-outline-light" onclick="logout()">로그아웃</button>
             </nav>
@@ -292,7 +424,7 @@
     <div class="container-fluid mt-4 px-4">
         <div class="row g-3">
 
-            <div class="col-xl-9 col-lg-8">
+            <div class="col-xl-9 col-lg-8" id="mainBoardColumn">
                 <div class="toolbar-card">
                     <div class="row g-2 align-items-center">
                         <div class="col-12 col-md-4 col-lg-3">
@@ -314,6 +446,21 @@
                             <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadSchedules()">필터 적용</button>
                         </div>
                     </div>
+                    <div class="schedule-view-options small">
+                        <div class="form-check m-0">
+                            <input class="form-check-input" type="checkbox" id="viewShowPerson">
+                            <label class="form-check-label" for="viewShowPerson">작업 인원</label>
+                        </div>
+                        <div class="form-check m-0">
+                            <input class="form-check-input" type="checkbox" id="viewShowDetails">
+                            <label class="form-check-label" for="viewShowDetails">상세 정보</label>
+                        </div>
+                        <div class="form-check m-0">
+                            <input class="form-check-input" type="checkbox" id="viewShowWorkCode">
+                            <label class="form-check-label" for="viewShowWorkCode">작업 코드</label>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="resetScheduleViewOptions()">기본값으로 되돌리기</button>
+                    </div>
                     <div class="small text-muted mt-1" id="personFilterSummary" style="display: none;"></div>
                 </div>
                 <div class="card h-100">
@@ -330,7 +477,10 @@
                                 <span id="boardViewModeLabel" class="badge rounded-pill board-mode-badge">조회 모드: -</span>
                                 <span id="dashboardNotice" class="badge rounded-pill text-bg-light text-dark border small fw-normal text-wrap text-start" style="max-width: 100%;">공지: 중요 안내는 관리자에게 문의하세요.</span>
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary flex-shrink-0" onclick="loadSchedules()">🔄 수동 갱신</button>
+                            <div class="d-flex gap-2 flex-shrink-0">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="rightColumnToggleBtn" onclick="toggleRightColumn()">↔ 우측 패널 접기</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadSchedules()">🔄 수동 갱신</button>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body" id="scheduleBoard" style="max-height: 80vh; max-height: 80dvh; overflow-y: auto;">
@@ -342,18 +492,28 @@
                 </div>
             </div>
 
-            <div class="col-xl-3 col-lg-4">
-                <div class="card">
-                    <div class="card-header py-3">🏃‍♂️ 외출 및 행선표</div>
-                    <div class="card-body">
-                        <div class="small text-muted mb-2">관리자 등록 인원 기준으로 상태를 클릭 편집할 수 있으며, 행선/복귀 시각은 외출 상태에서만 표시됩니다.</div>
+            <div class="col-xl-3 col-lg-4" id="rightPanelColumn">
+                <div class="card" id="workerPanelCard">
+                    <div class="card-header py-3">
+                        <button type="button" class="side-panel-header-btn" onclick="toggleRightPanel('worker')">
+                            <span>🏃‍♂️ 외출 및 행선표</span>
+                            <span class="toggle-indicator" id="workerPanelToggleIcon">▼</span>
+                        </button>
+                    </div>
+                    <div class="card-body side-panel-body" id="workerPanelBody">
+                        <div class="small text-muted mb-2 worker-panel-note" id="workerPanelNote">관리자 등록 인원 기준으로 상태를 클릭 편집할 수 있으며, 행선/복귀 시각은 외출 상태에서만 표시됩니다.</div>
                         <ul class="list-group list-group-flush" id="workerStatusList"></ul>
                     </div>
                 </div>
 
                 <div class="card mt-3">
-                    <div class="card-header py-3">📝 기타 메모</div>
-                    <div class="card-body">
+                    <div class="card-header py-3">
+                        <button type="button" class="side-panel-header-btn" onclick="toggleRightPanel('memo')">
+                            <span>📝 기타 메모</span>
+                            <span class="toggle-indicator" id="memoPanelToggleIcon">▼</span>
+                        </button>
+                    </div>
+                    <div class="card-body side-panel-body" id="memoPanelBody">
                         <div class="input-group input-group-sm mb-2">
                             <input id="memoInput" class="form-control" placeholder="메모 입력">
                             <button class="btn btn-outline-secondary" onclick="saveMemo()">등록</button>
@@ -363,8 +523,13 @@
                 </div>
 
                 <div class="card mt-3">
-                    <div class="card-header py-3">🧩 상황판 등록</div>
-                    <div class="card-body">
+                    <div class="card-header py-3">
+                        <button type="button" class="side-panel-header-btn" onclick="toggleRightPanel('board')">
+                            <span>🧩 상황판 등록</span>
+                            <span class="toggle-indicator" id="boardPanelToggleIcon">▼</span>
+                        </button>
+                    </div>
+                    <div class="card-body side-panel-body" id="boardPanelBody">
                         <div class="input-group input-group-sm mb-2">
                             <span class="input-group-text small">등록</span>
                             <input id="boardDate" class="form-control" type="date">
@@ -377,13 +542,20 @@
                                 <option value="일정">일정</option>
                             </select>
                         </div>
-                        <div class="input-group input-group-sm mb-2">
-                            <input id="boardLocation" class="form-control" placeholder="현장 위치 (생략 가능)">
-                        </div>
                         <div class="mb-2">
                             <input id="boardTask" class="form-control form-control-sm mb-1" placeholder="작업/메모 제목">
                             <textarea id="boardDetails" class="form-control form-control-sm" rows="2" placeholder="상세"></textarea>
                         </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">주간/야간/심야</label>
+                            <select id="boardShiftType" class="form-select form-select-sm">
+                                <option value="" selected>미지정</option>
+                                <option value="주간">주간</option>
+                                <option value="야간">야간</option>
+                                <option value="심야">심야</option>
+                            </select>
+                        </div>
+                        <input id="boardWorkCode" class="form-control form-control-sm mb-2" placeholder="공사 코드 (예: AN-2408)">
                         <button class="btn btn-sm btn-outline-primary w-100" onclick="submitBoardTemplate()">템플릿 전송</button>
                     </div>
                 </div>
@@ -392,6 +564,25 @@
         </div>
     </div>
     <div id="saveToast" class="save-toast"></div>
+
+    <div class="modal fade" id="dashboardLoginModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">로그인</h5>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2">현황판 사용을 위해 로그인해 주세요.</p>
+                    <div id="dashboardLoginError" class="small text-danger mb-2" style="display: none;"></div>
+                    <input id="dashboardLoginUserId" class="form-control form-control-sm mb-2" placeholder="아이디">
+                    <input id="dashboardLoginPassword" type="password" class="form-control form-control-sm" placeholder="비밀번호">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="submitDashboardLogin()">로그인</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="modal fade" id="editRequestModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -404,7 +595,6 @@
                     <div class="small text-muted mb-2">현황판 수정은 즉시 반영되며 변경 이력이 저장됩니다.</div>
                     <input id="editScheduleId" class="form-control form-control-sm mb-2" readonly>
                     <input id="editDate" class="form-control form-control-sm mb-2" placeholder="날짜 (YYYY-MM-DD)">
-                    <input id="editLocation" class="form-control form-control-sm mb-2" placeholder="현장 위치 (공사 일정·일반 작업·일정 모두 생략 가능)">
                     <input id="editTask" class="form-control form-control-sm mb-2" placeholder="작업 내용">
                     <input id="editPerson" class="form-control form-control-sm mb-2" placeholder="담당자·작업 인원">
                     <textarea id="editDetails" rows="3" class="form-control form-control-sm mb-2" placeholder="상세 내용"></textarea>
@@ -414,7 +604,14 @@
                         <option value="일반 작업">일반 작업</option>
                         <option value="일정">일정</option>
                     </select>
-                    <input id="editTags" class="form-control form-control-sm" placeholder="태그(쉼표 구분)">
+                    <label class="form-label small mb-0">주간/야간/심야</label>
+                    <select id="editShiftType" class="form-select form-select-sm mb-2">
+                        <option value="">미지정</option>
+                        <option value="주간">주간</option>
+                        <option value="야간">야간</option>
+                        <option value="심야">심야</option>
+                    </select>
+                    <input id="editWorkCode" class="form-control form-control-sm" placeholder="공사 코드">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
@@ -520,6 +717,7 @@
         let personFilterModal = null;
         let workerReturnTimeModal = null;
         let detailPreviewModal = null;
+        let dashboardLoginModal = null;
         let workerReturnTimeTargetUser = '';
         let dashboardNotice = '';
         const fieldStaffNameById = {};
@@ -528,6 +726,17 @@
         const personFilterSelectedNames = new Set();
         let personFilterAppliedNames = [];
         let currentBoardMonth = '';
+        let scheduleViewOptions = {
+            showPerson: false,
+            showDetails: false,
+            showWorkCode: false,
+        };
+        let rightPanelState = {
+            worker: false,
+            memo: false,
+            board: false,
+        };
+        let rightColumnMode = 'full'; // full -> rail -> hidden
 
         const LEGACY_WORK_CATEGORIES = ['(작업)', '점검', '자재입고', '현장답사'];
         function isLocationOptionalCategory(cat) {
@@ -559,6 +768,157 @@
             }
             el.style.display = 'block';
             el.textContent = `인원 필터 적용 중: ${personFilterAppliedNames.join(', ')}`;
+        }
+
+        function loadScheduleViewOptions() {
+            try {
+                const raw = localStorage.getItem('yjs_schedule_view_options_v1');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    scheduleViewOptions = {
+                        showPerson: Boolean(parsed.showPerson),
+                        showDetails: Boolean(parsed.showDetails),
+                        showWorkCode: Boolean(parsed.showWorkCode),
+                    };
+                }
+            } catch (_e) {}
+            document.getElementById('viewShowPerson').checked = scheduleViewOptions.showPerson;
+            document.getElementById('viewShowDetails').checked = scheduleViewOptions.showDetails;
+            document.getElementById('viewShowWorkCode').checked = scheduleViewOptions.showWorkCode;
+        }
+
+        function bindScheduleViewOptions() {
+            const map = [
+                ['viewShowPerson', 'showPerson'],
+                ['viewShowDetails', 'showDetails'],
+                ['viewShowWorkCode', 'showWorkCode'],
+            ];
+            map.forEach(([id, key]) => {
+                const el = document.getElementById(id);
+                el.addEventListener('change', () => {
+                    scheduleViewOptions[key] = Boolean(el.checked);
+                    localStorage.setItem('yjs_schedule_view_options_v1', JSON.stringify(scheduleViewOptions));
+                    loadSchedules();
+                });
+            });
+        }
+
+        function resetScheduleViewOptions() {
+            scheduleViewOptions = {
+                showPerson: false,
+                showDetails: false,
+                showWorkCode: false,
+            };
+            localStorage.setItem('yjs_schedule_view_options_v1', JSON.stringify(scheduleViewOptions));
+            document.getElementById('viewShowPerson').checked = false;
+            document.getElementById('viewShowDetails').checked = false;
+            document.getElementById('viewShowWorkCode').checked = false;
+            loadSchedules();
+        }
+
+        function loadRightPanelState() {
+            try {
+                const raw = localStorage.getItem('yjs_right_panel_state_v1');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    rightPanelState = {
+                        worker: Boolean(parsed.worker),
+                        memo: Boolean(parsed.memo),
+                        board: Boolean(parsed.board),
+                    };
+                }
+            } catch (_e) {}
+            applyRightPanelState();
+        }
+
+        function saveRightPanelState() {
+            localStorage.setItem('yjs_right_panel_state_v1', JSON.stringify(rightPanelState));
+        }
+
+        function applyRightPanelState() {
+            const rail = rightColumnMode === 'rail';
+            const collapsibleMap = [
+                ['memo', 'memoPanelBody', 'memoPanelToggleIcon'],
+                ['board', 'boardPanelBody', 'boardPanelToggleIcon'],
+            ];
+            collapsibleMap.forEach(([key, bodyId, iconId]) => {
+                const body = document.getElementById(bodyId);
+                const icon = document.getElementById(iconId);
+                const expanded = rail ? false : Boolean(rightPanelState[key]);
+                body.classList.toggle('collapsed', !expanded);
+                icon.textContent = expanded ? '▲' : '▼';
+            });
+            const workerIcon = document.getElementById('workerPanelToggleIcon');
+            workerIcon.textContent = (rail || rightPanelState.worker) ? '▲' : '▼';
+            const note = document.getElementById('workerPanelNote');
+            note.classList.toggle('compact-hidden', rail ? true : !rightPanelState.worker);
+        }
+
+        function toggleRightPanel(key) {
+            if (rightColumnMode !== 'full' && key !== 'worker') {
+                rightColumnMode = 'full';
+                localStorage.setItem('yjs_right_column_mode_v2', rightColumnMode);
+                rightPanelState[key] = true;
+                saveRightPanelState();
+                applyRightColumnState();
+                applyRightPanelState();
+                if (key === 'worker') loadWorkerStatus();
+                loadMemos();
+                return;
+            }
+            rightPanelState[key] = !rightPanelState[key];
+            saveRightPanelState();
+            applyRightPanelState();
+            if (key === 'worker') loadWorkerStatus();
+        }
+
+        function loadRightColumnState() {
+            try {
+                const rawMode = localStorage.getItem('yjs_right_column_mode_v2');
+                if (rawMode === 'full' || rawMode === 'rail' || rawMode === 'hidden') {
+                    rightColumnMode = rawMode;
+                } else {
+                    const rawLegacy = localStorage.getItem('yjs_right_column_collapsed_v1');
+                    rightColumnMode = rawLegacy === '1' ? 'rail' : 'full';
+                }
+            } catch (_e) {
+                rightColumnMode = 'full';
+            }
+            applyRightColumnState();
+        }
+
+        function applyRightColumnState() {
+            const mainCol = document.getElementById('mainBoardColumn');
+            const rightCol = document.getElementById('rightPanelColumn');
+            const toggleBtn = document.getElementById('rightColumnToggleBtn');
+            if (!mainCol || !rightCol || !toggleBtn) return;
+            if (rightColumnMode === 'rail') {
+                rightCol.classList.remove('d-none');
+                rightCol.classList.add('right-column-rail');
+                mainCol.className = 'col min-w-0';
+                rightCol.className = 'col-auto right-column-rail';
+                toggleBtn.textContent = '↔ 우측 패널 완전 숨김';
+            } else if (rightColumnMode === 'hidden') {
+                rightCol.className = 'd-none';
+                mainCol.className = 'col min-w-0';
+                toggleBtn.textContent = '↔ 우측 패널 펼치기';
+            } else {
+                rightCol.classList.remove('d-none', 'right-column-rail');
+                mainCol.className = 'col-xl-9 col-lg-8';
+                rightCol.className = 'col-xl-3 col-lg-4';
+                toggleBtn.textContent = '↔ 우측 패널 슬림';
+            }
+            applyRightPanelState();
+            loadWorkerStatus();
+            loadMemos();
+        }
+
+        function toggleRightColumn() {
+            if (rightColumnMode === 'full') rightColumnMode = 'rail';
+            else if (rightColumnMode === 'rail') rightColumnMode = 'hidden';
+            else rightColumnMode = 'full';
+            localStorage.setItem('yjs_right_column_mode_v2', rightColumnMode);
+            applyRightColumnState();
         }
 
         async function openPersonFilterModal() {
@@ -696,7 +1056,6 @@
             }
             const merged = [...parts, ...uniqueNewNames];
             const nextPerson = merged.join(', ');
-            const tagsVal = normalizeTags(item.tags);
             const response = await fetch('/api/schedules/direct-update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -704,12 +1063,13 @@
                     schedule_id: Number(scheduleId),
                     schedule_data: {
                         date: item.date,
-                        location: item.location || '',
+                        location: '',
                         task: item.task,
                         person: nextPerson,
                         details: item.details || '',
                         category: item.category || '공사 일정',
-                        tags: tagsVal,
+                        shift_type: normalizeShiftType(item.shift_type || ''),
+                        work_code: String(item.work_code || '').trim(),
                     },
                     reason: '작업 인원 일괄 추가',
                 }),
@@ -825,27 +1185,81 @@
             return matched ? `${matched[1]}:${matched[2]}` : raw;
         }
 
+        function showDashboardLoginError(message) {
+            const el = document.getElementById('dashboardLoginError');
+            const msg = String(message || '').trim();
+            if (!msg) {
+                el.style.display = 'none';
+                el.textContent = '';
+                return;
+            }
+            el.style.display = 'block';
+            el.textContent = msg;
+        }
+
+        function openDashboardLoginModal(message = '') {
+            showDashboardLoginError(message);
+            const userInput = document.getElementById('dashboardLoginUserId');
+            const pwInput = document.getElementById('dashboardLoginPassword');
+            pwInput.value = '';
+            if (String(userInput.value || '').trim()) pwInput.focus();
+            else userInput.focus();
+            dashboardLoginModal.show();
+        }
+
         async function ensureSession() {
             try {
                 const response = await fetch('/api/auth/me');
                 if (!response.ok) {
-                    window.location.href = '/';
+                    openDashboardLoginModal('');
                     return false;
                 }
                 const me = await response.json();
                 const adminLink = document.getElementById('adminLinkBtn');
                 if (me.role === 'admin') adminLink.classList.remove('d-none');
                 else adminLink.classList.add('d-none');
+                dashboardLoginModal.hide();
+                showDashboardLoginError('');
                 return true;
             } catch (e) {
-                window.location.href = '/';
+                openDashboardLoginModal('로그인 상태를 확인하지 못했습니다. 네트워크를 확인해 주세요.');
                 return false;
             }
         }
 
         async function logout() {
             await fetch('/api/auth/logout', { method: 'POST' });
-            window.location.href = '/';
+            openDashboardLoginModal('로그아웃되었습니다. 다시 로그인해 주세요.');
+        }
+
+        async function submitDashboardLogin() {
+            const userId = String(document.getElementById('dashboardLoginUserId').value || '').trim();
+            const password = String(document.getElementById('dashboardLoginPassword').value || '').trim();
+            if (!userId || !password) {
+                showDashboardLoginError('아이디와 비밀번호를 모두 입력해 주세요.');
+                return;
+            }
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        password,
+                        register_code: '',
+                        device_name: navigator.userAgent || 'dashboard-browser'
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    showDashboardLoginError(data.detail || '로그인에 실패했습니다.');
+                    return;
+                }
+                showDashboardLoginError('');
+                await initializeDashboardPage();
+            } catch (e) {
+                showDashboardLoginError('로그인 요청 중 오류가 발생했습니다.');
+            }
         }
 
         // 상단 헤더의 오늘 날짜 업데이트
@@ -990,7 +1404,7 @@
                 const rows = Array.isArray(data.data) ? data.data : [];
                 let filteredRows = keyword
                     ? rows.filter((item) => {
-                        const merged = `${item.location || ''} ${item.task || ''} ${item.person || ''} ${item.details || ''}`.toLowerCase();
+                        const merged = `${item.task || ''} ${item.person || ''} ${item.details || ''} ${item.work_code || ''}`.toLowerCase();
                         return merged.includes(keyword);
                     })
                     : rows;
@@ -1010,6 +1424,11 @@
                         const ap = categoryPriority(a.category);
                         const bp = categoryPriority(b.category);
                         if (ap !== bp) return ap - bp;
+                        if (ap === 1) {
+                            const as = constructionShiftPriority(a);
+                            const bs = constructionShiftPriority(b);
+                            if (as !== bs) return as - bs;
+                        }
                         return String(a.task || '').localeCompare(String(b.task || ''), 'ko');
                     });
                 });
@@ -1039,10 +1458,20 @@
             }
         }
 
-        function normalizeTags(rawTags) {
-            if (!rawTags) return [];
-            if (Array.isArray(rawTags)) return rawTags.map((t) => String(t).trim()).filter(Boolean);
-            return String(rawTags).split(',').map((t) => t.trim()).filter(Boolean);
+        function normalizeShiftType(raw) {
+            const val = String(raw || '').trim();
+            if (val === '주간') return '주간';
+            if (val === '야간') return '야간';
+            if (val === '심야') return '심야';
+            return '';
+        }
+
+        function shiftBadgeClass(shiftType) {
+            const s = normalizeShiftType(shiftType);
+            if (s === '주간') return 'shift-day';
+            if (s === '야간') return 'shift-night';
+            if (s === '심야') return 'shift-midnight';
+            return '';
         }
 
         function fullPersonLabel(personRaw) {
@@ -1059,9 +1488,19 @@
         function categoryPriority(category) {
             const c = displayCategoryLabel(category || '').trim();
             if (!c || c === '공사 일정') return 1;
-            if (c === '일반 작업') return 2;
-            if (c === '일정') return 3;
+            if (c === '일정') return 4;
+            if (c === '일반 작업') return 5;
             return 9;
+        }
+
+        function constructionShiftPriority(item) {
+            const category = displayCategoryLabel(item?.category || '').trim();
+            if (category !== '공사 일정') return 0;
+            const shiftType = normalizeShiftType(item?.shift_type);
+            if (shiftType === '주간') return 1;
+            if (shiftType === '야간') return 2;
+            if (shiftType === '심야') return 3;
+            return 4;
         }
 
         function compactCategoryClass(category) {
@@ -1093,10 +1532,23 @@
             const personLine = fullPersonLabel(item.person);
             const detailLine = String(item.details || '').trim();
             const detailLines = detailLineCount(detailLine);
+            const shiftType = normalizeShiftType(item.shift_type || '');
+            const shiftClass = shiftBadgeClass(shiftType);
+            const workCode = String(item.work_code || '').trim();
+            const taskLabel = `${escapeHtml(item.task || '공사명 미기재')}`;
+            const badgeParts = [];
+            if (shiftType) badgeParts.push(`<span class="schedule-shift-badge ${shiftClass}">${shiftType}</span>`);
+            if (scheduleViewOptions.showWorkCode && workCode) {
+                badgeParts.push(`<span class="schedule-workcode-badge">${escapeHtml(workCode)}</span>`);
+            }
+            const badgesHtml = badgeParts.length
+                ? `<span class="schedule-meta-badges">${badgeParts.join('')}</span>`
+                : '';
             return `
-                <div class="schedule-compact-item ${catClass}" data-id="${item.id}" title="${escapeHtml((item.location || '').trim())}">
-                    <div class="schedule-compact-task"><span class="schedule-category-dot ${catClass}"></span>${escapeHtml(item.task || '공사명 미기재')}</div>
-                    ${personLine ? `<div class="schedule-compact-person">👷 ${escapeHtml(personLine)}</div>` : ''}
+                <div class="schedule-compact-item ${catClass}" data-id="${item.id}">
+                    <div class="schedule-compact-task"><span class="schedule-task-head"><span class="schedule-category-dot ${catClass}"></span>${taskLabel}</span>${badgesHtml}</div>
+                    ${scheduleViewOptions.showPerson && personLine ? `<div class="schedule-compact-person">👷 ${escapeHtml(personLine)}</div>` : ''}
+                    ${scheduleViewOptions.showDetails && detailLine ? `<div class="schedule-compact-detail-preview">📝 ${escapeHtml(detailLine)}</div>` : ''}
                     <div class="schedule-action-panel">
                         ${detailLine && detailLines <= 2 ? `<div class="detail-text">📝 ${detailInlineHtml(detailLine)}</div>` : ''}
                         ${detailLine && detailLines >= 3 ? `<button type="button" class="btn btn-sm btn-outline-dark mt-1" onclick="event.stopPropagation(); openDetailPreviewModal('${encodeURIComponent(detailLine)}')">상세 보기</button>` : ''}
@@ -1214,12 +1666,12 @@
             }
             document.getElementById('editScheduleId').value = String(item.id || '');
             document.getElementById('editDate').value = item.date || '';
-            document.getElementById('editLocation').value = item.location || '';
             document.getElementById('editTask').value = item.task || '';
             document.getElementById('editPerson').value = item.person || '';
             document.getElementById('editDetails').value = item.details || '';
             document.getElementById('editCategory').value = displayCategoryLabel(item.category || '공사 일정');
-            document.getElementById('editTags').value = normalizeTags(item.tags).join(', ');
+            document.getElementById('editShiftType').value = normalizeShiftType(item.shift_type || '');
+            document.getElementById('editWorkCode').value = String(item.work_code || '').trim();
             editRequestModal.show();
         }
 
@@ -1236,12 +1688,13 @@
                 schedule_id: scheduleId,
                 schedule_data: {
                     date: document.getElementById('editDate').value.trim(),
-                    location: document.getElementById('editLocation').value.trim(),
+                    location: '',
                     task: document.getElementById('editTask').value.trim(),
                     person: document.getElementById('editPerson').value.trim(),
                     details: document.getElementById('editDetails').value.trim(),
                     category: catVal,
-                    tags: document.getElementById('editTags').value.split(',').map((t) => t.trim()).filter(Boolean),
+                    shift_type: document.getElementById('editShiftType').value.trim(),
+                    work_code: document.getElementById('editWorkCode').value.trim(),
                 }
             };
 
@@ -1249,11 +1702,6 @@
                 alert('공사명·작업 내용(task)은 필수입니다.');
                 return;
             }
-            if (!isLocationOptionalCategory(payload.schedule_data.category) && !payload.schedule_data.location) {
-                alert('현장 위치가 필요합니다. (일반 작업·레거시 작업 카테고리·일정은 생략 가능)');
-                return;
-            }
-
             const response = await fetch('/api/schedules/direct-update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1279,7 +1727,7 @@
                 alert('일정 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.');
                 return;
             }
-            const confirmText = `해당 일정을 삭제하시겠습니까?\n[ID #${item.id}] ${item.location || ''} / ${item.task || ''}`;
+            const confirmText = `해당 일정을 삭제하시겠습니까?\n[ID #${item.id}] ${item.task || ''}`;
             if (!confirm(confirmText)) return;
 
             const response = await fetch('/api/schedules/direct-delete', {
@@ -1456,6 +1904,8 @@
 
         async function loadWorkerStatus() {
             const list = document.getElementById('workerStatusList');
+            const railMode = rightColumnMode === 'rail';
+            const workerExpanded = railMode ? false : Boolean(rightPanelState.worker);
             const [statusRes, outingRes] = await Promise.all([
                 fetch('/api/schedules/worker-status'),
                 fetch('/api/schedules/outing-staff')
@@ -1474,19 +1924,17 @@
             }
             list.innerHTML = outingStaff.map((staff) => {
                 const row = statusMap.get(String(staff.name)) || { user_name: staff.name, status: '사무실', location: '', until_time: '' };
+                const metaInner = workerExpanded && row.status === '외출'
+                    ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted worker-location-btn" onclick="handleWorkerLocationClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${escapeHtml(row.location || '행선 입력')}</button>
+                       <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none return-time-emphasis" onclick="handleWorkerUntilClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${row.until_time ? `복귀: ${escapeHtml(formatReturnTime(row.until_time))}` : '복귀 설정'}</button>`
+                    : '';
                 return `
-                <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-                    <div>
-                        <b>${escapeHtml(row.user_name)}</b>
-                        <button type="button" class="btn btn-sm badge status-badge-sm ${statusBadgeClass(row.status)} ms-1" onclick="handleWorkerStatusClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.status || '사무실')}')">${statusLabelText(row.status)}</button>
+                <li class="list-group-item d-flex justify-content-between align-items-center py-2 gap-1">
+                    <b class="worker-row-name text-truncate mb-0 min-w-0" style="max-width: 48%;">${escapeHtml(row.user_name)}</b>
+                    <div class="d-flex align-items-center justify-content-end gap-1 flex-shrink-0 flex-grow-1" style="min-width: 0;">
+                        <button type="button" class="btn btn-sm badge status-badge-sm ${statusBadgeClass(row.status)}" onclick="handleWorkerStatusClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.status || '사무실')}')">${statusLabelText(row.status)}</button>
+                        <span class="text-muted small worker-outing-meta text-end">${metaInner}</span>
                     </div>
-                    <span class="text-muted small worker-outing-meta">
-                        ${row.status === '외출'
-                            ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted worker-location-btn" onclick="handleWorkerLocationClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${escapeHtml(row.location || '행선 입력')}</button>
-                               <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none return-time-emphasis" onclick="handleWorkerUntilClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${row.until_time ? `복귀: ${escapeHtml(formatReturnTime(row.until_time))}` : '복귀 설정'}</button>`
-                            : ''
-                        }
-                    </span>
                 </li>
             `;
             }).join('');
@@ -1552,7 +2000,6 @@
 
         async function submitBoardTemplate() {
             const cat = document.getElementById('boardCategory').value.trim() || '공사 일정';
-            const loc = document.getElementById('boardLocation').value.trim();
             const task = document.getElementById('boardTask').value.trim();
             if (!task) {
                 alert('공사명·작업명을 입력하세요.');
@@ -1561,10 +2008,11 @@
             const payload = {
                 action_type: 'register',
                 date: document.getElementById('boardDate').value.trim() || null,
-                location: loc,
                 task: task,
                 person: '',
                 details: document.getElementById('boardDetails').value.trim(),
+                shift_type: document.getElementById('boardShiftType').value.trim(),
+                work_code: document.getElementById('boardWorkCode').value.trim(),
                 category: cat,
                 request_note: '',
                 schedule_id: null
@@ -1584,48 +2032,71 @@
             loadSchedules();
         }
 
+        async function initializeDashboardPage() {
+            const ok = await ensureSession();
+            if (!ok) return;
+            if (window.__dashboardInitialized) {
+                loadSchedules();
+                return;
+            }
+            window.__dashboardInitialized = true;
+            editRequestModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
+            fieldStaffModal = new bootstrap.Modal(document.getElementById('fieldStaffModal'));
+            personFilterModal = new bootstrap.Modal(document.getElementById('personFilterModal'));
+            workerReturnTimeModal = new bootstrap.Modal(document.getElementById('workerReturnTimeModal'));
+            detailPreviewModal = new bootstrap.Modal(document.getElementById('detailPreviewModal'));
+            document.getElementById('workerReturnTimeInput').addEventListener('input', updateWorkerReturnTimePreview);
+            updateHeaderDate();
+            setCurrentBoardMonth(formatLocalDateYYYYMMDD());
+            loadDashboardNotice();
+            bindDashboardNoticeEditor();
+            loadScheduleViewOptions();
+            bindScheduleViewOptions();
+            loadRightPanelState();
+            loadRightColumnState();
+            updatePersonFilterSummary();
+            bindCompactItemActions();
+            document.getElementById('todayOnlyCheck').addEventListener('change', () => {
+                const targetInput = document.getElementById('scheduleTargetDate');
+                const isTodayOnly = document.getElementById('todayOnlyCheck').checked;
+                targetInput.disabled = isTodayOnly;
+                if (isTodayOnly) {
+                    targetInput.value = formatLocalDateYYYYMMDD();
+                    setCurrentBoardMonth(targetInput.value);
+                } else {
+                    targetInput.value = '';
+                }
+            });
+            document.getElementById('scheduleTargetDate').addEventListener('change', (e) => {
+                const picked = String(e.target.value || '').trim();
+                if (picked) setCurrentBoardMonth(picked);
+            });
+            document.getElementById('todayOnlyCheck').dispatchEvent(new Event('change'));
+            document.getElementById('boardDate').value = formatLocalDateYYYYMMDD();
+            loadSchedules();
+
+            // 60초마다 백그라운드에서 자동으로 데이터 갱신
+            setInterval(loadSchedules, 60000);
+
+            // 날짜가 자정을 넘기면 헤더의 날짜도 바뀌도록 1시간마다 날짜 체크
+            setInterval(updateHeaderDate, 3600000);
+            window.addEventListener('resize', autoFitWorkerLocationText);
+        }
+
         // 페이지 로드 시 초기화 및 자동 갱신 설정
         window.onload = () => {
-            ensureSession().then((ok) => {
-                if (!ok) return;
-                editRequestModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
-                fieldStaffModal = new bootstrap.Modal(document.getElementById('fieldStaffModal'));
-                personFilterModal = new bootstrap.Modal(document.getElementById('personFilterModal'));
-                workerReturnTimeModal = new bootstrap.Modal(document.getElementById('workerReturnTimeModal'));
-                detailPreviewModal = new bootstrap.Modal(document.getElementById('detailPreviewModal'));
-                document.getElementById('workerReturnTimeInput').addEventListener('input', updateWorkerReturnTimePreview);
-                updateHeaderDate();
-                setCurrentBoardMonth(formatLocalDateYYYYMMDD());
-                loadDashboardNotice();
-                bindDashboardNoticeEditor();
-                updatePersonFilterSummary();
-                bindCompactItemActions();
-                document.getElementById('todayOnlyCheck').addEventListener('change', () => {
-                    const targetInput = document.getElementById('scheduleTargetDate');
-                    const isTodayOnly = document.getElementById('todayOnlyCheck').checked;
-                    targetInput.disabled = isTodayOnly;
-                    if (isTodayOnly) {
-                        targetInput.value = formatLocalDateYYYYMMDD();
-                        setCurrentBoardMonth(targetInput.value);
-                    } else {
-                        targetInput.value = '';
+            dashboardLoginModal = new bootstrap.Modal(document.getElementById('dashboardLoginModal'));
+            const userInput = document.getElementById('dashboardLoginUserId');
+            const pwInput = document.getElementById('dashboardLoginPassword');
+            [userInput, pwInput].forEach((el) => {
+                el.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        submitDashboardLogin();
                     }
                 });
-                document.getElementById('scheduleTargetDate').addEventListener('change', (e) => {
-                    const picked = String(e.target.value || '').trim();
-                    if (picked) setCurrentBoardMonth(picked);
-                });
-                document.getElementById('todayOnlyCheck').dispatchEvent(new Event('change'));
-                document.getElementById('boardDate').value = formatLocalDateYYYYMMDD();
-                loadSchedules();
-
-                // 30초(30000ms)마다 백그라운드에서 자동으로 데이터 갱신
-                setInterval(loadSchedules, 60000);
-
-                // 날짜가 자정을 넘기면 헤더의 날짜도 바뀌도록 1시간마다 날짜 체크
-                setInterval(updateHeaderDate, 3600000);
-                window.addEventListener('resize', autoFitWorkerLocationText);
             });
+            initializeDashboardPage();
         };
     </script>
 </body>

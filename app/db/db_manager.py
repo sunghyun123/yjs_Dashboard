@@ -23,10 +23,10 @@ class DBManager:
         self._init_db()
 
     def _init_db(self):
-        """DB 테이블에 details와 tags 컬럼이 없으면 추가하거나 생성합니다."""
+        """DB 테이블에 일정 확장 컬럼(work_code, shift_type 등)이 없으면 추가하거나 생성합니다."""
         with closing(sqlite3.connect(self.db_path)) as conn:
             with conn:
-                # 1. 기본 테이블 생성 (details, tags 컬럼 추가)
+                # 1. 기본 테이블 생성
                 conn.execute("""
                              CREATE TABLE IF NOT EXISTS field_schedules
                              (
@@ -37,6 +37,8 @@ class DBManager:
                                  person TEXT,
                                  details TEXT,
                                  tags TEXT,
+                                 work_code TEXT,
+                                 shift_type TEXT,
                                  category TEXT,
                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                              )
@@ -49,6 +51,10 @@ class DBManager:
                     conn.execute("ALTER TABLE field_schedules ADD COLUMN details TEXT")
                 if "tags" not in columns:
                     conn.execute("ALTER TABLE field_schedules ADD COLUMN tags TEXT")
+                if "work_code" not in columns:
+                    conn.execute("ALTER TABLE field_schedules ADD COLUMN work_code TEXT")
+                if "shift_type" not in columns:
+                    conn.execute("ALTER TABLE field_schedules ADD COLUMN shift_type TEXT")
                 if "deleted_at" not in columns:
                     conn.execute("ALTER TABLE field_schedules ADD COLUMN deleted_at TEXT")
                 if "deleted_by" not in columns:
@@ -227,6 +233,46 @@ class DBManager:
                     )
 
     @staticmethod
+    def _normalize_shift_type(value: Any) -> str:
+        raw = str(value or "").strip()
+        if raw in ("주간", "day", "DAY"):
+            return "주간"
+        if raw in ("야간", "night", "NIGHT"):
+            return "야간"
+        if raw in ("심야", "midnight", "MIDNIGHT"):
+            return "심야"
+        return ""
+
+    @classmethod
+    def _extract_shift_type(cls, data: Dict[str, Any]) -> str:
+        # 1) 신규 표준 필드 우선
+        direct = cls._normalize_shift_type(data.get("shift_type"))
+        if direct:
+            return direct
+        # 2) 하위 호환: 기존 tags 배열/문자열
+        tags_raw = data.get("tags")
+        tags: List[str]
+        if isinstance(tags_raw, list):
+            tags = [str(t).strip() for t in tags_raw if str(t).strip()]
+        elif isinstance(tags_raw, str):
+            tags = [s.strip() for s in tags_raw.split(",") if s.strip()]
+        else:
+            tags = []
+        for t in tags:
+            normalized = cls._normalize_shift_type(t)
+            if normalized:
+                return normalized
+        # 3) 하위 호환: task 텍스트 내 "(야간)" 등 표기
+        task_text = str(data.get("task") or "")
+        if "(주간)" in task_text:
+            return "주간"
+        if "(야간)" in task_text:
+            return "야간"
+        if "(심야)" in task_text:
+            return "심야"
+        return ""
+
+    @staticmethod
     def _should_skip_date_location_merge(category: str, location: str) -> bool:
         """
         일반 작업/레거시 카테고리는 동일 날짜+지역으로 병합하지 않고 항상 신규 행으로 넣는다.
@@ -254,8 +300,11 @@ class DBManager:
         db_data['details'] = data.get('details', '')
         db_data['category'] = data.get('category', '공사 일정')
         db_data['date'] = str(db_data.get('date', "") or "").strip()
-        db_data['location'] = str(db_data.get('location', "") or "").strip()
+        # 일정 등록 정책 변경: location은 더 이상 일정 필수/입력 필드로 쓰지 않는다.
+        db_data['location'] = ""
         db_data['task'] = str(db_data.get('task', "") or "").strip()
+        db_data['work_code'] = str(db_data.get('work_code', "") or "").strip()
+        db_data['shift_type'] = self._extract_shift_type(db_data)
         # tags가 리스트 형태면 쉼표로 연결된 문자열로 변환
         if isinstance(db_data.get('tags'), list):
             db_data['tags'] = ",".join(db_data.get('tags', []))
@@ -286,6 +335,8 @@ class DBManager:
                                  person     = :person,
                                  details    = :details,
                                  tags       = :tags,
+                                 work_code  = :work_code,
+                                 shift_type = :shift_type,
                                  category   = :category,
                                  created_at = CURRENT_TIMESTAMP,
                                  last_actor_user = :last_actor_user,
@@ -306,11 +357,11 @@ class DBManager:
                 # 3. 존재하지 않으면 INSERT (신규)
                 insert_sql = """
                              INSERT INTO field_schedules (
-                                date, location, task, person, details, tags, category,
+                                date, location, task, person, details, tags, work_code, shift_type, category,
                                 last_actor_user, last_actor_device, last_actor_at, display_order
                              )
                              VALUES (
-                                :date, :location, :task, :person, :details, :tags, :category,
+                                :date, :location, :task, :person, :details, :tags, :work_code, :shift_type, :category,
                                 :last_actor_user, :last_actor_device, :last_actor_at, :display_order
                              )
                              """
@@ -404,7 +455,7 @@ class DBManager:
         'dashboard.html'에서 화면을 그릴 때 사용합니다.
         """
         select_query = """
-            SELECT id, date, location, task, person, details, tags, category,
+            SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
                    datetime(created_at, 'localtime') as created_at
             FROM field_schedules
             WHERE deleted_at IS NULL
@@ -429,7 +480,7 @@ class DBManager:
         start_date = (today - timedelta(days=past_days)).strftime("%Y-%m-%d")
         end_date = (today + timedelta(days=future_days)).strftime("%Y-%m-%d")
         query = """
-            SELECT id, date, location, task, person, details, tags, category,
+            SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
                    datetime(created_at, 'localtime') as created_at
             FROM field_schedules
             WHERE deleted_at IS NULL
@@ -444,7 +495,7 @@ class DBManager:
 
     def search_schedules_by_date_range(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         query = """
-            SELECT id, date, location, task, person, details, tags, category,
+            SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
                    datetime(created_at, 'localtime') as created_at
             FROM field_schedules
             WHERE deleted_at IS NULL
@@ -459,7 +510,7 @@ class DBManager:
 
     def get_schedule_by_id(self, schedule_id: int) -> Optional[Dict[str, Any]]:
         query = """
-            SELECT id, date, location, task, person, details, tags, category, created_at,
+            SELECT id, date, location, task, person, details, tags, work_code, shift_type, category, created_at,
                    deleted_at, deleted_by, delete_reason,
                    last_actor_user, last_actor_device, last_actor_at, display_order
             FROM field_schedules
@@ -649,6 +700,8 @@ class DBManager:
                         person = :person,
                         details = :details,
                         tags = :tags,
+                        work_code = :work_code,
+                        shift_type = :shift_type,
                         category = :category,
                         created_at = CURRENT_TIMESTAMP,
                         last_actor_user = :last_actor_user,
@@ -659,11 +712,13 @@ class DBManager:
                     {
                         "id": schedule_id,
                         "date": data.get("date"),
-                        "location": str(data.get("location") or "").strip(),
+                        "location": "",
                         "task": data.get("task"),
                         "person": str(data.get("person", "") or "").strip(),
                         "details": data.get("details", ""),
                         "tags": ",".join(data.get("tags", [])) if isinstance(data.get("tags"), list) else data.get("tags", ""),
+                        "work_code": str(data.get("work_code", "") or "").strip(),
+                        "shift_type": self._extract_shift_type(data),
                         "category": data.get("category", "일반메모"),
                         "last_actor_user": actor_user,
                         "last_actor_device": actor_device,
@@ -1036,7 +1091,7 @@ class DBManager:
 
     def get_daily_schedules(self, target_date: str) -> List[Dict[str, Any]]:
         query = """
-            SELECT id, date, location, task, person, details, tags, category,
+            SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
                    deleted_at, deleted_by, delete_reason,
                    last_actor_user, last_actor_device, last_actor_at,
                    datetime(created_at, 'localtime') AS created_at
@@ -1051,7 +1106,7 @@ class DBManager:
 
     def get_all_schedules_for_backup(self) -> List[Dict[str, Any]]:
         query = """
-            SELECT id, date, location, task, person, details, tags, category,
+            SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
                    deleted_at, deleted_by, delete_reason,
                    last_actor_user, last_actor_device, last_actor_at,
                    datetime(created_at, 'localtime') AS created_at

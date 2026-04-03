@@ -74,13 +74,18 @@ app.include_router(auth.router)
 app.include_router(admin.router)
 
 # --- 프론트엔드 화면 서빙 ---
-@app.get("/", summary="입력창 화면", tags=["Pages"])
-async def serve_index():
-    return FileResponse("index.html")
+@app.get("/", summary="기본 상황판 화면", tags=["Pages"])
+async def serve_home():
+    return FileResponse("dashboard.html")
 
 @app.get("/dashboard.html", summary="상황판 화면", tags=["Pages"])
 async def serve_dashboard():
     return FileResponse("dashboard.html")
+
+
+@app.get("/index.html", summary="채팅 입력 화면", tags=["Pages"])
+async def serve_index():
+    return FileResponse("index.html")
 
 
 @app.get("/admin.html", summary="관리자 화면", tags=["Pages"])
