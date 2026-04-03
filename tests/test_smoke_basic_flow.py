@@ -24,12 +24,13 @@ def login_as_admin(client):
 
 def test_static_pages_are_served(client):
     page_markers = {
-        "/": ["사진 카테고리 선택", "요청 접수"],
+        "/": ["현장 보고 실시간 현황", "오늘만"],
+        "/index.html": ["사진 카테고리 선택", "요청 접수"],
         "/dashboard.html": ["일정 수정", "오늘만"],
         "/admin.html": ["요청 반려", "백업데이터 생성 실행"],
     }
 
-    for path in ["/", "/dashboard.html", "/admin.html"]:
+    for path in ["/", "/index.html", "/dashboard.html", "/admin.html"]:
         res = client.get(path)
         assert res.status_code == 200
         assert "text/html" in res.headers.get("content-type", "")
@@ -118,7 +119,9 @@ def test_schedule_create_and_today_read(client):
     assert today_res.status_code == 200
     today_body = today_res.json()
     assert today_body["count"] >= 1
-    assert any(item["location"] == "안양" for item in today_body["data"])
+    created = next((item for item in today_body["data"] if item["task"] == "지중화 공사"), None)
+    assert created is not None
+    assert created.get("shift_type") == "주간"
 
 
 def test_schedule_create_with_missing_optional_fields(client):
@@ -141,7 +144,7 @@ def test_schedule_create_with_missing_optional_fields(client):
 
     today_res = client.get("/api/schedules/today")
     rows = today_res.json()["data"]
-    inserted = next((row for row in rows if row["location"] == "군포" and row["task"] == "야간작업"), None)
+    inserted = next((row for row in rows if row["task"] == "야간작업"), None)
     assert inserted is not None
     assert inserted["details"] in ["", None]
     assert inserted["category"] == "공사 일정"
@@ -225,7 +228,7 @@ def test_execute_update_delete_go_to_admin_queue(client):
 
     today_res = client.get("/api/schedules/today")
     assert today_res.status_code == 200
-    created = next((r for r in today_res.json()["data"] if r["location"] == "의왕" and r["task"] == "맨홀 정비"), None)
+    created = next((r for r in today_res.json()["data"] if r["task"] == "맨홀 정비"), None)
     assert created is not None
     schedule_id = created["id"]
 
@@ -287,7 +290,7 @@ def test_admin_review_approve_update_and_delete(client):
     assert create_res.status_code == 200
 
     base_rows = client.get("/api/schedules/today").json()["data"]
-    base = next((r for r in base_rows if r["location"] == "안산" and r["task"] == "케이블 포설"), None)
+    base = next((r for r in base_rows if r["task"] == "케이블 포설"), None)
     assert base is not None
     schedule_id = base["id"]
 

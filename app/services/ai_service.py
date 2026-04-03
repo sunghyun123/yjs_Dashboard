@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 # 1. 일정 데이터 구조 (create, update 시 후보 데이터 작성용)
 class ScheduleSchema(BaseModel):
     date: str = Field(description="YYYY-MM-DD 형식의 날짜")
-    location: str = Field(description="현장 위치 (예: 안양, 군포 등)")
     task: str = Field(description="주요 작업 명칭")
     person: str = Field(default="-", description="담당자 또는 작업자 이름")
     details: str = Field(default="", description="참여자, 장비, 특이사항 등 상세 내용")
-    tags: List[str] = Field(default_factory=list, description="야간, 돌발, 교육, 대기 등의 키워드 리스트")
+    work_code: str = Field(default="", description="현장 내부 공사 코드")
+    shift_type: Literal["", "주간", "야간", "심야"] = Field(default="", description="근무 구분")
     category: str = Field(description="공사 일정, 이슈보고, 일반메모 중 하나")
 
 
@@ -66,7 +66,7 @@ class GeminiService:
         4. search (조회): 단순히 일정을 보여달라고 하는 경우.
            - target_date나 target_keyword를 추출하세요.
            - reply_message 예시: "요청하신 일정 목록입니다."
-        5. incomplete (정보 부족): 무언가 요청했으나 날짜, 장소, 작업명 등 핵심 정보가 너무 부족하여 도저히 검색이나 생성을 할 수 없는 경우.
+        5. incomplete (정보 부족): 무언가 요청했으나 날짜, 작업명 등 핵심 정보가 너무 부족하여 도저히 검색이나 생성을 할 수 없는 경우.
            - reply_message를 통해 부족한 정보를 되물어보세요. 예: "언제, 어디서 하는 일정인지 장소나 날짜를 조금 더 자세히 알려주세요!"
 
         [중요] reply_message는 마치 메신저에서 대화하듯, 작업자에게 친근하고 명확한 존댓말로 작성해야 합니다.

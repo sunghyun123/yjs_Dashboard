@@ -61,10 +61,11 @@ class BoardTemplateActionRequest(BaseModel):
         description="전자칠판 템플릿 액션 타입"
     )
     date: Optional[str] = Field(default=None, description="YYYY-MM-DD")
-    location: str = Field(default="", description="현장 위치")
     task: str = Field(default="", description="작업 내용")
     person: str = Field(default="", description="담당자")
     details: str = Field(default="", description="상세 내용")
+    work_code: str = Field(default="", description="공사 코드")
+    shift_type: Literal["", "주간", "야간", "심야"] = Field(default="", description="근무 구분")
     category: str = Field(default="공사 일정", description="카테고리")
     request_note: str = Field(default="", description="수정/삭제 요청 시 관리자 메모")
     schedule_id: Optional[int] = Field(default=None, description="수정/삭제 대상 일정 ID")
@@ -376,10 +377,12 @@ def board_template_action(request: BoardTemplateActionRequest, _user_session=Dep
         result_msg = db.upsert_schedule(
             {
                 "date": target_date,
-                "location": request.location,
+                "location": "",
                 "task": request.task,
                 "person": request.person or "",
                 "details": request.details,
+                "work_code": request.work_code or "",
+                "shift_type": request.shift_type or "",
                 "tags": [],
                 "category": request.category or "공사 일정",
             },
@@ -410,10 +413,12 @@ def board_template_action(request: BoardTemplateActionRequest, _user_session=Dep
             "schedule_id": request.schedule_id,
             "schedule_data": {
                 "date": target_date,
-                "location": request.location,
+                "location": "",
                 "task": request.task,
                 "person": request.person or "",
                 "details": request.details,
+                "work_code": request.work_code or "",
+                "shift_type": request.shift_type or "",
                 "tags": [],
                 "category": request.category or "공사 일정",
             }
