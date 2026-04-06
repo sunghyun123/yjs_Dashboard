@@ -1,0 +1,129 @@
+{
+  "templates": [
+    {
+      "id": "construction_schedule_xlsx",
+      "title": "공사 일정 계획서",
+      "file": "files/construction_schedule.xlsx",
+      "kind": "xlsx",
+      "generate_enabled": false,
+      "extract_enabled": true,
+      "extract_mode": "table",
+      "sheet": null,
+      "table_start_row": 8,
+      "table_style_row": 8,
+      "table_clear_existing": true,
+      "table_row_key": "team",
+      "table_row_map": {
+        "공사1팀": 8,
+        "공사2팀": 9,
+        "공사3팀": 10,
+        "기타": 11
+      },
+      "table_columns": [
+        {
+          "id": "team",
+          "header": "팀명",
+          "column": "B",
+          "write": false
+        },
+        {
+          "id": "work_content",
+          "header": "작업내용",
+          "column": "C"
+        },
+        {
+          "id": "worker",
+          "header": "작업자",
+          "column": "D"
+        },
+        {
+          "id": "equipment",
+          "header": "차량 및 장비",
+          "column": "E"
+        }
+      ],
+      "required_gate": [],
+      "ai": {
+        "suggest": "공사 일정 계획서의 제목·기간·담당·요약은 간결하고 실무적인 문장으로 제안한다.",
+        "extract": "공사 일정 계획서 이미지의 표에서 각 행을 team(공사1팀/공사2팀/공사3팀/기타), work_content, worker, equipment 로 추출한다. team 값은 반드시 위 4개 중 하나로 넣고, 해당 팀 행이 비어 있으면 빈 문자열로 둔다. 헤더/제목은 제외한다."
+      },
+      "fields": [
+        {
+          "id": "constuction_time",
+          "label": "작업일자(추천x)",
+          "cell": "B5"
+        }
+      ]
+    },
+    {
+      "id": "daily_work_log_xlsx",
+      "title": "작업 일지",
+      "file": "files/daily_work_log.xlsx",
+      "kind": "xlsx",
+      "generate_enabled": false,
+      "extract_enabled": true,
+      "sheet": null,
+      "required_gate": [],
+      "ai": {
+        "suggest": "작업일지의 제목·기간·담당·요약은 간결하고 실무적인 문장으로 제안한다.",
+        "extract": "스크린샷의 제목·본문에 해당하는 텍스트를 옮긴다."
+      },
+      "fields": [
+        {
+          "id": "construction_name",
+          "label": "공사명(추천x)",
+          "cell": "B2"
+        },
+        {
+          "id": "memo_body",
+          "label": "내용(추천)",
+          "cell": "B3"
+        }
+      ]
+    },
+    {
+      "id": "sample_material_receipt_table_xlsx",
+      "title": "자재 입고표",
+      "file": "files/sample_material_receipt_table.xlsx",
+      "kind": "xlsx",
+      "generate_enabled": false,
+      "extract_enabled": true,
+      "extract_mode": "table",
+      "sheet_title": "자재입고",
+      "fields": [],
+      "table_columns": [
+        {
+          "id": "seq",
+          "header": "순번"
+        },
+        {
+          "id": "item_code",
+          "header": "품목코드"
+        },
+        {
+          "id": "item_name",
+          "header": "품목명"
+        },
+        {
+          "id": "spec",
+          "header": "규격"
+        },
+        {
+          "id": "unit",
+          "header": "단위"
+        },
+        {
+          "id": "qty",
+          "header": "수량"
+        },
+        {
+          "id": "remark",
+          "header": "비고"
+        }
+      ],
+      "ai": {
+        "extract": "자재 입고·출고·검수 명세 표로 읽는다. 품목코드·품목명·규격·단위·수량 열을 구분하고, 순번은 표의 No. 또는 순번 열이 있으면 그대로, 없으면 1부터 매긴다. 병합 셀은 내용을 해당 품목의 첫 행에 반영한다. 보이는 모든 데이터 행을 빠짐없이 추출한다."
+      }
+    }
+  ]
+}

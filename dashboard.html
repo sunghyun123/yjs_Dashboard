@@ -1,34 +1,70 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YJS 스마트 현장 상황판</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#003366">
     <style>
-        body { background-color: #f4f6f9; font-family: 'Malgun Gothic', sans-serif; overflow-x: hidden; }
-        .dashboard-header { background-color: #003366; color: white; padding: 15px 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .card { border-radius: 12px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .card-header { background-color: white; border-bottom: 2px solid #f4f6f9; font-weight: bold; font-size: 1.1rem; border-radius: 12px 12px 0 0 !important; }
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Malgun Gothic', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .dashboard-header {
+            background-color: #003366;
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card {
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            background-color: white;
+            border-bottom: 2px solid #f4f6f9;
+            font-weight: bold;
+            font-size: 1.1rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+
         .calendar-week-header {
             display: grid;
             grid-template-columns: repeat(7, minmax(0, 1fr));
             gap: 8px;
             margin-bottom: 8px;
         }
+
         .calendar-weekday {
             text-align: center;
             font-size: 0.78rem;
             font-weight: 700;
             color: #4f5b66;
         }
-        .calendar-weekday.sun { color: #d13232; }
-        .calendar-weekday.sat { color: #2467c5; }
+
+        .calendar-weekday.sun {
+            color: #d13232;
+        }
+
+        .calendar-weekday.sat {
+            color: #2467c5;
+        }
+
         .calendar-grid {
             display: grid;
             grid-template-columns: repeat(7, minmax(0, 1fr));
             gap: 8px;
         }
+
         .calendar-cell {
             border: 1px solid #d8dee6;
             border-radius: 8px;
@@ -36,16 +72,25 @@
             min-height: 126px;
             padding: 6px 7px;
         }
+
         .calendar-cell.out-range {
             background: #f4f6f9;
             opacity: 0.6;
         }
+
         .calendar-cell.today {
             border: 2px solid #1f6fe5;
             box-shadow: 0 0 0 1px rgba(31, 111, 229, 0.15);
         }
-        .calendar-cell.sun .calendar-date-label { color: #d13232; }
-        .calendar-cell.sat .calendar-date-label { color: #2467c5; }
+
+        .calendar-cell.sun .calendar-date-label {
+            color: #d13232;
+        }
+
+        .calendar-cell.sat .calendar-date-label {
+            color: #2467c5;
+        }
+
         .calendar-date-label {
             font-size: 0.8rem;
             font-weight: 700;
@@ -57,6 +102,7 @@
             align-items: center;
             gap: 6px;
         }
+
         .day-count-badge {
             font-size: 0.64rem;
             font-weight: 700;
@@ -67,12 +113,23 @@
             padding: 1px 6px;
             white-space: nowrap;
         }
+
         .calendar-empty-line {
             font-size: 0.72rem;
             color: #8a94a0;
             margin-top: 3px;
         }
-        .detail-text { font-size: 0.74rem; color: #666; background: #f0f2f5; padding: 4px 7px; border-radius: 4px; margin-top: 5px; line-height: 1.2; }
+
+        .detail-text {
+            font-size: 0.74rem;
+            color: #666;
+            background: #f0f2f5;
+            padding: 4px 7px;
+            border-radius: 4px;
+            margin-top: 5px;
+            line-height: 1.2;
+        }
+
         .detail-preview-content {
             white-space: pre-wrap;
             word-break: break-word;
@@ -84,6 +141,7 @@
             border-radius: 8px;
             padding: 10px;
         }
+
         .schedule-actions .btn {
             min-width: 84px;
             padding: 4px 8px;
@@ -91,10 +149,30 @@
             line-height: 1.2;
             white-space: nowrap;
         }
-        .schedule-action-panel { border-top: 1px dashed #d7dbe0; margin-top: 5px; padding-top: 5px; display: none; }
-        #workerStatusList .list-group-item { padding-top: 0.4rem; padding-bottom: 0.4rem; font-size: 0.9rem; }
-        .return-time-emphasis { color: #0b4ea2; font-weight: 700; font-size: 12px !important; }
-        .status-badge-sm { font-size: 0.72rem; }
+
+        .schedule-action-panel {
+            border-top: 1px dashed #d7dbe0;
+            margin-top: 5px;
+            padding-top: 5px;
+            display: none;
+        }
+
+        #workerStatusList .list-group-item {
+            padding-top: 0.4rem;
+            padding-bottom: 0.4rem;
+            font-size: 0.9rem;
+        }
+
+        .return-time-emphasis {
+            color: #0b4ea2;
+            font-weight: 700;
+            font-size: 12px !important;
+        }
+
+        .status-badge-sm {
+            font-size: 0.72rem;
+        }
+
         .worker-outing-meta {
             display: flex;
             align-items: center;
@@ -103,6 +181,7 @@
             max-width: 62%;
             overflow: hidden;
         }
+
         .worker-location-btn {
             display: inline-block;
             max-width: 100%;
@@ -112,12 +191,14 @@
             line-height: 1.2;
             font-size: 13px;
         }
+
         .worker-location-btn.allow-wrap {
             white-space: normal;
             overflow: visible;
             text-overflow: unset;
             word-break: break-word;
         }
+
         .schedule-compact-item {
             border-left: 3px solid #9cb6da;
             background: #f8f9fc;
@@ -125,9 +206,29 @@
             padding: 4px 7px;
             margin-bottom: 3px;
         }
-        .schedule-compact-item.cat-construction { border-left-color: #b30000; background: #ffe3e3; box-shadow: inset 0 0 0 1px #ffd0d0; }
-        .schedule-compact-item.cat-general { border-left-color: #5f6f85; background: #eef3f8; }
-        .schedule-compact-item.cat-schedule { border-left-color: #8d63c7; background: #f4ecff; }
+
+        .schedule-compact-item.cat-construction.construction-shift-day {
+            border-left-color: #b30000;
+            background: #ffe3e3;
+            box-shadow: inset 0 0 0 1px #ffd0d0;
+        }
+
+        .schedule-compact-item.cat-construction.construction-shift-night {
+            border-left-color: #143d5c;
+            background: #e6f1f8;
+            box-shadow: inset 0 0 0 1px #b8d4e8;
+        }
+
+        .schedule-compact-item.cat-general {
+            border-left-color: #5f6f85;
+            background: #eef3f8;
+        }
+
+        .schedule-compact-item.cat-schedule {
+            border-left-color: #8d63c7;
+            background: #f4ecff;
+        }
+
         .schedule-compact-task {
             font-size: 0.88rem;
             font-weight: 700;
@@ -141,10 +242,12 @@
             column-gap: 6px;
             row-gap: 4px;
         }
+
         .schedule-task-head {
             min-width: 0;
             flex: 1 1 12rem;
         }
+
         .schedule-meta-badges {
             display: inline-flex;
             flex-wrap: wrap;
@@ -152,10 +255,12 @@
             gap: 4px;
             flex: 0 1 auto;
         }
+
         .schedule-meta-badges .schedule-shift-badge,
         .schedule-meta-badges .schedule-workcode-badge {
             margin-left: 0;
         }
+
         .schedule-category-dot {
             display: inline-block;
             width: 7px;
@@ -166,9 +271,23 @@
             transform: translateY(-1px);
             background: #9cb6da;
         }
-        .schedule-category-dot.cat-construction { background: #b30000; }
-        .schedule-category-dot.cat-general { background: #5f6f85; }
-        .schedule-category-dot.cat-schedule { background: #8d63c7; }
+
+        .schedule-category-dot.cat-construction {
+            background: #b30000;
+        }
+
+        .schedule-compact-item.cat-construction.construction-shift-night .schedule-category-dot.cat-construction {
+            background: #143d5c;
+        }
+
+        .schedule-category-dot.cat-general {
+            background: #5f6f85;
+        }
+
+        .schedule-category-dot.cat-schedule {
+            background: #8d63c7;
+        }
+
         .schedule-compact-person {
             font-size: 0.76rem;
             color: #4d5a67;
@@ -176,6 +295,7 @@
             white-space: normal;
             word-break: break-word;
         }
+
         .schedule-compact-detail-preview {
             font-size: 0.72rem;
             color: #616b78;
@@ -184,12 +304,14 @@
             white-space: pre-wrap;
             word-break: break-word;
         }
+
         .schedule-view-options {
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
             margin-top: 8px;
         }
+
         .side-panel-header-btn {
             width: 100%;
             border: 0;
@@ -201,16 +323,20 @@
             font-weight: 700;
             color: inherit;
         }
+
         .side-panel-header-btn .toggle-indicator {
             font-size: 0.78rem;
             color: #617285;
         }
+
         .side-panel-body.collapsed {
             display: none;
         }
+
         .worker-panel-note.compact-hidden {
             display: none;
         }
+
         /* 우측 패널 ‘가로 접기’: 컬럼을 없애지 않고 좁은 레일로 유지 */
         .right-column-rail {
             flex: 0 0 220px;
@@ -218,44 +344,55 @@
             max-width: 240px;
             min-width: 200px;
         }
+
         .right-column-rail .card {
             margin-bottom: 0.5rem;
         }
+
         .right-column-rail .card.mt-3 {
             margin-top: 0.5rem !important;
         }
+
         .right-column-rail .card-header {
             padding: 0.45rem 0.35rem;
         }
+
         .right-column-rail .card-header .side-panel-header-btn {
             font-size: 0.78rem;
             line-height: 1.2;
         }
+
         .right-column-rail .card-body {
             padding: 0.35rem 0.25rem;
         }
+
         .right-column-rail #workerStatusList .list-group-item {
             padding: 0.35rem 0.3rem;
             font-size: 0.78rem;
             flex-wrap: nowrap;
             gap: 4px;
         }
+
         .right-column-rail #workerStatusList .worker-row-name {
             max-width: 52% !important;
             font-size: 0.76rem;
             font-weight: 700;
         }
+
         .right-column-rail #workerStatusList .status-badge-sm {
             font-size: 0.62rem;
             padding: 0.15rem 0.35rem;
             flex-shrink: 0;
         }
+
         .right-column-rail .worker-outing-meta {
             display: none !important;
         }
+
         .right-column-rail .side-panel-header-btn .toggle-indicator {
             display: none;
         }
+
         .schedule-shift-badge {
             display: inline-block;
             font-size: 0.66rem;
@@ -267,9 +404,19 @@
             vertical-align: middle;
             border: 1px solid transparent;
         }
-        .schedule-shift-badge.shift-day { color: #0d4d1c; background: #e6f6ea; border-color: #a8dcb5; }
-        .schedule-shift-badge.shift-night { color: #0a3570; background: #e8f0fb; border-color: #b3c9ea; }
-        .schedule-shift-badge.shift-midnight { color: #5a1a73; background: #f3ebfa; border-color: #d4b8e8; }
+
+        .schedule-shift-badge.shift-day {
+            color: #7a120e;
+            background: #fde8e8;
+            border-color: #e8a5a0;
+        }
+
+        .schedule-shift-badge.shift-night {
+            color: #0c3d5c;
+            background: #dbeaf5;
+            border-color: #7eb3d4;
+        }
+
         .schedule-workcode-badge {
             display: inline-block;
             font-size: 0.66rem;
@@ -283,26 +430,43 @@
             background: #eef2f7;
             border: 1px solid #c5d0dc;
         }
+
         .schedule-work-code {
             font-size: 0.7rem;
             color: #5c6572;
             margin-top: 2px;
         }
-        .schedule-compact-item .schedule-action-panel { display: none; }
-        .schedule-compact-item.active .schedule-action-panel { display: block; }
+
+        .schedule-compact-item .schedule-action-panel {
+            display: none;
+        }
+
+        .schedule-compact-item.active .schedule-action-panel {
+            display: block;
+        }
+
         .schedule-action-panel .form-control.form-control-sm {
             min-width: 0;
             font-size: 0.78rem;
             padding: 4px 6px;
             height: auto;
         }
+
         .schedule-action-panel .btn.btn-sm {
             font-size: 0.78rem;
             padding: 4px 8px;
             line-height: 1.2;
             white-space: nowrap;
         }
-        .toolbar-card { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); background: #fff; padding: 12px; margin-bottom: 14px; }
+
+        .toolbar-card {
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            background: #fff;
+            padding: 12px;
+            margin-bottom: 14px;
+        }
+
         .month-nav .btn {
             border-color: #8fa5bf;
             color: #1f4f8f;
@@ -310,21 +474,33 @@
             font-weight: 700;
             min-width: 78px;
         }
+
         .month-nav .btn:hover {
             border-color: #3f75b8;
             color: #0f3f7f;
             background: #e9f3ff;
         }
+
         .board-mode-badge {
             border: 1px solid #d2e2f7;
             background: #edf4ff;
             color: #1d4f8e;
         }
+
         .save-toast {
-            position: fixed; right: 16px; bottom: 16px; z-index: 1080; min-width: 240px;
-            background: #212529; color: #fff; border-radius: 10px; padding: 10px 12px; display: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            z-index: 1080;
+            min-width: 240px;
+            background: #212529;
+            color: #fff;
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
+
         .time-stepper {
             display: grid;
             grid-template-columns: 1fr auto 1fr;
@@ -332,6 +508,7 @@
             gap: 8px;
             margin-top: 10px;
         }
+
         .time-stepper-value {
             text-align: center;
             font-weight: 700;
@@ -342,22 +519,62 @@
             padding: 6px 10px;
             min-width: 92px;
         }
+
         .time-stepper .btn {
             min-width: 42px;
             font-weight: 700;
         }
+
         @media (max-width: 768px) {
-            .dashboard-header { padding: 10px 12px; }
-            .dashboard-header h3 { font-size: 1.05rem; }
-            .container-fluid { margin-top: 12px !important; padding-left: 10px !important; padding-right: 10px !important; }
-            .toolbar-card { padding: 10px; }
-            #scheduleBoard { max-height: none !important; min-height: 40dvh; }
-            .card-header { font-size: 1rem; }
-            .schedule-compact-task { font-size: 0.84rem; }
-            .schedule-compact-person { font-size: 0.72rem; }
-            .calendar-grid, .calendar-week-header { gap: 6px; }
-            .calendar-cell { min-height: 100px; padding: 5px; }
-            .calendar-date-label { font-size: 0.74rem; }
+            .dashboard-header {
+                padding: 10px 12px;
+            }
+
+            .dashboard-header h3 {
+                font-size: 1.05rem;
+            }
+
+            .container-fluid {
+                margin-top: 12px !important;
+                padding-left: 10px !important;
+                padding-right: 10px !important;
+            }
+
+            .toolbar-card {
+                padding: 10px;
+            }
+
+            #scheduleBoard {
+                max-height: none !important;
+                min-height: 40dvh;
+            }
+
+            .card-header {
+                font-size: 1rem;
+            }
+
+            .schedule-compact-task {
+                font-size: 0.84rem;
+            }
+
+            .schedule-compact-person {
+                font-size: 0.72rem;
+            }
+
+            .calendar-grid,
+            .calendar-week-header {
+                gap: 6px;
+            }
+
+            .calendar-cell {
+                min-height: 100px;
+                padding: 5px;
+            }
+
+            .calendar-date-label {
+                font-size: 0.74rem;
+            }
+
             .mobile-day-block {
                 border: 1px solid #d8dee6;
                 border-radius: 8px;
@@ -365,6 +582,7 @@
                 padding: 6px;
                 margin-bottom: 8px;
             }
+
             .mobile-day-title {
                 font-size: 0.82rem;
                 font-weight: 700;
@@ -376,7 +594,11 @@
                 align-items: center;
                 gap: 6px;
             }
-            .mobile-day-title.today { color: #1f6fe5; }
+
+            .mobile-day-title.today {
+                color: #1f6fe5;
+            }
+
             .mobile-today-pin {
                 position: sticky;
                 top: 0;
@@ -390,36 +612,195 @@
                 font-size: 0.78rem;
                 font-weight: 700;
             }
-            .month-nav .btn { min-width: 64px; padding-left: 6px; padding-right: 6px; }
-            .worker-outing-meta { max-width: 58%; }
-            /* 모바일은 조회 전용: 액션 패널 비노출 */
-            .schedule-compact-item .schedule-action-panel { display: none !important; }
+
+            .month-nav .btn {
+                min-width: 64px;
+                padding-left: 6px;
+                padding-right: 6px;
+            }
+
+            .worker-outing-meta {
+                max-width: 58%;
+            }
+
+            .schedule-compact-item .schedule-action-panel {
+                padding-top: 8px;
+                margin-top: 6px;
+            }
+
+            .schedule-compact-item .schedule-actions {
+                justify-content: stretch !important;
+            }
+
+            .schedule-compact-item .schedule-actions .btn {
+                flex: 1 1 auto;
+            }
+        }
+
+        .app-drawer-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 1040;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+
+        .app-drawer-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .app-drawer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: min(320px, 92vw);
+            height: 100%;
+            height: 100dvh;
+            background: #fff;
+            z-index: 1050;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+            transform: translateX(-100%);
+            transition: transform 0.22s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .app-drawer.open {
+            transform: translateX(0);
+        }
+
+        .app-drawer-header {
+            background: #003366;
+            color: #fff;
+            padding: 14px 16px;
+            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-drawer-body {
+            padding: 10px 12px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .app-drawer-body .list-group-item {
+            border-radius: 8px !important;
+            margin-bottom: 6px;
+            border: 1px solid #e5e9f0;
+        }
+
+        .app-drawer-body .list-group-item-action:hover {
+            background: #f4f6f9;
+        }
+
+        .doc-submenu {
+            display: none;
+            padding-left: 8px;
+            margin-top: 4px;
+            margin-bottom: 8px;
+        }
+
+        .doc-submenu.open {
+            display: block;
+        }
+
+        .doc-drop-zone {
+            border: 2px dashed #9cb6da;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fc;
+            cursor: pointer;
+        }
+
+        .doc-drop-zone.dragover {
+            background: #eaf1fb;
+            border-color: #1f6fe5;
         }
 
         /* 스크롤바 숨기기 (전자 칠판용 깔끔한 UI) */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
     </style>
 </head>
+
 <body>
 
     <header class="dashboard-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div class="d-flex align-items-center gap-3 flex-wrap">
-            <h3 class="m-0 fw-bold">📊 YJS 공사계획 및 현황판</h3>
-            <nav class="d-flex gap-2 flex-wrap">
-                <a href="/index.html" class="btn btn-sm btn-outline-light">🤖 AI 비서</a>
-                <a href="/admin.html" id="adminLinkBtn" class="btn btn-sm btn-outline-light d-none">⚙ 관리자</a>
-                <button type="button" id="logoutBtn" class="btn btn-sm btn-outline-light" onclick="logout()">로그아웃</button>
-            </nav>
+        <div class="d-flex align-items-center gap-2 flex-wrap flex-grow-1 header-title-block" style="min-width: 0;">
+            <button type="button" class="btn btn-outline-light btn-sm" id="appMenuBtn" onclick="toggleAppDrawer(true)"
+                aria-label="메뉴 열기">☰</button>
+            <h3 class="m-0 fw-bold text-truncate" style="max-width: min(100%, 14rem);">📊 YJS 현황판</h3>
         </div>
-        <div class="d-flex align-items-center flex-wrap gap-2 justify-content-end">
+        <div class="d-flex align-items-center flex-wrap gap-2 justify-content-end dashboard-header-toolbar">
             <h5 class="m-0" id="currentDate"></h5>
             <small class="text-white-50 text-nowrap" id="lastUpdated">업데이트 중...</small>
             <span class="badge bg-success fs-6 blink-bg">🟢 실시간 연동 중</span>
         </div>
     </header>
+
+    <div id="appDrawerOverlay" class="app-drawer-overlay" onclick="toggleAppDrawer(false)"></div>
+    <aside id="appDrawer" class="app-drawer" aria-hidden="true">
+        <div class="app-drawer-header">
+            <span>메뉴</span>
+            <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleAppDrawer(false)"
+                aria-label="닫기">✕</button>
+        </div>
+        <div class="app-drawer-body">
+            <div class="list-group list-group-flush">
+                <a href="/index.html" class="list-group-item list-group-item-action">🤖 AI 비서</a>
+                <a href="/admin.html" id="drawerAdminLink" class="list-group-item list-group-item-action d-none">⚙
+                    관리자</a>
+                <button type="button" class="list-group-item list-group-item-action text-start"
+                    onclick="logout(); toggleAppDrawer(false);">로그아웃</button>
+            </div>
+            <hr class="my-3">
+            <div class="small text-muted mb-2"></div>
+            <div class="list-group list-group-flush">
+                <button type="button" class="list-group-item list-group-item-action text-start"
+                    onclick="openHangulGeneratorDownload(); toggleAppDrawer(false);">한글 생성기 다운로드</button>
+                <button type="button" class="list-group-item list-group-item-action text-start"
+                    onclick="launchLocalApp('erp')">ERP 실행(비활성화)</button>
+                <button type="button"
+                    class="list-group-item list-group-item-action text-start d-flex justify-content-between align-items-center"
+                    onclick="toggleDocSubmenu('gen')">
+                    문서 생성 <span class="text-muted small">▾</span>
+                </button>
+                <div id="docSubmenuGen" class="doc-submenu">
+                    <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-1"
+                        onclick="openDocumentTemplatePicker('generate')">템플릿 선택…</button>
+                </div>
+                <button type="button"
+                    class="list-group-item list-group-item-action text-start d-flex justify-content-between align-items-center"
+                    onclick="toggleDocSubmenu('ext')">
+                    문서 추출 <span class="text-muted small">▾</span>
+                </button>
+                <div id="docSubmenuExt" class="doc-submenu">
+                    <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-1"
+                        onclick="openDocumentTemplatePicker('extract')">템플릿 선택…</button>
+                </div>
+            </div>
+        </div>
+    </aside>
 
     <div class="container-fluid mt-4 px-4">
         <div class="row g-3">
@@ -428,7 +809,8 @@
                 <div class="toolbar-card">
                     <div class="row g-2 align-items-center">
                         <div class="col-12 col-md-4 col-lg-3">
-                            <input id="scheduleSearchKeyword" class="form-control form-control-sm" placeholder="현장/작업 검색">
+                            <input id="scheduleSearchKeyword" class="form-control form-control-sm"
+                                placeholder="현장/작업 검색">
                         </div>
                         <div class="col-6 col-md-3 col-lg-2">
                             <input id="scheduleTargetDate" class="form-control form-control-sm" type="date">
@@ -440,10 +822,12 @@
                             </div>
                         </div>
                         <div class="col-6 col-md-3 col-lg-2 d-grid">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openPersonFilterModal()">인원 검색</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                onclick="openPersonFilterModal()">인원 검색</button>
                         </div>
                         <div class="col-6 col-md-12 col-lg-3 d-grid">
-                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadSchedules()">필터 적용</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadSchedules()">필터
+                                적용</button>
                         </div>
                     </div>
                     <div class="schedule-view-options small">
@@ -459,7 +843,8 @@
                             <input class="form-check-input" type="checkbox" id="viewShowWorkCode">
                             <label class="form-check-label" for="viewShowWorkCode">작업 코드</label>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="resetScheduleViewOptions()">기본값으로 되돌리기</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                            onclick="resetScheduleViewOptions()">기본값으로 되돌리기</button>
                     </div>
                     <div class="small text-muted mt-1" id="personFilterSummary" style="display: none;"></div>
                 </div>
@@ -469,21 +854,30 @@
                             <div class="d-flex flex-wrap align-items-center gap-2 min-w-0">
                                 <span class="fw-bold">📋 현장 보고 실시간 현황</span>
                                 <div class="btn-group btn-group-sm month-nav" role="group" aria-label="월 이동">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="shiftBoardMonth(-1)">◀ 이전달</button>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="jumpToCurrentMonth()">이번달</button>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="shiftBoardMonth(1)">다음달 ▶</button>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                        onclick="shiftBoardMonth(-1)">◀ 이전달</button>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                        onclick="jumpToCurrentMonth()">이번달</button>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                        onclick="shiftBoardMonth(1)">다음달 ▶</button>
                                 </div>
                                 <span id="currentBoardMonthLabel" class="badge text-bg-primary">-</span>
-                                <span id="boardViewModeLabel" class="badge rounded-pill board-mode-badge">조회 모드: -</span>
-                                <span id="dashboardNotice" class="badge rounded-pill text-bg-light text-dark border small fw-normal text-wrap text-start" style="max-width: 100%;">공지: 중요 안내는 관리자에게 문의하세요.</span>
+                                <span id="boardViewModeLabel" class="badge rounded-pill board-mode-badge">조회 모드:
+                                    -</span>
+                                <span id="dashboardNotice"
+                                    class="badge rounded-pill text-bg-light text-dark border small fw-normal text-wrap text-start"
+                                    style="max-width: 100%;">공지: 중요 안내는 관리자에게 문의하세요.</span>
                             </div>
                             <div class="d-flex gap-2 flex-shrink-0">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="rightColumnToggleBtn" onclick="toggleRightColumn()">↔ 우측 패널 접기</button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadSchedules()">🔄 수동 갱신</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="rightColumnToggleBtn"
+                                    onclick="toggleRightColumn()">↔ 우측 패널 접기</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    onclick="loadSchedules()">🔄 수동 갱신</button>
                             </div>
                         </div>
                     </div>
-                    <div class="card-body" id="scheduleBoard" style="max-height: 80vh; max-height: 80dvh; overflow-y: auto;">
+                    <div class="card-body" id="scheduleBoard"
+                        style="max-height: 80vh; max-height: 80dvh; overflow-y: auto;">
                         <div class="text-center text-muted py-5">
                             <div class="spinner-border text-primary" role="status"></div>
                             <p class="mt-3">현장 데이터를 불러오는 중입니다...</p>
@@ -494,14 +888,12 @@
 
             <div class="col-xl-3 col-lg-4" id="rightPanelColumn">
                 <div class="card" id="workerPanelCard">
-                    <div class="card-header py-3">
-                        <button type="button" class="side-panel-header-btn" onclick="toggleRightPanel('worker')">
-                            <span>🏃‍♂️ 외출 및 행선표</span>
-                            <span class="toggle-indicator" id="workerPanelToggleIcon">▼</span>
-                        </button>
+                    <div class="card-header py-3 fw-bold">
+                        <span>🏃‍♂️ 외출 및 행선표</span>
                     </div>
                     <div class="card-body side-panel-body" id="workerPanelBody">
-                        <div class="small text-muted mb-2 worker-panel-note" id="workerPanelNote">관리자 등록 인원 기준으로 상태를 클릭 편집할 수 있으며, 행선/복귀 시각은 외출 상태에서만 표시됩니다.</div>
+                        <div class="small text-muted mb-2 worker-panel-note" id="workerPanelNote">관리자 등록 인원 기준으로 상태를 클릭
+                            편집할 수 있으며, 행선/복귀 시각은 외출 상태에서만 표시됩니다.</div>
                         <ul class="list-group list-group-flush" id="workerStatusList"></ul>
                     </div>
                 </div>
@@ -544,19 +936,21 @@
                         </div>
                         <div class="mb-2">
                             <input id="boardTask" class="form-control form-control-sm mb-1" placeholder="작업/메모 제목">
-                            <textarea id="boardDetails" class="form-control form-control-sm" rows="2" placeholder="상세"></textarea>
+                            <textarea id="boardDetails" class="form-control form-control-sm" rows="2"
+                                placeholder="상세"></textarea>
                         </div>
                         <div class="mb-2">
-                            <label class="form-label small mb-0">주간/야간/심야</label>
+                            <label class="form-label small mb-0">주간/야간</label>
                             <select id="boardShiftType" class="form-select form-select-sm">
                                 <option value="" selected>미지정</option>
                                 <option value="주간">주간</option>
                                 <option value="야간">야간</option>
-                                <option value="심야">심야</option>
                             </select>
                         </div>
-                        <input id="boardWorkCode" class="form-control form-control-sm mb-2" placeholder="공사 코드 (예: AN-2408)">
-                        <button class="btn btn-sm btn-outline-primary w-100" onclick="submitBoardTemplate()">템플릿 전송</button>
+                        <input id="boardWorkCode" class="form-control form-control-sm mb-2"
+                            placeholder="공사 코드 (예: AN-2408)">
+                        <button class="btn btn-sm btn-outline-primary w-100" onclick="submitBoardTemplate()">템플릿
+                            전송</button>
                     </div>
                 </div>
             </div>
@@ -565,7 +959,8 @@
     </div>
     <div id="saveToast" class="save-toast"></div>
 
-    <div class="modal fade" id="dashboardLoginModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="dashboardLoginModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+        aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -575,10 +970,77 @@
                     <p class="small text-muted mb-2">현황판 사용을 위해 로그인해 주세요.</p>
                     <div id="dashboardLoginError" class="small text-danger mb-2" style="display: none;"></div>
                     <input id="dashboardLoginUserId" class="form-control form-control-sm mb-2" placeholder="아이디">
-                    <input id="dashboardLoginPassword" type="password" class="form-control form-control-sm" placeholder="비밀번호">
+                    <input id="dashboardLoginPassword" type="password" class="form-control form-control-sm"
+                        placeholder="비밀번호">
+                </div>
+                <div class="modal-footer flex-column align-items-stretch gap-2">
+                    <button type="button" class="btn btn-sm btn-primary w-100"
+                        onclick="submitDashboardLogin()">로그인</button>
+                    <div class="d-flex gap-2 w-100">
+                        <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1"
+                            onclick="openDashboardSignupFromLogin()">신규 사용자 등록</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary flex-grow-1"
+                            onclick="openDashboardFindAccountFromLogin()">계정 찾기</button>
+                    </div>
+                    <small class="text-muted text-center">초기 관리자 계정: admin / 1234</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="dashboardSignupModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">신규 사용자 등록</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small">사용자 이름</label>
+                        <input id="dashSignupUserName" class="form-control form-control-sm" placeholder="예: 홍길동">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">ID</label>
+                        <input id="dashSignupUserId" class="form-control form-control-sm" placeholder="아이디 입력">
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label small">비밀번호</label>
+                        <input id="dashSignupPassword" class="form-control form-control-sm" type="password"
+                            placeholder="비밀번호 입력">
+                    </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-primary" onclick="submitDashboardLogin()">로그인</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="submitDashboardSignup()">가입신청</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="dashboardFindAccountModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">계정 찾기 / 비밀번호 재설정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label small">사용자 이름</label>
+                    <input id="dashFindUserName" class="form-control form-control-sm mb-2" placeholder="이름을 입력하세요">
+                    <label class="form-label small">계정 ID</label>
+                    <input id="dashFindUserId" class="form-control form-control-sm mb-2" placeholder="조회 후 자동 입력됩니다">
+                    <label class="form-label small">새 비밀번호</label>
+                    <input id="dashResetNewPassword" class="form-control form-control-sm" type="password"
+                        placeholder="새 비밀번호를 입력하세요">
+                    <div id="dashFindAccountResult" class="small mt-2 text-muted"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="submitDashboardFindAccount()">ID
+                        조회</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="submitDashboardResetPassword()">비밀번호
+                        재설정</button>
                 </div>
             </div>
         </div>
@@ -597,19 +1059,19 @@
                     <input id="editDate" class="form-control form-control-sm mb-2" placeholder="날짜 (YYYY-MM-DD)">
                     <input id="editTask" class="form-control form-control-sm mb-2" placeholder="작업 내용">
                     <input id="editPerson" class="form-control form-control-sm mb-2" placeholder="담당자·작업 인원">
-                    <textarea id="editDetails" rows="3" class="form-control form-control-sm mb-2" placeholder="상세 내용"></textarea>
+                    <textarea id="editDetails" rows="3" class="form-control form-control-sm mb-2"
+                        placeholder="상세 내용"></textarea>
                     <label class="form-label small mb-0">카테고리</label>
                     <select id="editCategory" class="form-select form-select-sm mb-2">
                         <option value="공사 일정">공사 일정</option>
                         <option value="일반 작업">일반 작업</option>
                         <option value="일정">일정</option>
                     </select>
-                    <label class="form-label small mb-0">주간/야간/심야</label>
+                    <label class="form-label small mb-0">주간/야간</label>
                     <select id="editShiftType" class="form-select form-select-sm mb-2">
                         <option value="">미지정</option>
                         <option value="주간">주간</option>
                         <option value="야간">야간</option>
-                        <option value="심야">심야</option>
                     </select>
                     <input id="editWorkCode" class="form-control form-control-sm" placeholder="공사 코드">
                 </div>
@@ -633,8 +1095,10 @@
                     <div id="personFilterStaffList" class="d-flex flex-wrap gap-2"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearPersonFilter()">필터 해제</button>
-                    <button type="button" class="btn btn-sm btn-primary" onclick="applyPersonFilterFromModal()">필터 적용</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearPersonFilter()">필터
+                        해제</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="applyPersonFilterFromModal()">필터
+                        적용</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
                 </div>
             </div>
@@ -653,7 +1117,8 @@
                     <div id="fieldStaffList" class="d-flex flex-wrap gap-2"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-primary" onclick="appendSelectedFieldStaffToSchedule()">선택 인원 추가</button>
+                    <button type="button" class="btn btn-sm btn-primary"
+                        onclick="appendSelectedFieldStaffToSchedule()">선택 인원 추가</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
                 </div>
             </div>
@@ -688,14 +1153,93 @@
                     <div class="small text-muted mb-2">30분 단위로 선택하세요. (예: 17:00, 17:30)</div>
                     <input id="workerReturnTimeInput" class="form-control" type="time" step="1800">
                     <div class="time-stepper">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" title="30분 감소" onclick="shiftWorkerReturnTime(-30)">▼</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" title="30분 감소"
+                            onclick="shiftWorkerReturnTime(-30)">▼</button>
                         <div id="workerReturnTimePreview" class="time-stepper-value">--:--</div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" title="30분 증가" onclick="shiftWorkerReturnTime(30)">▲</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" title="30분 증가"
+                            onclick="shiftWorkerReturnTime(30)">▲</button>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearWorkerReturnTime()">초기화</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                        onclick="clearWorkerReturnTime()">초기화</button>
                     <button type="button" class="btn btn-sm btn-primary" onclick="saveWorkerReturnTime()">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="documentTemplateModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="documentTemplateModalTitle">템플릿 선택</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="documentTemplateList" class="list-group"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="documentGenerateModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">문서 생성</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">라벨에 (추천)이 있는 항목만 AI가 값을 제안합니다. (추천x)는 직접 입력하세요. 템플릿에 따라 <strong>필수
+                            항목</strong>을 먼저 선택해야 AI 추천·파일 받기가 됩니다.</p>
+                    <label class="form-label small mb-0">참고 문맥 (선택, AI 추천용)</label>
+                    <textarea id="docGenContext" class="form-control form-control-sm mb-2" rows="2"
+                        placeholder="관련 메모·문장을 붙여 넣으면 추천 품질이 좋아집니다."></textarea>
+                    <div id="docGenFields"></div>
+                </div>
+                <div class="modal-footer flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="runDocumentSuggest()">AI
+                        추천</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="downloadFilledDocument()">파일
+                        받기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="documentExtractModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">문서 데이터 추출</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="docExtractUploadSection">
+                        <p class="small text-muted">사진을 선택하거나 아래 영역에 끌어다 놓으세요.</p>
+                        <input type="file" id="docExtractFile" class="d-none" accept="image/*"
+                            onchange="markDocExtractFileSelected()">
+                        <div id="docExtractDropZone" class="doc-drop-zone mb-2"
+                            onclick="document.getElementById('docExtractFile').click()">
+                            📷 이미지 선택 / 드래그
+                        </div>
+                        <button type="button" id="docExtractRunBtn" class="btn btn-sm btn-primary w-100" onclick="submitDocumentExtract()">AI
+                            추출 실행</button>
+                    </div>
+                    <div id="docExtractReviewSection" style="display: none;">
+                        <p class="small fw-bold mb-1">추출한 내용이 맞는지 확인해 주세요.</p>
+                        <p id="docExtractReviewHint" class="small text-muted mb-2">틀린 부분을 고친 뒤 아래 버튼으로 파일을 받습니다. (표 추출은
+                            엑셀, 일반 템플릿은 등록된 형식으로 저장됩니다.)</p>
+                        <div id="docExtractReviewList" class="small border rounded p-3 bg-light mb-3"></div>
+                        <div class="d-grid gap-2">
+                            <button type="button" id="docExtractConfirmBtn" class="btn btn-sm btn-primary"
+                                onclick="confirmExtractedDocumentExport()">파일 받기</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                onclick="resetDocumentExtractFlow()">다시 추출</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -718,8 +1262,8 @@
         let workerReturnTimeModal = null;
         let detailPreviewModal = null;
         let dashboardLoginModal = null;
-        let workerReturnTimeTargetUser = '';
-        let dashboardNotice = '';
+        let dashboardSignupModal = null;
+        let dashboardFindAccountModal = null;
         const fieldStaffNameById = {};
         const selectedFieldStaffIds = new Set();
         let fieldStaffTargetScheduleId = null;
@@ -732,7 +1276,6 @@
             showWorkCode: false,
         };
         let rightPanelState = {
-            worker: false,
             memo: false,
             board: false,
         };
@@ -781,7 +1324,7 @@
                         showWorkCode: Boolean(parsed.showWorkCode),
                     };
                 }
-            } catch (_e) {}
+            } catch (_e) { }
             document.getElementById('viewShowPerson').checked = scheduleViewOptions.showPerson;
             document.getElementById('viewShowDetails').checked = scheduleViewOptions.showDetails;
             document.getElementById('viewShowWorkCode').checked = scheduleViewOptions.showWorkCode;
@@ -822,12 +1365,11 @@
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     rightPanelState = {
-                        worker: Boolean(parsed.worker),
                         memo: Boolean(parsed.memo),
                         board: Boolean(parsed.board),
                     };
                 }
-            } catch (_e) {}
+            } catch (_e) { }
             applyRightPanelState();
         }
 
@@ -848,28 +1390,25 @@
                 body.classList.toggle('collapsed', !expanded);
                 icon.textContent = expanded ? '▲' : '▼';
             });
-            const workerIcon = document.getElementById('workerPanelToggleIcon');
-            workerIcon.textContent = (rail || rightPanelState.worker) ? '▲' : '▼';
             const note = document.getElementById('workerPanelNote');
-            note.classList.toggle('compact-hidden', rail ? true : !rightPanelState.worker);
+            note.classList.toggle('compact-hidden', Boolean(rail));
         }
 
         function toggleRightPanel(key) {
-            if (rightColumnMode !== 'full' && key !== 'worker') {
+            if (key === 'worker') return;
+            if (rightColumnMode !== 'full') {
                 rightColumnMode = 'full';
                 localStorage.setItem('yjs_right_column_mode_v2', rightColumnMode);
                 rightPanelState[key] = true;
                 saveRightPanelState();
                 applyRightColumnState();
                 applyRightPanelState();
-                if (key === 'worker') loadWorkerStatus();
                 loadMemos();
                 return;
             }
             rightPanelState[key] = !rightPanelState[key];
             saveRightPanelState();
             applyRightPanelState();
-            if (key === 'worker') loadWorkerStatus();
         }
 
         function loadRightColumnState() {
@@ -1185,83 +1724,6 @@
             return matched ? `${matched[1]}:${matched[2]}` : raw;
         }
 
-        function showDashboardLoginError(message) {
-            const el = document.getElementById('dashboardLoginError');
-            const msg = String(message || '').trim();
-            if (!msg) {
-                el.style.display = 'none';
-                el.textContent = '';
-                return;
-            }
-            el.style.display = 'block';
-            el.textContent = msg;
-        }
-
-        function openDashboardLoginModal(message = '') {
-            showDashboardLoginError(message);
-            const userInput = document.getElementById('dashboardLoginUserId');
-            const pwInput = document.getElementById('dashboardLoginPassword');
-            pwInput.value = '';
-            if (String(userInput.value || '').trim()) pwInput.focus();
-            else userInput.focus();
-            dashboardLoginModal.show();
-        }
-
-        async function ensureSession() {
-            try {
-                const response = await fetch('/api/auth/me');
-                if (!response.ok) {
-                    openDashboardLoginModal('');
-                    return false;
-                }
-                const me = await response.json();
-                const adminLink = document.getElementById('adminLinkBtn');
-                if (me.role === 'admin') adminLink.classList.remove('d-none');
-                else adminLink.classList.add('d-none');
-                dashboardLoginModal.hide();
-                showDashboardLoginError('');
-                return true;
-            } catch (e) {
-                openDashboardLoginModal('로그인 상태를 확인하지 못했습니다. 네트워크를 확인해 주세요.');
-                return false;
-            }
-        }
-
-        async function logout() {
-            await fetch('/api/auth/logout', { method: 'POST' });
-            openDashboardLoginModal('로그아웃되었습니다. 다시 로그인해 주세요.');
-        }
-
-        async function submitDashboardLogin() {
-            const userId = String(document.getElementById('dashboardLoginUserId').value || '').trim();
-            const password = String(document.getElementById('dashboardLoginPassword').value || '').trim();
-            if (!userId || !password) {
-                showDashboardLoginError('아이디와 비밀번호를 모두 입력해 주세요.');
-                return;
-            }
-            try {
-                const res = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userId,
-                        password,
-                        register_code: '',
-                        device_name: navigator.userAgent || 'dashboard-browser'
-                    })
-                });
-                const data = await res.json();
-                if (!res.ok) {
-                    showDashboardLoginError(data.detail || '로그인에 실패했습니다.');
-                    return;
-                }
-                showDashboardLoginError('');
-                await initializeDashboardPage();
-            } catch (e) {
-                showDashboardLoginError('로그인 요청 중 오류가 발생했습니다.');
-            }
-        }
-
         // 상단 헤더의 오늘 날짜 업데이트
         function updateHeaderDate() {
             const today = new Date();
@@ -1293,78 +1755,6 @@
                 .replaceAll("'", '&#39;');
         }
 
-        function loadDashboardNotice() {
-            dashboardNotice = localStorage.getItem('yjs_dashboard_notice_v1') || '공지: 중요 안내는 관리자에게 문의하세요.';
-            renderDashboardNotice();
-        }
-
-        function renderDashboardNotice() {
-            const el = document.getElementById('dashboardNotice');
-            el.textContent = dashboardNotice;
-            el.title = '클릭하여 공지 수정';
-        }
-
-        function beginEditDashboardNotice() {
-            const el = document.getElementById('dashboardNotice');
-            const current = dashboardNotice;
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'form-control form-control-sm';
-            input.value = current;
-            input.style.maxWidth = '460px';
-            const commit = () => {
-                dashboardNotice = input.value.trim() || '공지: 중요 안내는 관리자에게 문의하세요.';
-                localStorage.setItem('yjs_dashboard_notice_v1', dashboardNotice);
-                renderDashboardNotice();
-                bindDashboardNoticeEditor();
-            };
-            const cancel = () => {
-                renderDashboardNotice();
-                bindDashboardNoticeEditor();
-            };
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') commit();
-                if (e.key === 'Escape') cancel();
-            });
-            input.addEventListener('blur', commit);
-            el.replaceWith(input);
-            input.id = 'dashboardNotice';
-            input.focus();
-            input.select();
-        }
-
-        function bindDashboardNoticeEditor() {
-            const el = document.getElementById('dashboardNotice');
-            el.style.cursor = 'pointer';
-            el.addEventListener('click', beginEditDashboardNotice, { once: true });
-        }
-
-        function getScheduleFilters() {
-            const todayOnly = document.getElementById('todayOnlyCheck').checked;
-            const selectedDate = document.getElementById('scheduleTargetDate').value;
-            const keyword = document.getElementById('scheduleSearchKeyword').value.trim().toLowerCase();
-            return { todayOnly, selectedDate, keyword };
-        }
-
-        function updateBoardViewModeLabel(todayOnly, selectedDate) {
-            const el = document.getElementById('boardViewModeLabel');
-            if (!el) return;
-            if (todayOnly) {
-                el.textContent = '조회 모드: 오늘만';
-                return;
-            }
-            if (selectedDate) {
-                el.textContent = `조회 모드: 특정일(${selectedDate})`;
-                return;
-            }
-            const d = new Date(`${currentBoardMonth}T00:00:00`);
-            if (Number.isNaN(d.getTime())) {
-                el.textContent = '조회 모드: 월 전체';
-                return;
-            }
-            el.textContent = `조회 모드: ${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 전체`;
-        }
-
         function showSaveToast(message, type = 'info') {
             const el = document.getElementById('saveToast');
             el.textContent = message;
@@ -1381,655 +1771,9 @@
             }, 2200);
         }
 
-        // [핵심] 일정 데이터 불러오기 함수
-        async function loadSchedules() {
-            const board = document.getElementById('scheduleBoard');
-            const { todayOnly, selectedDate, keyword } = getScheduleFilters();
-            const todayStr = formatLocalDateYYYYMMDD();
-            const monthlyRange = getMonthRange(currentBoardMonth || getMonthStart(todayStr));
-            const queryDate = todayOnly ? todayStr : (selectedDate || '');
-            const prevActiveScheduleId = getActiveScheduleCardId();
-            updateBoardViewModeLabel(todayOnly, selectedDate);
-
-            try {
-                // 백엔드 API 호출
-                let url = '/api/schedules/today';
-                if (queryDate) {
-                    url = `/api/schedules/today?date=${encodeURIComponent(queryDate)}`;
-                } else {
-                    url = `/api/schedules/today?range_start=${encodeURIComponent(monthlyRange.start)}&range_end=${encodeURIComponent(monthlyRange.end)}`;
-                }
-                const response = await fetch(url);
-                const data = await response.json();
-                const rows = Array.isArray(data.data) ? data.data : [];
-                let filteredRows = keyword
-                    ? rows.filter((item) => {
-                        const merged = `${item.task || ''} ${item.person || ''} ${item.details || ''} ${item.work_code || ''}`.toLowerCase();
-                        return merged.includes(keyword);
-                    })
-                    : rows;
-                filteredRows = filteredRows.filter(scheduleMatchesAppliedPersonFilter);
-                scheduleMap.clear();
-                filteredRows.forEach((item) => scheduleMap.set(String(item.id), item));
-
-                // 1. 데이터를 날짜별로 그룹화
-                const groupedData = filteredRows.reduce((acc, item) => {
-                    const dateKey = item.date || '날짜 미상';
-                    if (!acc[dateKey]) acc[dateKey] = [];
-                    acc[dateKey].push(item);
-                    return acc;
-                }, {});
-                Object.keys(groupedData).forEach((dateKey) => {
-                    groupedData[dateKey].sort((a, b) => {
-                        const ap = categoryPriority(a.category);
-                        const bp = categoryPriority(b.category);
-                        if (ap !== bp) return ap - bp;
-                        if (ap === 1) {
-                            const as = constructionShiftPriority(a);
-                            const bs = constructionShiftPriority(b);
-                            if (as !== bs) return as - bs;
-                        }
-                        return String(a.task || '').localeCompare(String(b.task || ''), 'ko');
-                    });
-                });
-
-                let sortedDates = [];
-                if (todayOnly) {
-                    sortedDates = [todayStr];
-                } else if (selectedDate) {
-                    sortedDates = [selectedDate];
-                } else {
-                    sortedDates = monthlyRange.dates;
-                }
-
-                const boardHTML = isMobileViewport()
-                    ? renderMobileCalendar(sortedDates, groupedData, todayStr)
-                    : renderDesktopCalendar(sortedDates, groupedData, todayStr);
-
-                board.innerHTML = boardHTML;
-                restoreActiveScheduleCard(prevActiveScheduleId);
-                updateLastSyncTime();
-                await Promise.all([loadWorkerStatus(), loadMemos()]);
-
-            } catch (error) {
-                // 일시적인 네트워크 오류 시 이전 화면을 유지하며 조용히 콘솔에만 에러 출력
-                console.error('데이터 갱신 실패:', error);
-                document.getElementById('lastUpdated').innerText = '동기화 지연 중...';
-            }
-        }
-
-        function normalizeShiftType(raw) {
-            const val = String(raw || '').trim();
-            if (val === '주간') return '주간';
-            if (val === '야간') return '야간';
-            if (val === '심야') return '심야';
-            return '';
-        }
-
-        function shiftBadgeClass(shiftType) {
-            const s = normalizeShiftType(shiftType);
-            if (s === '주간') return 'shift-day';
-            if (s === '야간') return 'shift-night';
-            if (s === '심야') return 'shift-midnight';
-            return '';
-        }
-
-        function fullPersonLabel(personRaw) {
-            const raw = String(personRaw || '').trim();
-            if (!raw) return '';
-            const names = raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
-            return names.join(', ');
-        }
-
-        function isMobileViewport() {
-            return window.matchMedia('(max-width: 768px)').matches;
-        }
-
-        function categoryPriority(category) {
-            const c = displayCategoryLabel(category || '').trim();
-            if (!c || c === '공사 일정') return 1;
-            if (c === '일정') return 4;
-            if (c === '일반 작업') return 5;
-            return 9;
-        }
-
-        function constructionShiftPriority(item) {
-            const category = displayCategoryLabel(item?.category || '').trim();
-            if (category !== '공사 일정') return 0;
-            const shiftType = normalizeShiftType(item?.shift_type);
-            if (shiftType === '주간') return 1;
-            if (shiftType === '야간') return 2;
-            if (shiftType === '심야') return 3;
-            return 4;
-        }
-
-        function compactCategoryClass(category) {
-            const c = displayCategoryLabel(category || '').trim();
-            if (!c || c === '공사 일정') return 'cat-construction';
-            if (c === '일반 작업') return 'cat-general';
-            if (c === '일정') return 'cat-schedule';
-            return 'cat-general';
-        }
-
-        function detailLineCount(text) {
-            const lines = String(text || '')
-                .replace(/\r\n/g, '\n')
-                .split('\n')
-                .map((s) => s.trim())
-                .filter(Boolean);
-            return lines.length;
-        }
-
-        function detailInlineHtml(text) {
-            return String(text || '')
-                .split('\n')
-                .map((line) => escapeHtml(line))
-                .join('<br>');
-        }
-
-        function renderCompactScheduleItem(item) {
-            const catClass = compactCategoryClass(item.category);
-            const personLine = fullPersonLabel(item.person);
-            const detailLine = String(item.details || '').trim();
-            const detailLines = detailLineCount(detailLine);
-            const shiftType = normalizeShiftType(item.shift_type || '');
-            const shiftClass = shiftBadgeClass(shiftType);
-            const workCode = String(item.work_code || '').trim();
-            const taskLabel = `${escapeHtml(item.task || '공사명 미기재')}`;
-            const badgeParts = [];
-            if (shiftType) badgeParts.push(`<span class="schedule-shift-badge ${shiftClass}">${shiftType}</span>`);
-            if (scheduleViewOptions.showWorkCode && workCode) {
-                badgeParts.push(`<span class="schedule-workcode-badge">${escapeHtml(workCode)}</span>`);
-            }
-            const badgesHtml = badgeParts.length
-                ? `<span class="schedule-meta-badges">${badgeParts.join('')}</span>`
-                : '';
-            return `
-                <div class="schedule-compact-item ${catClass}" data-id="${item.id}">
-                    <div class="schedule-compact-task"><span class="schedule-task-head"><span class="schedule-category-dot ${catClass}"></span>${taskLabel}</span>${badgesHtml}</div>
-                    ${scheduleViewOptions.showPerson && personLine ? `<div class="schedule-compact-person">👷 ${escapeHtml(personLine)}</div>` : ''}
-                    ${scheduleViewOptions.showDetails && detailLine ? `<div class="schedule-compact-detail-preview">📝 ${escapeHtml(detailLine)}</div>` : ''}
-                    <div class="schedule-action-panel">
-                        ${detailLine && detailLines <= 2 ? `<div class="detail-text">📝 ${detailInlineHtml(detailLine)}</div>` : ''}
-                        ${detailLine && detailLines >= 3 ? `<button type="button" class="btn btn-sm btn-outline-dark mt-1" onclick="event.stopPropagation(); openDetailPreviewModal('${encodeURIComponent(detailLine)}')">상세 보기</button>` : ''}
-                        <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openFieldStaffModal(${item.id})">작업 인원 추가</button>
-                            <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openEditRequestById('${item.id}')">수정</button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); requestDeleteById('${item.id}')">삭제</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderMobileCalendar(sortedDates, groupedData, todayStr) {
-            const todayCount = (groupedData[todayStr] || []).length;
-            let html = `<div class="mobile-today-pin">오늘 일정: ${todayCount}건</div>`;
-            sortedDates.forEach((date) => {
-                const dayName = getDayName(date);
-                const dayItems = groupedData[date] || [];
-                const todayClass = date === todayStr ? 'today' : '';
-                html += `<div class="mobile-day-block"><div class="mobile-day-title ${todayClass}"><span>📅 ${escapeHtml(date)} ${dayName}${date === todayStr ? ' [오늘]' : ''}</span><span class="day-count-badge">${dayItems.length}건</span></div>`;
-                if (dayItems.length === 0) {
-                    html += '<div class="calendar-empty-line">등록된 일정이 없습니다.</div>';
-                } else {
-                    dayItems.forEach((item) => {
-                        html += renderCompactScheduleItem(item);
-                    });
-                }
-                html += '</div>';
-            });
-            return html;
-        }
-
-        function renderDesktopCalendar(sortedDates, groupedData, todayStr) {
-            const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
-            let html = '<div class="calendar-week-header">';
-            weekDays.forEach((d, idx) => {
-                const cls = idx === 0 ? 'sun' : (idx === 6 ? 'sat' : '');
-                html += `<div class="calendar-weekday ${cls}">${d}</div>`;
-            });
-            html += '</div>';
-
-            const firstDate = sortedDates[0];
-            const lastDate = sortedDates[sortedDates.length - 1];
-            const start = new Date(`${firstDate}T00:00:00`);
-            const end = new Date(`${lastDate}T00:00:00`);
-            start.setDate(start.getDate() - start.getDay());
-            end.setDate(end.getDate() + (6 - end.getDay()));
-            const visibleSet = new Set(sortedDates);
-
-            html += '<div class="calendar-grid">';
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const dateKey = formatLocalDateYYYYMMDD(d);
-                const dayIdx = d.getDay();
-                const inRange = visibleSet.has(dateKey);
-                const isToday = dateKey === todayStr;
-                const dayItems = groupedData[dateKey] || [];
-                const dayCls = dayIdx === 0 ? 'sun' : (dayIdx === 6 ? 'sat' : '');
-                const classes = `calendar-cell ${dayCls} ${inRange ? '' : 'out-range'} ${isToday ? 'today' : ''}`.trim();
-
-                html += `<div class="${classes}">`;
-                const count = inRange ? dayItems.length : 0;
-                html += `<div class="calendar-date-label"><span>${escapeHtml(dateKey)}${isToday ? ' [오늘]' : ''}</span><span class="day-count-badge">${count}건</span></div>`;
-                if (inRange) {
-                    if (dayItems.length === 0) {
-                        html += '<div class="calendar-empty-line">등록된 일정이 없습니다.</div>';
-                    } else {
-                        dayItems.forEach((item) => {
-                            html += renderCompactScheduleItem(item);
-                        });
-                    }
-                }
-                html += '</div>';
-            }
-            html += '</div>';
-            return html;
-        }
-
-        function bindCompactItemActions() {
-            const board = document.getElementById('scheduleBoard');
-            board.addEventListener('click', (e) => {
-                if (isMobileViewport()) return;
-                const card = e.target.closest('.schedule-compact-item');
-                if (!card) return;
-                if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
-                document.querySelectorAll('.schedule-compact-item.active').forEach((el) => {
-                    if (el !== card) el.classList.remove('active');
-                });
-                card.classList.toggle('active');
-            });
-            window.addEventListener('resize', () => {
-                if (!isMobileViewport()) return;
-                document.querySelectorAll('.schedule-compact-item.active').forEach((el) => el.classList.remove('active'));
-            });
-        }
-
-        function getActiveScheduleCardId() {
-            const activeCard = document.querySelector('.schedule-compact-item.active');
-            if (!activeCard) return null;
-            const rawId = activeCard.getAttribute('data-id');
-            return rawId ? String(rawId) : null;
-        }
-
-        function restoreActiveScheduleCard(activeId) {
-            if (!activeId || isMobileViewport()) return;
-            const target = document.querySelector(`.schedule-compact-item[data-id="${activeId}"]`);
-            if (target) target.classList.add('active');
-        }
-
-        function openEditRequestById(scheduleId) {
-            const item = scheduleMap.get(String(scheduleId));
-            if (!item) {
-                alert('일정 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.');
-                return;
-            }
-            document.getElementById('editScheduleId').value = String(item.id || '');
-            document.getElementById('editDate').value = item.date || '';
-            document.getElementById('editTask').value = item.task || '';
-            document.getElementById('editPerson').value = item.person || '';
-            document.getElementById('editDetails').value = item.details || '';
-            document.getElementById('editCategory').value = displayCategoryLabel(item.category || '공사 일정');
-            document.getElementById('editShiftType').value = normalizeShiftType(item.shift_type || '');
-            document.getElementById('editWorkCode').value = String(item.work_code || '').trim();
-            editRequestModal.show();
-        }
-
-        async function submitDirectEdit() {
-            const scheduleId = Number(document.getElementById('editScheduleId').value);
-            if (!scheduleId) {
-                alert('수정 대상 일정 ID가 없습니다.');
-                return;
-            }
-
-            const catVal = document.getElementById('editCategory').value.trim() || '공사 일정';
-            const payload = {
-                action: 'update',
-                schedule_id: scheduleId,
-                schedule_data: {
-                    date: document.getElementById('editDate').value.trim(),
-                    location: '',
-                    task: document.getElementById('editTask').value.trim(),
-                    person: document.getElementById('editPerson').value.trim(),
-                    details: document.getElementById('editDetails').value.trim(),
-                    category: catVal,
-                    shift_type: document.getElementById('editShiftType').value.trim(),
-                    work_code: document.getElementById('editWorkCode').value.trim(),
-                }
-            };
-
-            if (!payload.schedule_data.task) {
-                alert('공사명·작업 내용(task)은 필수입니다.');
-                return;
-            }
-            const response = await fetch('/api/schedules/direct-update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    schedule_id: scheduleId,
-                    schedule_data: payload.schedule_data,
-                    reason: '현황판 인라인 수정'
-                })
-            });
-            const result = await response.json();
-            if (!response.ok) {
-                alert(result.detail || result.message || '수정 실패');
-                return;
-            }
-            editRequestModal.hide();
-            alert(result.message || '수정되었습니다.');
-            await loadSchedules();
-        }
-
-        async function requestDeleteById(scheduleId) {
-            const item = scheduleMap.get(String(scheduleId));
-            if (!item) {
-                alert('일정 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.');
-                return;
-            }
-            const confirmText = `해당 일정을 삭제하시겠습니까?\n[ID #${item.id}] ${item.task || ''}`;
-            if (!confirm(confirmText)) return;
-
-            const response = await fetch('/api/schedules/direct-delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    schedule_id: Number(item.id),
-                    reason: '현황판 인라인 삭제'
-                })
-            });
-            const result = await response.json();
-            if (!response.ok) {
-                alert(result.detail || result.message || '삭제 실패');
-                return;
-            }
-            alert(result.message || '삭제되었습니다.');
-            await loadSchedules();
-        }
-
-        function statusBadgeClass(status) {
-            if (status === '외출') return 'bg-warning text-dark';
-            if (status === '야간작업') return 'bg-danger';
-            return 'bg-success';
-        }
-
-        function nextStatus(current) {
-            if (current === '사무실') return '외출';
-            if (current === '외출') return '야간작업';
-            return '사무실';
-        }
-
-        function parseTimeText(value) {
-            const raw = String(value || '').trim();
-            if (!raw) return '';
-            const m = raw.match(/^(\d{2}):(\d{2})$/);
-            if (!m) return '';
-            const hh = Number(m[1]);
-            const mm = Number(m[2]);
-            if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || (mm !== 0 && mm !== 30)) return '';
-            return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-        }
-
-        async function saveWorkerStatusPatch(userName, patch) {
-            const currentRowsRes = await fetch('/api/schedules/worker-status');
-            const currentRowsJson = await currentRowsRes.json();
-            const rows = currentRowsJson.data || [];
-            const row = rows.find((r) => String(r.user_name) === String(userName)) || { user_name: userName, status: '사무실', location: '', until_time: '', note: '' };
-            const payload = {
-                user_name: userName,
-                status: patch.status ?? row.status ?? '사무실',
-                location: patch.location ?? row.location ?? '',
-                until_time: patch.until_time ?? row.until_time ?? '',
-                note: ''
-            };
-            const response = await fetch('/api/schedules/worker-status', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                alert(data.detail || '상태 저장 실패');
-                return false;
-            }
-            return true;
-        }
-
-        async function handleWorkerStatusClick(userName, currentStatus) {
-            const decodedName = decodeURIComponent(userName || '');
-            const decodedStatus = decodeURIComponent(currentStatus || '사무실');
-            const ok = await saveWorkerStatusPatch(decodedName, { status: nextStatus(decodedStatus) });
-            if (ok) await loadWorkerStatus();
-        }
-
-        async function handleWorkerLocationClick(userName, currentLocation) {
-            const decodedName = decodeURIComponent(userName || '');
-            const decodedLocation = decodeURIComponent(currentLocation || '');
-            const next = prompt('행선(목적지)을 입력하세요.', decodedLocation || '');
-            if (next === null) return;
-            const ok = await saveWorkerStatusPatch(decodedName, { location: next.trim() });
-            if (ok) await loadWorkerStatus();
-        }
-
-        async function handleWorkerUntilClick(userName, currentUntil) {
-            const decodedName = decodeURIComponent(userName || '');
-            const decodedUntil = decodeURIComponent(currentUntil || '');
-            const currentText = formatReturnTime(decodedUntil);
-            workerReturnTimeTargetUser = decodedName;
-            document.getElementById('workerReturnTimeInput').value = currentText || '';
-            updateWorkerReturnTimePreview();
-            workerReturnTimeModal.show();
-        }
-
-        async function saveWorkerReturnTime() {
-            const target = workerReturnTimeTargetUser;
-            if (!target) return;
-            const picked = document.getElementById('workerReturnTimeInput').value;
-            const normalized = parseTimeText(picked);
-            if (picked && !normalized) {
-                alert('복귀 시각은 HH:mm 형식이며 분은 00 또는 30만 가능합니다.');
-                return;
-            }
-            const nextUntil = normalized ? `${formatLocalDateYYYYMMDD()}T${normalized}` : '';
-            const ok = await saveWorkerStatusPatch(target, { until_time: nextUntil });
-            if (!ok) return;
-            workerReturnTimeModal.hide();
-            await loadWorkerStatus();
-        }
-
-        function shiftWorkerReturnTime(deltaMinutes) {
-            const inputEl = document.getElementById('workerReturnTimeInput');
-            const current = String(inputEl.value || '').trim();
-            let hh = 9;
-            let mm = 0;
-            if (current) {
-                const matched = current.match(/^(\d{2}):(\d{2})$/);
-                if (matched) {
-                    hh = Number(matched[1]);
-                    mm = Number(matched[2]);
-                }
-            }
-            const total = ((hh * 60 + mm + deltaMinutes) % 1440 + 1440) % 1440;
-            const snapped = total - (total % 30);
-            const nextH = Math.floor(snapped / 60);
-            const nextM = snapped % 60;
-            inputEl.value = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
-            updateWorkerReturnTimePreview();
-        }
-
-        function updateWorkerReturnTimePreview() {
-            const inputEl = document.getElementById('workerReturnTimeInput');
-            const previewEl = document.getElementById('workerReturnTimePreview');
-            const normalized = parseTimeText(inputEl.value);
-            previewEl.textContent = normalized || '--:--';
-        }
-
-        function autoFitWorkerLocationText() {
-            const MAX_FONT_PX = 13;
-            const MIN_NOWRAP_FONT_PX = 8;
-            const WRAP_FONT_PX = 10;
-            const STEP_PX = 0.5;
-            const buttons = document.querySelectorAll('.worker-location-btn');
-            buttons.forEach((btn) => {
-                btn.classList.remove('allow-wrap');
-                let size = MAX_FONT_PX;
-                btn.style.fontSize = `${size}px`;
-                btn.title = btn.textContent || '';
-                while (size > MIN_NOWRAP_FONT_PX && btn.scrollWidth > btn.clientWidth) {
-                    size -= STEP_PX;
-                    btn.style.fontSize = `${size}px`;
-                }
-                if (btn.scrollWidth > btn.clientWidth) {
-                    // 임계값 이하로 더 줄이지 않고 줄바꿈을 허용해 가독성을 지킨다.
-                    btn.style.fontSize = `${WRAP_FONT_PX}px`;
-                    btn.classList.add('allow-wrap');
-                }
-            });
-        }
-
-        async function clearWorkerReturnTime() {
-            const target = workerReturnTimeTargetUser;
-            if (!target) return;
-            const ok = await saveWorkerStatusPatch(target, { until_time: '' });
-            if (!ok) return;
-            workerReturnTimeModal.hide();
-            await loadWorkerStatus();
-        }
-
-        function openDetailPreviewModal(encodedDetail) {
-            const detail = decodeURIComponent(encodedDetail || '');
-            document.getElementById('detailPreviewContent').textContent = detail || '상세 정보가 없습니다.';
-            detailPreviewModal.show();
-        }
-
-        async function loadWorkerStatus() {
-            const list = document.getElementById('workerStatusList');
-            const railMode = rightColumnMode === 'rail';
-            const workerExpanded = railMode ? false : Boolean(rightPanelState.worker);
-            const [statusRes, outingRes] = await Promise.all([
-                fetch('/api/schedules/worker-status'),
-                fetch('/api/schedules/outing-staff')
-            ]);
-            const data = await statusRes.json();
-            const outingData = await outingRes.json();
-            if (!statusRes.ok || !outingRes.ok) {
-                list.innerHTML = '<li class="list-group-item text-danger">상태 조회 실패</li>';
-                return;
-            }
-            const statusMap = new Map((data.data || []).map((r) => [String(r.user_name), r]));
-            const outingStaff = outingData.data || [];
-            if (outingStaff.length === 0) {
-                list.innerHTML = '<li class="list-group-item text-muted">외출/행선표 인원 목록이 없습니다. 관리자 화면에서 인원을 등록하세요.</li>';
-                return;
-            }
-            list.innerHTML = outingStaff.map((staff) => {
-                const row = statusMap.get(String(staff.name)) || { user_name: staff.name, status: '사무실', location: '', until_time: '' };
-                const metaInner = workerExpanded && row.status === '외출'
-                    ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted worker-location-btn" onclick="handleWorkerLocationClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${escapeHtml(row.location || '행선 입력')}</button>
-                       <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none return-time-emphasis" onclick="handleWorkerUntilClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${row.until_time ? `복귀: ${escapeHtml(formatReturnTime(row.until_time))}` : '복귀 설정'}</button>`
-                    : '';
-                return `
-                <li class="list-group-item d-flex justify-content-between align-items-center py-2 gap-1">
-                    <b class="worker-row-name text-truncate mb-0 min-w-0" style="max-width: 48%;">${escapeHtml(row.user_name)}</b>
-                    <div class="d-flex align-items-center justify-content-end gap-1 flex-shrink-0 flex-grow-1" style="min-width: 0;">
-                        <button type="button" class="btn btn-sm badge status-badge-sm ${statusBadgeClass(row.status)}" onclick="handleWorkerStatusClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.status || '사무실')}')">${statusLabelText(row.status)}</button>
-                        <span class="text-muted small worker-outing-meta text-end">${metaInner}</span>
-                    </div>
-                </li>
-            `;
-            }).join('');
-            autoFitWorkerLocationText();
-        }
-
-        async function loadMemos() {
-            const memoList = document.getElementById('memoList');
-            const today = formatLocalDateYYYYMMDD();
-            const response = await fetch(`/api/schedules/memos?date=${today}`);
-            const data = await response.json();
-            if (!response.ok) {
-                memoList.innerHTML = '<div class="text-danger small">메모 조회 실패</div>';
-                return;
-            }
-            const rows = data.data || [];
-            const generalMemos = rows.filter((m) => !m.linked_schedule_id);
-            if (generalMemos.length === 0) {
-                memoList.innerHTML = '<div class="text-muted small">오늘 메모가 없습니다.</div>';
-                return;
-            }
-            memoList.innerHTML = generalMemos.map((m) => `
-                <div class="border rounded p-2 bg-white">
-                    <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div>
-                            <div class="fw-semibold">${m.content}</div>
-                            <div class="small text-muted">${m.last_actor_user || '-'}</div>
-                        </div>
-                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="삭제" onclick="deleteMemo(${m.id})">🗑</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        async function deleteMemo(memoId) {
-            if (!confirm('해당 메모를 삭제하시겠습니까?')) return;
-            const response = await fetch(`/api/schedules/memos/${memoId}`, { method: 'DELETE' });
-            const data = await response.json();
-            if (!response.ok) {
-                alert(data.detail || data.message || '메모 삭제 실패');
-                return;
-            }
-            await loadMemos();
-        }
-
-        async function saveMemo() {
-            const content = document.getElementById('memoInput').value.trim();
-            if (!content) return;
-            const payload = { content, memo_type: '일반', visibility: 'all' };
-            const response = await fetch('/api/schedules/memos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                alert(data.detail || '메모 등록 실패');
-                return;
-            }
-            document.getElementById('memoInput').value = '';
-            loadMemos();
-        }
-
-        async function submitBoardTemplate() {
-            const cat = document.getElementById('boardCategory').value.trim() || '공사 일정';
-            const task = document.getElementById('boardTask').value.trim();
-            if (!task) {
-                alert('공사명·작업명을 입력하세요.');
-                return;
-            }
-            const payload = {
-                action_type: 'register',
-                date: document.getElementById('boardDate').value.trim() || null,
-                task: task,
-                person: '',
-                details: document.getElementById('boardDetails').value.trim(),
-                shift_type: document.getElementById('boardShiftType').value.trim(),
-                work_code: document.getElementById('boardWorkCode').value.trim(),
-                category: cat,
-                request_note: '',
-                schedule_id: null
-            };
-
-            const response = await fetch('/api/schedules/board/template-action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                alert(data.detail || '상황판 등록 전송 실패');
-                return;
-            }
-            alert(data.message || '처리 완료');
-            loadSchedules();
+        function registerDashboardServiceWorker() {
+            if (!('serviceWorker' in navigator)) return;
+            navigator.serviceWorker.register('/sw.js').catch(() => { });
         }
 
         async function initializeDashboardPage() {
@@ -2040,11 +1784,19 @@
                 return;
             }
             window.__dashboardInitialized = true;
+            registerDashboardServiceWorker();
             editRequestModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
+            window.editRequestModal = editRequestModal;
             fieldStaffModal = new bootstrap.Modal(document.getElementById('fieldStaffModal'));
             personFilterModal = new bootstrap.Modal(document.getElementById('personFilterModal'));
             workerReturnTimeModal = new bootstrap.Modal(document.getElementById('workerReturnTimeModal'));
+            window.workerReturnTimeModal = workerReturnTimeModal;
             detailPreviewModal = new bootstrap.Modal(document.getElementById('detailPreviewModal'));
+            window.detailPreviewModal = detailPreviewModal;
+            window.documentTemplateModal = new bootstrap.Modal(document.getElementById('documentTemplateModal'));
+            window.documentGenerateModal = new bootstrap.Modal(document.getElementById('documentGenerateModal'));
+            window.documentExtractModal = new bootstrap.Modal(document.getElementById('documentExtractModal'));
+            setupDocumentExtractDropzone();
             document.getElementById('workerReturnTimeInput').addEventListener('input', updateWorkerReturnTimePreview);
             updateHeaderDate();
             setCurrentBoardMonth(formatLocalDateYYYYMMDD());
@@ -2086,6 +1838,17 @@
         // 페이지 로드 시 초기화 및 자동 갱신 설정
         window.onload = () => {
             dashboardLoginModal = new bootstrap.Modal(document.getElementById('dashboardLoginModal'));
+            window.dashboardLoginModal = dashboardLoginModal;
+            dashboardSignupModal = new bootstrap.Modal(document.getElementById('dashboardSignupModal'));
+            window.dashboardSignupModal = dashboardSignupModal;
+            dashboardFindAccountModal = new bootstrap.Modal(document.getElementById('dashboardFindAccountModal'));
+            window.dashboardFindAccountModal = dashboardFindAccountModal;
+            document.getElementById('dashboardSignupModal').addEventListener('hidden.bs.modal', () => {
+                reopenDashboardLoginIfLoggedOut();
+            });
+            document.getElementById('dashboardFindAccountModal').addEventListener('hidden.bs.modal', () => {
+                reopenDashboardLoginIfLoggedOut();
+            });
             const userInput = document.getElementById('dashboardLoginUserId');
             const pwInput = document.getElementById('dashboardLoginPassword');
             [userInput, pwInput].forEach((el) => {
@@ -2099,5 +1862,10 @@
             initializeDashboardPage();
         };
     </script>
+    <script src="/dashboard.auth.js"></script>
+    <script src="/dashboard.sidebar.js"></script>
+    <script src="/dashboard.schedule.js"></script>
+    <script src="/dashboard.document.js"></script>
 </body>
+
 </html>

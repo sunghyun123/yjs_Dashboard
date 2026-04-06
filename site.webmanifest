@@ -1,0 +1,18 @@
+{
+  "name": "YJS 현장 상황판",
+  "short_name": "YJS",
+  "description": "공사계획·현황·문서 도구",
+  "start_url": "/dashboard.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f6f9",
+  "theme_color": "#003366",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -65,7 +65,10 @@ class BoardTemplateActionRequest(BaseModel):
     person: str = Field(default="", description="담당자")
     details: str = Field(default="", description="상세 내용")
     work_code: str = Field(default="", description="공사 코드")
-    shift_type: Literal["", "주간", "야간", "심야"] = Field(default="", description="근무 구분")
+    shift_type: Literal["", "주간", "야간", "심야"] = Field(
+        default="",
+        description="근무 구분(API·레거시 호환 입력; 저장 계층에서 심야는 야간으로 정규화)",
+    )
     category: str = Field(default="공사 일정", description="카테고리")
     request_note: str = Field(default="", description="수정/삭제 요청 시 관리자 메모")
     schedule_id: Optional[int] = Field(default=None, description="수정/삭제 대상 일정 ID")

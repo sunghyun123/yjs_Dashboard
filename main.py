@@ -12,6 +12,8 @@ from app.api import schedules
 from app.api import vision
 from app.api import auth
 from app.api import admin
+from app.api import documents
+from app.api import local_apps
 from app.db.db_manager import DBManager
 from app.services.export_service import DailyExportService
 from app.core.config import settings
@@ -72,6 +74,8 @@ app.include_router(schedules.router)
 app.include_router(vision.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(documents.router)
+app.include_router(local_apps.router)
 
 # --- 프론트엔드 화면 서빙 ---
 @app.get("/", summary="기본 상황판 화면", tags=["Pages"])
@@ -96,6 +100,41 @@ async def serve_admin():
 @app.get("/board.html", summary="레거시 경로 → 상황판 리다이렉트", tags=["Pages"])
 async def serve_board():
     return RedirectResponse(url="/dashboard.html", status_code=307)
+
+
+@app.get("/site.webmanifest", summary="PWA 매니페스트", tags=["Pages"])
+async def serve_web_manifest():
+    return FileResponse("site.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sw.js", summary="서비스 워커(설치용)", tags=["Pages"])
+async def serve_service_worker():
+    return FileResponse("sw.js", media_type="application/javascript")
+
+
+@app.get("/icon.svg", summary="PWA 아이콘", tags=["Pages"])
+async def serve_app_icon():
+    return FileResponse("icon.svg", media_type="image/svg+xml")
+
+
+@app.get("/dashboard.auth.js", summary="대시보드 인증 스크립트", tags=["Pages"])
+async def serve_dashboard_auth_js():
+    return FileResponse("dashboard.auth.js", media_type="application/javascript")
+
+
+@app.get("/dashboard.sidebar.js", summary="대시보드 사이드바 스크립트", tags=["Pages"])
+async def serve_dashboard_sidebar_js():
+    return FileResponse("dashboard.sidebar.js", media_type="application/javascript")
+
+
+@app.get("/dashboard.schedule.js", summary="대시보드 일정 스크립트", tags=["Pages"])
+async def serve_dashboard_schedule_js():
+    return FileResponse("dashboard.schedule.js", media_type="application/javascript")
+
+
+@app.get("/dashboard.document.js", summary="대시보드 문서 스크립트", tags=["Pages"])
+async def serve_dashboard_document_js():
+    return FileResponse("dashboard.document.js", media_type="application/javascript")
 
 
 if __name__ == "__main__":

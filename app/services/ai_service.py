@@ -17,7 +17,10 @@ class ScheduleSchema(BaseModel):
     person: str = Field(default="-", description="담당자 또는 작업자 이름")
     details: str = Field(default="", description="참여자, 장비, 특이사항 등 상세 내용")
     work_code: str = Field(default="", description="현장 내부 공사 코드")
-    shift_type: Literal["", "주간", "야간", "심야"] = Field(default="", description="근무 구분")
+    shift_type: Literal["", "주간", "야간", "심야"] = Field(
+        default="",
+        description="근무 구분(야간·심야는 동일하게 야간으로 저장·표시됨)",
+    )
     category: str = Field(description="공사 일정, 이슈보고, 일반메모 중 하나")
 
 
