@@ -12,8 +12,9 @@
 | --- | --- |
 | 백엔드 | Python, FastAPI, Pydantic v2, `pydantic-settings` |
 | DB | SQLite (`DATABASE_URL` 기반, 기본 `schedule.db`) |
-| 프론트 | 정적 HTML + Bootstrap CDN + 인라인 JS (`index.html`, `dashboard.html`, `admin.html`) |
-| AI | Google GenAI (`app/services/ai_service.py`, `app/services/vision_ai_service.py`) |
+| 프론트 | 정적 HTML + Bootstrap CDN + 분리 JS 모듈 (`index.html`, `dashboard.html`, `admin.html`, `dashboard.*.js`) |
+| AI | Google GenAI (`app/services/ai_service.py`, `app/services/vision_ai_service.py`, `app/services/document_ai_service.py`) |
+| PWA | `site.webmanifest`, `sw.js`, `icon.svg` (홈 화면 추가용 최소 구성) |
 | 배치 | FastAPI `lifespan` + `daily_export_loop` (1시간 주기 전일 내보내기 점검) |
 
 앱 진입점은 저장소 루트의 `main.py`.
@@ -31,17 +32,25 @@
 | `app/api/schedules.py` | 일정·메모·상태·전자칠판 템플릿·즉시 수정/삭제·정렬 저장 |
 | `app/api/admin.py` | 관리자 요청 큐 조회/승인·감사로그 조회·현장직/외출 인원 관리·수동 내보내기 |
 | `app/api/vision.py` | 이미지 업로드/분석/카테고리 저장 |
+| `app/api/documents.py` | 문서 템플릿 목록, AI 필드 추천, 템플릿 채움 파일 다운로드, 이미지에서 필드 추출 |
+| `app/api/local_apps.py` | 로컬 PC에서 지정 exe 실행(서버와 동일 머신·경로 화이트리스트) |
+| `app/services/document_templates_service.py` | `xlsx/templates.json`·`hwpx/templates.json` 병합 로드, 템플릿별 `ai.suggest`/`ai.extract` 지시, xlsx·hwpx 채움 |
+| `document_templates/` | `xlsx/templates.json`, `hwpx/templates.json`(권장), 공통 `files/*`, (선택) 레거시 루트 `templates.json` 병합 |
 | `app/db/db_manager.py` | 스키마 초기화, CRUD, 관리자 큐, 감사로그, 상태/메모, 내보내기 이력 |
 | `app/services/export_service.py` | 일일 백업 엑셀 생성(핵심 일정/운영지표/활동로그 다중 시트) |
 | `index.html` | 채팅 입력 화면 |
-| `dashboard.html` | 통합 상황판(조회/즉시 수정삭제/드래그 정렬/메모/외출·행선표 편집/공지 편집) |
+| `dashboard.html` | 통합 상황판의 뷰/레이아웃 엔트리(기능 로직은 분리 스크립트 로드) |
+| `dashboard.auth.js` | 대시보드 인증/세션(로그인·로그아웃·회원가입·계정찾기·비밀번호 재설정) |
+| `dashboard.sidebar.js` | 공지 인라인 편집, 기타 메모 CRUD, 상황판 등록, 앱 드로어/문서 서브메뉴 토글 |
+| `dashboard.schedule.js` | 일정 조회/월 이동/카드 렌더링/즉시 수정삭제/외출·행선표 상태 UI |
+| `dashboard.document.js` | 문서 템플릿 선택, AI 추천/추출, 파일 다운로드(생성·추출 플로우) |
 | `board.html` | 정적 파일은 제거되었으며, 경로는 레거시 호환용으로 `dashboard.html`로 리다이렉트 |
 | `admin.html` | 관리자 승인/반려/감사로그/현장직/내보내기 |
 
 ### 3.2 런타임 라우팅
 
-- 페이지: `/`(기본 `dashboard.html`), `/index.html`, `/dashboard.html`, `/admin.html`, `/board.html`(접속 시 `dashboard.html`로 307 리다이렉트)
-- API: `/api/auth/*`, `/api/schedules/*`, `/api/admin/*`, `/api/vision/*`
+- 페이지/정적: `/`(기본 `dashboard.html`), `/index.html`, `/dashboard.html`, `/admin.html`, `/board.html`(접속 시 `dashboard.html`로 307 리다이렉트), `/site.webmanifest`, `/sw.js`, `/icon.svg`, `/dashboard.auth.js`, `/dashboard.sidebar.js`, `/dashboard.schedule.js`, `/dashboard.document.js`
+- API: `/api/auth/*`, `/api/schedules/*`, `/api/admin/*`, `/api/vision/*`, `/api/documents/*`, `/api/local/*`
 
 ---
 
@@ -92,6 +101,19 @@
 
 - `POST /upload` (카테고리 업로드 또는 AI 문서 분석/저장)
 
+### 5.5 문서 (`/api/documents`, 로그인 필요)
+
+- **매니페스트(권장 구조)**: `document_templates/xlsx/templates.json` + `document_templates/hwpx/templates.json` 를 순서대로 병합한다. `kind` 가 비어 있으면 각각 `xlsx` / `hwpx` 로 보정한다. 동일 `id`는 먼저 로드된 항목만 유지한다. 루트 `document_templates/templates.json` 은 레거시로, 있으면 마지막에 병합한다.
+- **템플릿별 AI 지시**: 각 템플릿에 선택 필드 `"ai": { "suggest": "…", "extract": "…" }` 를 두면, `POST /suggest`·`POST /extract` 시 해당 문구만 해당 요청에 덧붙여 토큰을 아끼고 문서 유형별로 맞춘다. `GET /templates` 응답에는 `ai` 내용을 넣지 않는다(서버 전용).
+- `GET /templates` — 병합된 템플릿·필드 메타(`label`에 `(추천)` / `(추천x)` → UI·AI에서 추천 여부 판별)
+- `POST /suggest` — 본문(`context_text`) + 템플릿 `ai.suggest` + 공통 규칙으로 추천 대상 필드만 Gemini JSON 제안
+- `POST /fill` — 사용자가 확정한 `values`로 xlsx 셀 채움 또는 hwpx 내 `{{field_id}}` 치환 후 바이너리 응답(`Content-Disposition` 파일명은 ASCII `template_id` 기반)
+- `POST /extract` — 이미지 + `template_id`, 템플릿 `ai.extract` + 필드 목록으로 Gemini JSON 추출
+
+### 5.6 로컬 앱 실행 (`/api/local`, 로그인 필요)
+
+- `POST /launch` — body `{ "app": "hangul" | "erp" }`. `LOCAL_APPS_ROOT`가 비어 있으면 503. 지정 폴더 **내부**의 `LOCAL_APP_HANGUL` / `LOCAL_APP_ERP` 파일명만 실행(경로 탐색 방지). **브라우저가 직접 exe를 실행할 수는 없고**, FastAPI 프로세스가 돌아가는 OS에서 `subprocess`로 띄우는 방식이다(운영 PC = 서버 PC일 때만 의미 있음).
+
 ---
 
 ## 6. DB 스키마 핵심
@@ -116,18 +138,24 @@
 - 즉시 수정/삭제는 `audit_events`에 before/after 저장
 - 외출 상태는 조회 시 자동복귀 처리(`until_time` 경과 시 `사무실`)
 - `일반 작업`/레거시 작업 카테고리는 날짜+위치 병합을 건너뛰고 신규 행으로 저장
+- `field_schedules`는 `shift_type`(주간/야간 또는 공란; 레거시·입력 호환으로 `심야` 문자열이 들어올 수 있으나 저장 시 **야간으로 정규화**), `work_code`(공사 코드)를 저장한다. UI에서는 `location` 입력을 제거하고 저장 시 위치는 비우는 정책에 맞춘다. 레거시 `tags`·`task` 괄호 문구 등에서 근무 구분·코드를 보정할 수 있다.
 
 ---
 
 ## 7. 프론트엔드 계약 포인트
 
 - `index.html`
+  - 상단 **햄버거 메뉴**: 상황판, 관리자(관리자만), 로그아웃, 로컬 exe 실행. 문서 생성·추출은 상황판 메뉴뉴로 안내(중복 UI 최소화).
   - 입력 카테고리: `schedule_create`, `general_work`, `memo`, `other`
   - `general_work` 선택 시 백엔드에서 `category="일반 작업"` 강제
+  - 모바일 입력은 **문장만** 보내고, 근무 구분·공사 코드는 AI 해석 또는 `dashboard.html` 상황판 등록/수정에서 입력한다(채팅 화면 전용 입력란 없음).
   - 모바일 레이아웃 보완(`100dvh`, `max-width: 768px` 대응)
   - AI 일정 조회(`search`) 응답 카드에는 현장 위치·날짜·작업명·상세와 함께 **작업 인원(`person`)**을 표시한다(§11.20.6).
 - `dashboard.html`
   - 루트 경로(`/`) 기본 진입 화면이며, 비로그인 첫 접속 시 페이지 내 로그인 모달을 띄워 인증 후 대시보드를 초기화한다.
+  - **햄버거 메뉴(좌상단)**: AI 비서 링크, 관리자(관리자만), 로그아웃, 한글 생성기/ERP 로컬 실행 API 호출, 문서 생성·문서 데이터 추출(템플릿 선택 → 모달 플로우). 문서 기능은 `§5.5`와 연동한다.
+  - **스크립트 분리 구조(2026-04)**: 페이지 하단에서 `dashboard.auth.js` → `dashboard.sidebar.js` → `dashboard.schedule.js` → `dashboard.document.js` 순서로 로드한다. 기존 인라인 로직은 기능별 파일로 이동했다.
+  - **PWA**: `/site.webmanifest` 링크 + `sw.js` 등록으로 브라우저 “앱 설치/홈 화면 추가”에 가깝게 동작(네이티브 앱 패키지는 별도). 모바일에서 일정 카드 클릭 시 액션 패널(상세 정보·작업 인원·수정·삭제)을 연다.
   - `오늘만` 해제 시 기본 윈도우 조회, 체크 시 특정 날짜 조회
   - `현장 보고 실시간 현황`은 기본적으로 **현재 선택 월의 1일~말일 전체 날짜 블록**을 표시한다. 일정이 없는 날짜도 `등록된 일정이 없습니다.`로 유지한다.
   - 공지 옆 월 이동 컨트롤(`이전달`/`이번달`/`다음달`)로 월 단위 탐색이 가능하며, 월 전환 시 해당 월 범위(`range_start`~`range_end`)로 재조회한다.
@@ -139,13 +167,15 @@
   - 외출/행선표의 복귀 시각 라벨은 좁은 폭 대응을 위해 `복 귀: HH:mm`(미설정 시 `복 귀 설정`)으로 축약 표기하며, 텍스트 크기는 10px 고정으로 운영한다.
   - 목적/복귀 시각 UI는 `외출` 상태에서만 노출한다. `사무실`/`야간작업`에서는 숨긴다.
   - 복귀 시각 편집은 모달 기반 시간 선택 UI를 사용한다. 시간 선택과 함께 `▲/▼` 버튼으로 30분 단위 증감이 가능하다.
-  - 일정 카드 상세(`details`)는 **2줄 이하일 때 카드에 직접 표시**, **3줄 이상일 때 `상세 보기` 버튼으로 모달에서 전체 표시**한다.
+  - 일정 카드 상세(`details`): **2줄 이하**는 액션 패널을 열었을 때 본문에 전체 표시, **3줄 이상**은 카드 본문에 긴 텍스트를 두지 않고 액션 패널에 **`상세 정보` 버튼만** 두어 모달로 전체를 본다(중복 버튼 없음).
   - **레이아웃**: 외출/기타 메모/전자칠판 템플릿 우측 패널 폭을 줄이고, 현장 보고 실시간 현황 열을 넓혀 가독성을 우선한다(§11.20.1).
   - **헤더**: `마지막 동기화` 문구는 페이지 상단 `실시간 연동 중` 배지 **바로 왼쪽**에 둔다(§11.20.3). 카드 헤더 우측의 동기화 표시는 이 정책에 맞게 정리한다.
   - **공지**: `현장 보고 실시간 현황` 타이틀 옆(또는 인근)에 공지 표시 영역을 두고, 공지 텍스트 클릭 시 인라인 편집 가능해야 한다(§11.20.2, §11.21.4).
   - **인원 검색**: `오늘만` 옆에 버튼을 두고, 클릭 시 관리자가 등록한 현장직(`GET /field-staff`) 이름을 나열·**다중 선택**한 뒤 필터 적용 시, 선택 인원이 `person`에 포함된 일정만 표시한다(§11.20.4).
-  - **등록 필드 정책 변경**: 일정 등록/수정에서 `현장 위치(location)` 입력 필드는 제거한다. 일정 데이터는 `task`, `person`, `details`, `category`와 함께 `shift_type(주간/야간/심야)`, `work_code(공사 코드)`를 기준으로 관리한다.
-  - **카테고리 시각/정렬 정책**: `공사 일정` 카드는 붉은색 계열로 강조하고, 카드에 `shift_type` 뱃지(주간/야간/심야)를 노출한다. 같은 날짜 내부 정렬은 `공사 일정(주간) -> 공사 일정(야간) -> 공사 일정(심야) -> 일정 -> 일반 작업` 순으로 고정한다.
+  - **등록 필드 정책 변경**: 일정 등록/수정에서 `현장 위치(location)` 입력 필드는 제거한다. 일정 데이터는 `task`, `person`, `details`, `category`와 함께 `shift_type(주간/야간)`, `work_code(공사 코드)`를 기준으로 관리한다.
+  - **카테고리 시각/정렬 정책**: `공사 일정` 중 **주간**(및 미지정)은 붉은색 계열, **야간**(구 `심야` 포함·표시는 항상 「야간」)은 청색 계열로 대비한다. 뱃지는 주간/야간만 노출한다. 같은 날짜 내부 정렬은 `공사 일정(주간) -> 공사 일정(야간) -> 일정 -> 일반 작업` 순으로 고정한다.
+  - **현황 카드 표시 옵션**: 체크박스로 `작업 인원` / `상세 정보` / `작업 코드` 노출을 토글한다. 설정은 `localStorage` 키 `yjs_schedule_view_options_v1`에 저장하며, UI에서 기본값으로 되돌리기를 제공한다.
+  - **우측 패널 3단계 폭**: 단일 토글로 `full`(기본 넓은 열) → `rail`(약 220px 레일, 외출/행선표는 **이름 + 상태 뱃지** 위주) → `hidden`(열 완전 숨김, 메인 보드 최대 폭) 순환한다. 상태는 `localStorage` 키 `yjs_right_column_mode_v2`(`full` | `rail` | `hidden`)에 저장한다. 구버전 키 `yjs_right_column_collapsed_v1`이 `1`이면 최초 로드 시 `rail`로 해석한다. 토글 버튼 문구는 현재 단계의 **다음** 동작을 나타낸다: `↔ 우측 패널 슬림` → `↔ 우측 패널 완전 숨김` → `↔ 우측 패널 펼치기`. **외출 및 행선표** 카드 헤더에는 접기용 캐럿(▼/▲)을 두지 않으며 본문은 항상 펼친 상태로 둔다(레일 모드에서만 행선·복귀 UI를 숨김). **기타 메모**·**상황판 등록**만 헤더 캐럿으로 접고, 레일 모드에서는 본문이 접히며 해당 헤더 클릭 시 열을 `full`로 복귀시키며 해당 섹션을 연다. 접힘 상태는 `yjs_right_panel_state_v1`의 `memo`/`board`만 저장한다.
   - **로그아웃**: 주요 화면 상단에 로그아웃 액션을 제공하고, 실행 시 세션 종료 후 같은 페이지에서 로그인 모달을 다시 노출한다(§11.21.2).
   - **관리자 권한 노출 제어**: 관리자 계정이 아니면 상단 `관리자` 진입 UI를 숨긴다(§11.21.3).
 - `board.html` 관련 조항은 통합 이전 정보이며, 구현 우선순위는 `dashboard.html` 통합 정책(§11.21)이 더 높다.
@@ -189,6 +219,7 @@
 1. 비밀번호는 `users.password_hash`(SHA-256 해시)만 저장하며, 평문 저장은 금지한다.
 2. `ALLOWED_ORIGINS=*`, `ALLOWED_HOSTS=*` 사용 시 운영 배포에서 제한값으로 전환 필요
 3. SQLite 단일 파일 구조 특성상 고동시성 환경에는 한계
+4. 대시보드 기능 스크립트를 분리한 뒤에는 서버 정적 라우트(`main.py`)에 `/dashboard.*.js`를 반드시 노출해야 한다. 누락 시 브라우저에서 404가 발생하고 초기화가 중단되어 화면이 무한 로딩처럼 보일 수 있다.
 
 이 문서는 “현재 구현 기준”으로 유지한다. 동작/계약이 바뀌면 함께 갱신한다.
 
@@ -574,7 +605,7 @@
 - 좌측 달력형 보드는 빈 가로 여백을 날짜 셀로 활용해 가독성과 정보 밀도를 동시에 확보한다.
 - 모바일(`max-width: 768px`)에서는 동일 데이터셋을 단일 열 날짜 리스트로 자동 전환해 칸 밀집으로 인한 가독성 저하를 방지한다.
 - 모바일 리스트 상단에는 `오늘 일정 n건` 고정 바를 노출해, 스크롤 중에도 오늘 작업량을 빠르게 인지할 수 있게 한다.
-- 모바일 화면은 조회 전용으로 운영하며, 일정 카드의 `수정/삭제/작업 인원 추가` 액션 패널은 노출하지 않는다.
+- 모바일에서도 일정 카드 탭으로 액션 패널을 열어 `상세 정보`·`작업 인원 추가`·`수정`·`삭제`를 사용할 수 있다(2026-04 반영, 구 문서의 “모바일 조회 전용” 서술은 본 항목이 우선한다).
 - 데스크톱 액션 패널에서는 `메모 작성` 기능을 제거하고, `작업 인원 추가/수정/삭제`만 제공한다.
 - 같은 날짜 내부의 일정 노출 순서는 아래 우선순위를 따른다.
   - `공사 일정` 우선
@@ -678,3 +709,29 @@
 - 문서만 읽고 관리자/일반 사용자의 UI 노출 차이(관리자 메뉴 노출 여부)를 구분할 수 있어야 한다.
 - 문서만 읽고 외출/행선표 편집 방식(상태/목적/복귀 시각 클릭)과 시간 제약(`HH:mm`, 30분 단위)을 확인할 수 있어야 한다.
 - 문서만 읽고 공지 인라인 편집 및 로그아웃 요구 범위를 확인할 수 있어야 한다.
+
+---
+
+## 12. 최근 구현 변경 요약 (번호 목록, 현재 코드 기준)
+
+아래는 한동안 누적 반영된 변경을 **배포·이관 시 체크**용으로 순서만 매긴 목록이다. 세부 동작은 §6·§7·코드를 기준으로 한다.
+
+1. **기본 라우팅**: `/`는 `dashboard.html`을 제공하고, AI 채팅 입력 화면은 `/index.html`에서 유지한다.
+2. **대시보드 로그인 UX**: 비로그인 첫 방문 시 별도 `index`로 보내지 않고 `dashboard.html` 안에서 로그인 모달로 인증한다.
+3. **일정 스키마 확장**: `field_schedules`에 `work_code`, `shift_type` 컬럼 추가 및 SQLite 마이그레이션. 등록/수정 시 `location`은 UI에서 제거하고 저장 계층에서 빈 값으로 맞춘다.
+4. **레거시 호환**: 기존 `tags`·`task` 텍스트(예: `(주간)` 등)에서 `shift_type`·`work_code`를 파생·보정한다.
+5. **API·템플릿**: `app/api/schedules.py` 등에서 보드/템플릿 응답·입력에 `work_code`, `shift_type`을 반영한다.
+6. **AI 스키마**: `app/services/ai_service.py`의 일정 스키마가 `work_code`, `shift_type` 중심으로 맞춰진다(`location` 의존 축소).
+7. **대시보드 보드 UI**: `공사 일정`은 주간(및 미지정) 붉은 계열, 야간(구 심야 포함·표기 「야간」) 청색 계열로 대비. 같은 날짜 안 정렬은 `공사(주간) → 공사(야간) → 일정 → 일반 작업` 고정.
+8. **카드 표기**: 공사명과 함께 **근무 구분 뱃지 → 공사 코드 뱃지** 순으로 노출하고, 뷰 옵션에 따라 상세·인원·코드 표시를 줄인다.
+9. **뷰 옵션 영속화**: `작업 인원` / `상세 정보` / `작업 코드` 체크박스와 기본값 복귀를 `localStorage` `yjs_schedule_view_options_v1`에 저장한다.
+10. **우측 패널 3단계**: `full` ↔ `rail` ↔ `hidden` 순환. `yjs_right_column_mode_v2` 저장, 구버전 `yjs_right_column_collapsed_v1===1`이면 `rail`로 읽는다.
+11. **레일 모드**: 우측 열을 좁게 유지하며 외출/행선표는 **이름(왼쪽) + 상태 뱃지(오른쪽)** 위주로 표시하고 행선·복귀 링크는 숨긴다. 기타 메모·상황판 본문은 접힌다.
+12. **레일에서 헤더 클릭**: 기타 메모 또는 상황판 등록 헤더 클릭 시 열을 `full`로 복귀하고 해당 패널을 연다.
+13. **토글 버튼 문구**: 다음 동작이 드러나도록 `↔ 우측 패널 슬림` / `↔ 우측 패널 완전 숨김` / `↔ 우측 패널 펼치기`로 표시한다.
+14. **우측 카드 접힘**: `memo` / `board` 펼침만 `yjs_right_panel_state_v1`에 저장한다. 외출/행선표는 헤더 캐럿 없음(레일 진입 시 메모·상황판 본문은 강제 접힘).
+15. **`index.html`**: 채팅은 문장만 전송; 근무 구분·공사 코드는 상황판(`dashboard.html`) 또는 AI 해석에 맡긴다.
+16. **테스트**: 스모크 등에서 `location` 전제를 제거하고 `task` / `shift_type` 등 현재 필드 정책에 맞게 수정한다.
+17. **문서/로컬/PWA**: `document_templates` + `/api/documents/*`, `LOCAL_APPS_ROOT` + `/api/local/launch`, `site.webmanifest`/`sw.js` 및 대시보드·채팅 화면 햄버거 메뉴(2026-04).
+18. **대시보드 프론트 모듈화(2026-04)**: `dashboard.html`의 대형 인라인 스크립트를 `dashboard.auth.js`/`dashboard.sidebar.js`/`dashboard.schedule.js`/`dashboard.document.js`로 분리해 유지보수성을 개선했다.
+19. **운영 이슈 대응(2026-04)**: 모듈화 직후 발생한 무한 로딩 이슈는 정적 JS 경로 404가 원인이었고, `main.py`에 `/dashboard.auth.js`, `/dashboard.sidebar.js`, `/dashboard.schedule.js`, `/dashboard.document.js` 라우트를 추가해 해결했다.

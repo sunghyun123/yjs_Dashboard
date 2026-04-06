@@ -237,10 +237,8 @@ class DBManager:
         raw = str(value or "").strip()
         if raw in ("주간", "day", "DAY"):
             return "주간"
-        if raw in ("야간", "night", "NIGHT"):
+        if raw in ("야간", "night", "NIGHT", "심야", "midnight", "MIDNIGHT"):
             return "야간"
-        if raw in ("심야", "midnight", "MIDNIGHT"):
-            return "심야"
         return ""
 
     @classmethod
@@ -266,10 +264,8 @@ class DBManager:
         task_text = str(data.get("task") or "")
         if "(주간)" in task_text:
             return "주간"
-        if "(야간)" in task_text:
+        if "(야간)" in task_text or "(심야)" in task_text:
             return "야간"
-        if "(심야)" in task_text:
-            return "심야"
         return ""
 
     @staticmethod

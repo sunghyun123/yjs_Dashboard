@@ -1,0 +1,19 @@
+{
+  "templates": [
+    {
+      "id": "TBM_hwpx",
+      "title": "TBM(한글)",
+      "file": "files/TBM.hwpx",
+      "kind": "hwpx",
+      "sheet": null,
+      "ai": {
+        "suggest": "TBM(작업전 안전회의) 문서다. 메일 제목은 현장명·작업 종류가 드러나게 짧게. 작업일(work_title 라벨이 작업일이면 날짜 위주)은 사용자 입력을 우선하고 추천하지 않는다.",
+        "extract": "이미지가 TBM 회의록·게시문이면 제목·작업명/작업일 표기를 읽는다. 여러 줄이면 doc_title에는 문서 상단 제목, work_title에는 작업명 또는 회의 주제를 넣는다."
+      },
+      "fields": [
+        { "id": "doc_title", "label": "메일 제목(추천)" },
+        { "id": "work_title", "label": "작업일(추천x)" }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>YJS 스마트 현장 보고 (대화형)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#003366">
     <style>
         body, html { height: 100%; margin: 0; background-color: #b2c7d9; font-family: 'Malgun Gothic', sans-serif; overflow-x: hidden; }
 
@@ -36,9 +38,6 @@
         .status-chip.status-request { background: #fff4e5; color: #9a5c00; border: 1px solid #ffe0b2; }
         .status-chip.status-info { background: #ebf3ff; color: #0b4ea2; border: 1px solid #c9defe; }
         .upload-help { font-size: 0.82rem; color: #6c757d; margin-top: 4px; }
-        .quick-meta-row { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .quick-meta-row select, .quick-meta-row input { font-size: 0.82rem; }
-
         /* 하단 입력 영역 */
         .input-area { background-color: #fff; padding: 10px 15px; display: flex; gap: 10px; align-items: center; border-top: 1px solid #ccc; z-index: 10; padding-bottom: calc(10px + env(safe-area-inset-bottom)); flex-wrap: wrap; }
         .input-area input[type="text"] { flex-grow: 1; border-radius: 20px; border: 1px solid #ced4da; padding: 10px 15px; outline: none; }
@@ -52,6 +51,47 @@
             display: flex; align-items: center; justify-content: center; z-index: 9999;
         }
         .login-card { width: min(420px, 92vw); background: #fff; border-radius: 12px; padding: 20px; }
+        .idx-drawer-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 1040;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+        .idx-drawer-overlay.show { opacity: 1; visibility: visible; }
+        .idx-drawer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: min(300px, 92vw);
+            height: 100%;
+            height: 100dvh;
+            background: #fff;
+            z-index: 1050;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+            transform: translateX(-100%);
+            transition: transform 0.22s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        .idx-drawer.open { transform: translateX(0); }
+        .idx-drawer-header {
+            background: #003366;
+            color: #fff;
+            padding: 12px 14px;
+            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .idx-drawer-body { padding: 10px 12px; overflow-y: auto; flex: 1; }
+        .idx-drawer-body .list-group-item {
+            border-radius: 8px !important;
+            margin-bottom: 6px;
+            border: 1px solid #e5e9f0;
+        }
         @media (max-width: 768px) {
             .chat-header { padding: 10px 12px; gap: 8px; align-items: flex-start; }
             .chat-header h5 { font-size: 0.98rem; }
@@ -60,7 +100,6 @@
             .input-area { padding: 8px 10px; gap: 8px; }
             #inputCategory { max-width: none !important; flex: 1 1 140px; }
             #chatInput { width: 100%; min-width: 0; }
-            .quick-meta-row { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -68,12 +107,10 @@
 
 <div class="app-container">
     <header class="chat-header">
-        <h5>🤖 YJS 스마트 AI 비서</h5>
-        <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="d-flex align-items-center gap-2 flex-wrap" style="min-width:0;">
+            <button type="button" class="btn btn-outline-light btn-sm rounded-pill" onclick="toggleIndexDrawer(true)" aria-label="메뉴">☰</button>
+            <h5 class="m-0 text-truncate" style="max-width: 11rem;">🤖 YJS AI 비서</h5>
             <span id="loginUserBadge" class="badge bg-light text-dark d-none"></span>
-            <a href="/dashboard.html" class="btn btn-sm btn-outline-light rounded-pill">📊 상황판</a>
-            <a href="/admin.html" id="adminLinkBtn" class="btn btn-sm btn-outline-light rounded-pill d-none">⚙ 관리자</a>
-            <button type="button" id="logoutBtn" class="btn btn-sm btn-outline-light rounded-pill d-none" onclick="logout()">로그아웃</button>
         </div>
     </header>
 
@@ -103,16 +140,6 @@
             <option value="other">기타(관리자에게 전송)</option>
         </select>
 
-        <div class="quick-meta-row" id="scheduleMetaRow">
-            <select id="quickShiftType" class="form-select form-select-sm">
-                <option value="" selected>근무 구분(미지정)</option>
-                <option value="주간">주간</option>
-                <option value="야간">야간</option>
-                <option value="심야">심야</option>
-            </select>
-            <input id="quickWorkCode" type="text" class="form-control form-control-sm" placeholder="공사 코드 (예: JY25-244)">
-        </div>
-
         <input type="text" id="chatInput" placeholder="메시지를 입력하세요..." onkeypress="handleKeyPress(event)">
 
         <button class="btn btn-primary btn-circle" onclick="sendMessage()" style="background-color: #003366;">
@@ -120,6 +147,27 @@
         </button>
     </div>
 </div>
+
+<div id="idxDrawerOverlay" class="idx-drawer-overlay" onclick="toggleIndexDrawer(false)"></div>
+<aside id="idxDrawer" class="idx-drawer" aria-hidden="true">
+    <div class="idx-drawer-header">
+        <span>메뉴</span>
+        <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleIndexDrawer(false)">✕</button>
+    </div>
+    <div class="idx-drawer-body">
+        <div class="list-group list-group-flush">
+            <a href="/dashboard.html" class="list-group-item list-group-item-action">📊 상황판</a>
+            <a href="/admin.html" id="drawerAdminLink" class="list-group-item list-group-item-action d-none">⚙ 관리자</a>
+            <button type="button" class="list-group-item list-group-item-action text-start" onclick="logout()">로그아웃</button>
+        </div>
+        <hr class="my-3">
+        <div class="small text-muted mb-2">문서 생성·데이터 추출은 상황판(☰) 메뉴에서 이용하세요.</div>
+        <div class="list-group list-group-flush">
+            <button type="button" class="list-group-item list-group-item-action text-start" onclick="openHangulGeneratorDownload(); toggleIndexDrawer(false);">한글 생성기 다운로드</button>
+            <button type="button" class="list-group-item list-group-item-action text-start" onclick="launchLocalAppIndex('erp')">ERP 실행</button>
+        </div>
+    </div>
+</aside>
 
 <div id="loginOverlay" class="login-overlay">
     <div class="login-card">
@@ -227,8 +275,7 @@
     const typingIndicator = document.getElementById('typingIndicator');
     const loginOverlay = document.getElementById('loginOverlay');
     const loginUserBadge = document.getElementById('loginUserBadge');
-    const adminLinkBtn = document.getElementById('adminLinkBtn');
-    const logoutBtn = document.getElementById('logoutBtn');
+    const drawerAdminLink = document.getElementById('drawerAdminLink');
     const imageInput = document.getElementById('imageInput');
     const uploadCategorySelect = document.getElementById('uploadCategorySelect');
 
@@ -239,15 +286,39 @@
     let signupModal = null;
     let findAccountModal = null;
 
-    function isScheduleCategory(category) {
-        return category === 'schedule_create' || category === 'general_work';
+    function toggleIndexDrawer(open) {
+        const drawer = document.getElementById('idxDrawer');
+        const overlay = document.getElementById('idxDrawerOverlay');
+        const on = Boolean(open);
+        drawer.classList.toggle('open', on);
+        overlay.classList.toggle('show', on);
+        drawer.setAttribute('aria-hidden', on ? 'false' : 'true');
     }
 
-    function toggleScheduleMetaInputs() {
-        const inputCategory = document.getElementById('inputCategory').value;
-        const row = document.getElementById('scheduleMetaRow');
-        if (isScheduleCategory(inputCategory)) row.style.display = 'grid';
-        else row.style.display = 'none';
+    const HANGUL_GENERATOR_RELEASE_URL =
+        'https://github.com/sunghyun123/yjs_automation_tool/releases/tag/v1.0.6';
+
+    function openHangulGeneratorDownload() {
+        window.open(HANGUL_GENERATOR_RELEASE_URL, '_blank', 'noopener,noreferrer');
+    }
+
+    async function launchLocalAppIndex(appKey) {
+        try {
+            const res = await fetch('/api/local/launch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ app: appKey }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(data.detail || '실행에 실패했습니다. 서버 PC의 LOCAL_APPS_ROOT 설정을 확인하세요.');
+                return;
+            }
+            alert(data.message || '실행 요청을 보냈습니다.');
+            toggleIndexDrawer(false);
+        } catch (e) {
+            alert('실행 요청 중 오류가 발생했습니다.');
+        }
     }
 
     // 말풍선 추가 함수
@@ -280,13 +351,6 @@
             return;
         }
         const inputCategory = document.getElementById('inputCategory').value;
-        const quickShiftType = document.getElementById('quickShiftType').value.trim();
-        const quickWorkCode = document.getElementById('quickWorkCode').value.trim();
-        let composedText = text;
-        if (isScheduleCategory(inputCategory)) {
-            if (quickWorkCode) composedText += `\n공사코드: ${quickWorkCode}`;
-            if (quickShiftType) composedText += `\n근무구분: ${quickShiftType}`;
-        }
 
         // 내 메시지 화면에 표시
         appendBubble('me', text);
@@ -301,7 +365,7 @@
             const response = await fetch('/api/schedules/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: composedText, input_category: inputCategory })
+                body: JSON.stringify({ text, input_category: inputCategory })
             });
             const data = await response.json();
 
@@ -344,6 +408,13 @@
         scrollToBottom();
     }
 
+    function shiftTypeDisplayLabel(raw) {
+        const t = String(raw || '').trim();
+        if (t === '주간') return '주간';
+        if (t === '야간' || t === '심야') return '야간';
+        return t;
+    }
+
     // 2. 동적 상호작용 카드 생성 (등록 확인, 후보 리스트 등)
     function renderInteractiveCard(intent, data) {
         const card = document.createElement('div');
@@ -353,19 +424,13 @@
         // [등록/수정]인 경우: 제안하는 데이터 확인
         if (intent === 'create') {
             const sd = data.schedule_data;
-            const inputCategory = document.getElementById('inputCategory').value;
-            if (isScheduleCategory(inputCategory)) {
-                const quickShiftType = document.getElementById('quickShiftType').value.trim();
-                const quickWorkCode = document.getElementById('quickWorkCode').value.trim();
-                if (quickShiftType && !sd.shift_type) sd.shift_type = quickShiftType;
-                if (quickWorkCode && !sd.work_code) sd.work_code = quickWorkCode;
-            }
             currentPendingData = sd; // 데이터 임시 저장
             const taskWithCode = `${sd.task || ''}${sd.work_code ? `(${sd.work_code})` : ''}`;
+            const shiftLbl = shiftTypeDisplayLabel(sd.shift_type);
 
             html += `
                 <div class="mb-2">
-                    <strong>🗂 ${taskWithCode || '작업명 미기재'}</strong> <span class="badge bg-light text-dark border">${sd.category}</span>${sd.shift_type ? ` <span class="badge bg-info-subtle text-info border">${sd.shift_type}</span>` : ''}<br>
+                    <strong>🗂 ${taskWithCode || '작업명 미기재'}</strong> <span class="badge bg-light text-dark border">${sd.category}</span>${shiftLbl ? ` <span class="badge bg-info-subtle text-info border">${shiftLbl}</span>` : ''}<br>
                     날짜: ${sd.date} | 담당: ${sd.person}<br>
                     ${sd.details ? `<small class="text-muted">${sd.details}</small>` : ''}
                 </div>
@@ -383,9 +448,10 @@
                     const personLine = (cand.person && String(cand.person).trim())
                         ? `<small class="text-secondary">작업 인원: ${String(cand.person).trim()}</small><br>`
                         : '';
+                    const candShift = shiftTypeDisplayLabel(cand.shift_type);
                     html += `
                         <div class="candidate-item">
-                            <strong>${cand.task || '작업명 미기재'}${cand.work_code ? `(${cand.work_code})` : ''}</strong>${cand.shift_type ? ` <span class="badge bg-info-subtle text-info border">${cand.shift_type}</span>` : ''} (${cand.date})<br>
+                            <strong>${cand.task || '작업명 미기재'}${cand.work_code ? `(${cand.work_code})` : ''}</strong>${candShift ? ` <span class="badge bg-info-subtle text-info border">${candShift}</span>` : ''} (${cand.date})<br>
                             <small class="text-muted">${cand.details || '상세내용 없음'}</small><br>
                             ${personLine}
                         </div>
@@ -513,9 +579,8 @@
             currentUserId = me.user_id;
             loginUserBadge.textContent = `${me.user_id}`;
             loginUserBadge.classList.remove('d-none');
-            if (me.role === 'admin') adminLinkBtn.classList.remove('d-none');
-            else adminLinkBtn.classList.add('d-none');
-            logoutBtn.classList.remove('d-none');
+            if (me.role === 'admin') drawerAdminLink.classList.remove('d-none');
+            else drawerAdminLink.classList.add('d-none');
             loginOverlay.style.display = 'none';
             return true;
         } catch (e) {
@@ -543,9 +608,8 @@
             currentUserId = data.user_id;
             loginUserBadge.textContent = `${data.user_id}`;
             loginUserBadge.classList.remove('d-none');
-            if (data.role === 'admin') adminLinkBtn.classList.remove('d-none');
-            else adminLinkBtn.classList.add('d-none');
-            logoutBtn.classList.remove('d-none');
+            if (data.role === 'admin') drawerAdminLink.classList.remove('d-none');
+            else drawerAdminLink.classList.add('d-none');
             loginOverlay.style.display = 'none';
             appendBubble('bot', `안녕하세요 ${data.user_id}님. 요청을 도와드릴게요.`);
         } catch (e) {
@@ -652,14 +716,15 @@
     uploadCategoryModal = new bootstrap.Modal(document.getElementById('uploadCategoryModal'));
     signupModal = new bootstrap.Modal(document.getElementById('signupModal'));
     findAccountModal = new bootstrap.Modal(document.getElementById('findAccountModal'));
-    document.getElementById('inputCategory').addEventListener('change', toggleScheduleMetaInputs);
-    toggleScheduleMetaInputs();
     document.getElementById('signupModal').addEventListener('hidden.bs.modal', () => {
         if (!currentUserId) loginOverlay.style.display = 'flex';
     });
     document.getElementById('findAccountModal').addEventListener('hidden.bs.modal', () => {
         if (!currentUserId) loginOverlay.style.display = 'flex';
     });
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
     checkSession();
 </script>
 

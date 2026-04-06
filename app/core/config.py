@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     SIGNUP_ENABLED: bool = True
     # HTTPS 리버스 프록시 뒤에서 true (쿠키 Secure)
     COOKIE_SECURE: bool = False
+    # 문서 생성/추출 템플릿 루트 (templates.json + 파일)
+    DOCUMENT_TEMPLATES_DIR: str = "document_templates"
+    # 로컬 exe 실행: FastAPI가 돌아가는 PC에서만 동작. 비우면 API 비활성(503).
+    LOCAL_APPS_ROOT: str = ""
+    LOCAL_APP_HANGUL: str = "HangulGenerator.exe"
+    LOCAL_APP_ERP: str = "ERP.exe"
 
     model_config = SettingsConfigDict(env_file=".env")  # .env 파일을 읽어오도록 설정
 
