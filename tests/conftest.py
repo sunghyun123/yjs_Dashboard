@@ -71,6 +71,11 @@ def client(tmp_path, monkeypatch):
     import main
     from app.api import admin, auth, schedules, vision
     from app.core import auth as auth_core
+    from app.core.config import settings as app_settings
+
+    # 로컬 .env에 COOKIE_SECURE=true여도 TestClient(http)에서 세션 쿠키가 붙지 않아 401 나는 것 방지
+    monkeypatch.setattr(app_settings, "COOKIE_SECURE", False)
+    monkeypatch.setattr(app_settings, "FORCE_HTTPS_REDIRECT", False)
 
     # Replace module-level DB singletons to avoid touching real `schedule.db`.
     schedules.db = test_db

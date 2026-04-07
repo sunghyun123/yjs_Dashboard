@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "*"
     ALLOWED_HOSTS: str = "*"
     # 카카오 로그인 (REST API 키·리다이렉트 URI는 카카오 개발자 콘솔과 동일해야 함)
-    KAKAO_REST_API_KEY: str = "032afff06fbc19ddc4281d4bab15cd86"
+    KAKAO_REST_API_KEY: str = ""
     KAKAO_CLIENT_SECRET: str = ""
     KAKAO_REDIRECT_URI: str = ""
     # 허용 카카오 사용자 목록 JSON 경로 (프로젝트 루트 기준 기본값)
@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     LOCAL_APP_HANGUL: str = "HangulGenerator.exe"
     LOCAL_APP_ERP: str = "ERP.exe"
 
-    model_config = SettingsConfigDict(env_file=".env")  # .env 파일을 읽어오도록 설정
+    # 예전 .env(SIGNUP_ENABLED, INITIAL_ADMIN_PASSWORD 등)가 남아 있어도 기동되게 무시
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property
     def cors_origin_list(self) -> list[str]:
