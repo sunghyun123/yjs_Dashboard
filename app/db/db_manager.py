@@ -5,8 +5,7 @@ from datetime import datetime, timedelta
 from contextlib import closing
 from typing import List, Dict, Any, Optional
 import hashlib
-
-from app.core.config import settings
+import secrets
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -219,18 +218,6 @@ class DBManager:
                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                              )
                              """)
-
-                # 초기 운영용 기본 계정 (최초 1회)
-                user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-                if user_count == 0:
-                    bootstrap_password = (settings.INITIAL_ADMIN_PASSWORD or "1234").strip() or "1234"
-                    bootstrap_register_code = ""
-                    logger.warning("초기 관리자 계정 생성됨: user_id=admin (비밀번호는 INITIAL_ADMIN_PASSWORD)")
-                    default_pw_hash = hashlib.sha256(bootstrap_password.encode("utf-8")).hexdigest()
-                    conn.execute(
-                        "INSERT INTO users (user_id, user_name, password_hash, register_code, role) VALUES (?, ?, ?, ?, ?)",
-                        ("admin", "관리자", default_pw_hash, bootstrap_register_code, "admin")
-                    )
 
     @staticmethod
     def _normalize_shift_type(value: Any) -> str:
@@ -568,6 +555,36 @@ class DBManager:
                     """,
                     (u_id, u_name, pw_hash, register_code, role),
                 )
+
+    def ensure_oauth_user(self, user_id: str, user_name: str, role: str) -> None:
+        """
+        카카오 화이트리스트 로그인용: users 행이 없으면 임의 비밀번호 해시로 생성하고,
+        있으면 표시 이름·역할을 화이트리스트 기준으로 맞춘다.
+        """
+        u_id = (user_id or "").strip()
+        u_name = (user_name or "").strip() or u_id
+        r = (role or "").strip().lower()
+        r_db = "admin" if r == "admin" else "worker"
+        if not u_id:
+            raise ValueError("user_id가 비어 있습니다.")
+        random_pw = secrets.token_urlsafe(48)
+        pw_hash = hashlib.sha256(random_pw.encode("utf-8")).hexdigest()
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                row = conn.execute("SELECT user_id FROM users WHERE user_id = ?", (u_id,)).fetchone()
+                if row:
+                    conn.execute(
+                        "UPDATE users SET user_name = ?, role = ?, password_plain = NULL WHERE user_id = ?",
+                        (u_name, r_db, u_id),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        INSERT INTO users (user_id, user_name, password_hash, register_code, role)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (u_id, u_name, pw_hash, "", r_db),
+                    )
 
     def reset_user_password(self, user_id: str, user_name: str, new_password: str) -> bool:
         u_id = (user_id or "").strip()

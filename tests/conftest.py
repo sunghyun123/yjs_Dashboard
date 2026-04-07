@@ -12,7 +12,9 @@ from app.db.db_manager import DBManager
 # Ensure required settings exist before app modules import `settings`.
 os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.setdefault("DATABASE_URL", "sqlite:///test.db")
-os.environ.setdefault("INITIAL_ADMIN_PASSWORD", "1234")
+os.environ.setdefault("KAKAO_REST_API_KEY", "test-kakao-key")
+os.environ.setdefault("KAKAO_REDIRECT_URI", "http://testserver/api/auth/kakao/callback")
+os.environ.setdefault("ALLOWED_HOSTS", "*,testserver")
 
 
 def _install_google_genai_stub():
