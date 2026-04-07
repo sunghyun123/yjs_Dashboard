@@ -1,0 +1,10 @@
+{
+  "users": [
+    {
+      "kakao_id": "4834516923",
+      "user_id": "admin",
+      "user_name": "조성현",
+      "role": "admin"
+    }
+  ]
+}

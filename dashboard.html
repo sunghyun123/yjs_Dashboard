@@ -967,80 +967,14 @@
                     <h5 class="modal-title">로그인</h5>
                 </div>
                 <div class="modal-body">
-                    <p class="small text-muted mb-2">현황판 사용을 위해 로그인해 주세요.</p>
+                    <p class="small text-muted mb-2">현황판 사용을 위해 카카오 계정으로 로그인해 주세요.</p>
                     <div id="dashboardLoginError" class="small text-danger mb-2" style="display: none;"></div>
-                    <input id="dashboardLoginUserId" class="form-control form-control-sm mb-2" placeholder="아이디">
-                    <input id="dashboardLoginPassword" type="password" class="form-control form-control-sm"
-                        placeholder="비밀번호">
+                    <button type="button" class="btn btn-sm w-100 text-dark" style="background-color: #fee500;"
+                        onclick="startKakaoLogin()">카카오로 로그인</button>
                 </div>
                 <div class="modal-footer flex-column align-items-stretch gap-2">
-                    <button type="button" class="btn btn-sm btn-primary w-100"
-                        onclick="submitDashboardLogin()">로그인</button>
-                    <div class="d-flex gap-2 w-100">
-                        <button type="button" class="btn btn-sm btn-outline-primary flex-grow-1"
-                            onclick="openDashboardSignupFromLogin()">신규 사용자 등록</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary flex-grow-1"
-                            onclick="openDashboardFindAccountFromLogin()">계정 찾기</button>
-                    </div>
-                    <small class="text-muted text-center">초기 관리자 계정: admin / 1234</small>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="dashboardSignupModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">신규 사용자 등록</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-2">
-                        <label class="form-label small">사용자 이름</label>
-                        <input id="dashSignupUserName" class="form-control form-control-sm" placeholder="예: 홍길동">
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small">ID</label>
-                        <input id="dashSignupUserId" class="form-control form-control-sm" placeholder="아이디 입력">
-                    </div>
-                    <div class="mb-1">
-                        <label class="form-label small">비밀번호</label>
-                        <input id="dashSignupPassword" class="form-control form-control-sm" type="password"
-                            placeholder="비밀번호 입력">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">취소</button>
-                    <button type="button" class="btn btn-sm btn-primary" onclick="submitDashboardSignup()">가입신청</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="dashboardFindAccountModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">계정 찾기 / 비밀번호 재설정</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <label class="form-label small">사용자 이름</label>
-                    <input id="dashFindUserName" class="form-control form-control-sm mb-2" placeholder="이름을 입력하세요">
-                    <label class="form-label small">계정 ID</label>
-                    <input id="dashFindUserId" class="form-control form-control-sm mb-2" placeholder="조회 후 자동 입력됩니다">
-                    <label class="form-label small">새 비밀번호</label>
-                    <input id="dashResetNewPassword" class="form-control form-control-sm" type="password"
-                        placeholder="새 비밀번호를 입력하세요">
-                    <div id="dashFindAccountResult" class="small mt-2 text-muted"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="submitDashboardFindAccount()">ID
-                        조회</button>
-                    <button type="button" class="btn btn-sm btn-primary" onclick="submitDashboardResetPassword()">비밀번호
-                        재설정</button>
+                    <small class="text-muted text-center">접속은 저장소의 <code>kakao_whitelist.json</code>에 등록된 카카오
+                        사용자만 가능합니다.</small>
                 </div>
             </div>
         </div>
@@ -1262,8 +1196,6 @@
         let workerReturnTimeModal = null;
         let detailPreviewModal = null;
         let dashboardLoginModal = null;
-        let dashboardSignupModal = null;
-        let dashboardFindAccountModal = null;
         const fieldStaffNameById = {};
         const selectedFieldStaffIds = new Set();
         let fieldStaffTargetScheduleId = null;
@@ -1839,26 +1771,6 @@
         window.onload = () => {
             dashboardLoginModal = new bootstrap.Modal(document.getElementById('dashboardLoginModal'));
             window.dashboardLoginModal = dashboardLoginModal;
-            dashboardSignupModal = new bootstrap.Modal(document.getElementById('dashboardSignupModal'));
-            window.dashboardSignupModal = dashboardSignupModal;
-            dashboardFindAccountModal = new bootstrap.Modal(document.getElementById('dashboardFindAccountModal'));
-            window.dashboardFindAccountModal = dashboardFindAccountModal;
-            document.getElementById('dashboardSignupModal').addEventListener('hidden.bs.modal', () => {
-                reopenDashboardLoginIfLoggedOut();
-            });
-            document.getElementById('dashboardFindAccountModal').addEventListener('hidden.bs.modal', () => {
-                reopenDashboardLoginIfLoggedOut();
-            });
-            const userInput = document.getElementById('dashboardLoginUserId');
-            const pwInput = document.getElementById('dashboardLoginPassword');
-            [userInput, pwInput].forEach((el) => {
-                el.addEventListener('keydown', (event) => {
-                    if (event.key === 'Enter') {
-                        event.preventDefault();
-                        submitDashboardLogin();
-                    }
-                });
-            });
             initializeDashboardPage();
         };
     </script>

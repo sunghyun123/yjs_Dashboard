@@ -1,6 +1,8 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 import asyncio
@@ -19,6 +21,19 @@ from app.services.export_service import DailyExportService
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        # 최소 보안 헤더. 기존 기능에 영향 없는 범위로만 설정.
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        if settings.COOKIE_SECURE:
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        return response
+
 
 async def daily_export_loop():
     """주기적으로 전일 백업을 점검/실행한다."""
@@ -68,6 +83,16 @@ app.add_middleware( # 모든 경로에 대해 CORS 허용
     allow_headers=["*"],
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_list)
+app.add_middleware(SecurityHeadersMiddleware)
+if settings.FORCE_HTTPS_REDIRECT:
+    app.add_middleware(HTTPSRedirectMiddleware)
+
+if settings.COOKIE_SECURE is False:
+    logger.warning("COOKIE_SECURE=false: 운영 HTTPS 배포에서는 true로 설정하세요.")
+if "*" in settings.trusted_host_list:
+    logger.warning("ALLOWED_HOSTS='*': 운영 배포에서는 도메인으로 제한하세요.")
+if "*" in settings.cors_origin_list:
+    logger.warning("ALLOWED_ORIGINS='*': 운영 배포에서는 프런트 도메인으로 제한하세요.")
 
 # --- 라우터 등록 (여기서 분리된 방들을 메인 앱에 연결해 줍니다) ---
 app.include_router(schedules.router)

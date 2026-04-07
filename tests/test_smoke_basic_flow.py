@@ -1,6 +1,10 @@
 import io
 import json
 from datetime import date
+from urllib.parse import parse_qs, urlparse
+
+import app.services.kakao_oauth as kakao_oauth
+from app.core.config import settings
 
 
 def _iso_today() -> str:
@@ -8,20 +12,39 @@ def _iso_today() -> str:
     return date.today().isoformat()
 
 
-def login_as_admin(client):
-    res = client.post(
-        "/api/auth/login",
-        json={
-            "user_id": "admin",
-            "password": "1234",
-            "register_code": "",
-            "device_name": "pytest-device",
-        },
+def login_as_admin(client, monkeypatch, tmp_path):
+    """카카오 OAuth 호출을 가짜로 두고 화이트리스트에 있는 관리자로 세션을 만든다."""
+    wl = tmp_path / "kakao_whitelist.json"
+    wl.write_text(
+        json.dumps(
+            {
+                "users": [
+                    {
+                        "kakao_id": "999888777",
+                        "user_id": "admin",
+                        "user_name": "테스트관리자",
+                        "role": "admin",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
     )
-    assert res.status_code == 200
-    body = res.json()
-    assert body["message"] == "로그인 성공"
-    return body
+    monkeypatch.setattr(settings, "KAKAO_WHITELIST_PATH", str(wl))
+    monkeypatch.setattr(kakao_oauth, "fetch_oauth_token", lambda code: {"access_token": "dummy"})
+    monkeypatch.setattr(kakao_oauth, "fetch_kakao_user_id", lambda token: "999888777")
+
+    r1 = client.get("/api/auth/kakao/login?next=/dashboard.html", follow_redirects=False)
+    assert r1.status_code == 302
+    loc = r1.headers.get("location") or ""
+    assert "kauth.kakao.com" in loc
+    qs = parse_qs(urlparse(loc).query)
+    assert qs.get("state")
+    state = qs["state"][0]
+
+    r2 = client.get(f"/api/auth/kakao/callback?code=fake-code&state={state}", follow_redirects=False)
+    assert r2.status_code == 302
 
 
 def test_static_pages_are_served(client):
@@ -45,8 +68,8 @@ def test_static_pages_are_served(client):
     assert board_redirect.headers.get("location") == "/dashboard.html"
 
 
-def test_auth_login_me_logout_flow(client):
-    login_as_admin(client)
+def test_auth_login_me_logout_flow(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
 
     me_res = client.get("/api/auth/me")
     assert me_res.status_code == 200
@@ -62,40 +85,8 @@ def test_auth_login_me_logout_flow(client):
     assert unauthorized_me.status_code == 401
 
 
-def test_find_account_does_not_return_password_and_supports_reset(client):
-    signup_res = client.post(
-        "/api/auth/signup",
-        json={"user_name": "보안테스터", "user_id": "security-user", "password": "oldpass"},
-    )
-    assert signup_res.status_code == 200
-
-    find_res = client.post("/api/auth/find-account", json={"user_name": "보안테스터"})
-    assert find_res.status_code == 200
-    find_body = find_res.json()
-    assert find_body["user_id"] == "security-user"
-    assert "password" not in find_body
-
-    reset_res = client.post(
-        "/api/auth/reset-password",
-        json={"user_name": "보안테스터", "user_id": "security-user", "new_password": "newpass"},
-    )
-    assert reset_res.status_code == 200
-
-    old_login = client.post(
-        "/api/auth/login",
-        json={"user_id": "security-user", "password": "oldpass", "device_name": "pytest-device"},
-    )
-    assert old_login.status_code == 401
-
-    new_login = client.post(
-        "/api/auth/login",
-        json={"user_id": "security-user", "password": "newpass", "device_name": "pytest-device"},
-    )
-    assert new_login.status_code == 200
-
-
-def test_schedule_create_and_today_read(client):
-    login_as_admin(client)
+def test_schedule_create_and_today_read(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
     d = _iso_today()
 
     create_res = client.post(
@@ -126,8 +117,8 @@ def test_schedule_create_and_today_read(client):
     assert created.get("shift_type") == "주간"
 
 
-def test_schedule_create_with_missing_optional_fields(client):
-    login_as_admin(client)
+def test_schedule_create_with_missing_optional_fields(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
     d = _iso_today()
 
     create_res = client.post(
@@ -152,8 +143,8 @@ def test_schedule_create_with_missing_optional_fields(client):
     assert inserted["category"] == "공사 일정"
 
 
-def test_memo_and_worker_status_flow(client):
-    login_as_admin(client)
+def test_memo_and_worker_status_flow(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
 
     memo_res = client.post(
         "/api/schedules/memos",
@@ -186,8 +177,8 @@ def test_memo_and_worker_status_flow(client):
     assert any(item["user_name"] == "홍길동" and item["status"] == "외출" for item in statuses)
 
 
-def test_admin_request_queue_basic_flow(client):
-    login_as_admin(client)
+def test_admin_request_queue_basic_flow(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
 
     chat_res = client.post(
         "/api/schedules/chat",
@@ -205,8 +196,8 @@ def test_admin_request_queue_basic_flow(client):
     assert any(row["request_type"] == "delete_request" for row in requests)
 
 
-def test_execute_update_delete_go_to_admin_queue(client):
-    login_as_admin(client)
+def test_execute_update_delete_go_to_admin_queue(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
     d = _iso_today()
 
     # Create a base schedule first.
@@ -269,8 +260,8 @@ def test_execute_update_delete_go_to_admin_queue(client):
     assert any(row["request_type"] == "delete_request" for row in rows)
 
 
-def test_admin_review_approve_update_and_delete(client):
-    login_as_admin(client)
+def test_admin_review_approve_update_and_delete(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
     d = _iso_today()
 
     # 1) Create original schedule.
@@ -399,7 +390,7 @@ def test_documents_templates_and_fill_sample(client, tmp_path, monkeypatch):
     (xlsx_dir / "templates.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(settings, "DOCUMENT_TEMPLATES_DIR", str(doc_root.resolve()))
 
-    login_as_admin(client)
+    login_as_admin(client, monkeypatch, tmp_path)
     res = client.get("/api/documents/templates")
     assert res.status_code == 200
     body = res.json()
@@ -451,7 +442,7 @@ def test_documents_required_gate_fill_and_list(client, tmp_path, monkeypatch):
     (xlsx_dir / "templates.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(settings, "DOCUMENT_TEMPLATES_DIR", str(doc_root.resolve()))
 
-    login_as_admin(client)
+    login_as_admin(client, monkeypatch, tmp_path)
     res = client.get("/api/documents/templates")
     assert res.status_code == 200
     tpl = next(t for t in res.json()["templates"] if t.get("id") == "gate_xlsx")
@@ -512,7 +503,7 @@ def test_documents_export_table_xlsx(client, tmp_path, monkeypatch):
     (xlsx_dir / "templates.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(settings, "DOCUMENT_TEMPLATES_DIR", str(doc_root.resolve()))
 
-    login_as_admin(client)
+    login_as_admin(client, monkeypatch, tmp_path)
     res = client.post(
         "/api/documents/export-table",
         json={
@@ -567,7 +558,7 @@ def test_documents_template_mode_flags(client, tmp_path, monkeypatch):
     (xlsx_dir / "templates.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(settings, "DOCUMENT_TEMPLATES_DIR", str(doc_root.resolve()))
 
-    login_as_admin(client)
+    login_as_admin(client, monkeypatch, tmp_path)
     res = client.get("/api/documents/templates")
     assert res.status_code == 200
     tpl = next(t for t in res.json()["templates"] if t.get("id") == "extract_only_xlsx")

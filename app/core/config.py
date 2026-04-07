@@ -10,12 +10,16 @@ class Settings(BaseSettings):
     PORT: int = 8000
     ALLOWED_ORIGINS: str = "*"
     ALLOWED_HOSTS: str = "*"
-    # 빈 DB 최초 기본 관리자(admin) 비밀번호. 배포 시 .env에서 반드시 강한 값으로 변경.
-    INITIAL_ADMIN_PASSWORD: str = "1234"
-    # 공개 배포 시 false 권장 (무인 가입 차단)
-    SIGNUP_ENABLED: bool = True
+    # 카카오 로그인 (REST API 키·리다이렉트 URI는 카카오 개발자 콘솔과 동일해야 함)
+    KAKAO_REST_API_KEY: str = "032afff06fbc19ddc4281d4bab15cd86"
+    KAKAO_CLIENT_SECRET: str = ""
+    KAKAO_REDIRECT_URI: str = ""
+    # 허용 카카오 사용자 목록 JSON 경로 (프로젝트 루트 기준 기본값)
+    KAKAO_WHITELIST_PATH: str = "kakao_whitelist.json"
     # HTTPS 리버스 프록시 뒤에서 true (쿠키 Secure)
     COOKIE_SECURE: bool = False
+    # 운영 배포 시 true 권장. true면 http 요청을 https로 리다이렉트한다.
+    FORCE_HTTPS_REDIRECT: bool = False
     # 문서 생성/추출 템플릿 루트 (templates.json + 파일)
     DOCUMENT_TEMPLATES_DIR: str = "document_templates"
     # 로컬 exe 실행: FastAPI가 돌아가는 PC에서만 동작. 비우면 API 비활성(503).
