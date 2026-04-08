@@ -1,4 +1,6 @@
 (function () {
+    const DAY_COLLAPSE_LIMIT = 4;
+
     function getScheduleState() {
         if (!window.__dashboardScheduleState) {
             window.__dashboardScheduleState = {
@@ -218,6 +220,21 @@
             `;
     }
 
+    function renderDayItemsSection(dateKey, dayItems) {
+        const itemCount = dayItems.length;
+        if (itemCount === 0) {
+            return '<div class="calendar-empty-line">등록된 일정이 없습니다.</div>';
+        }
+        const encodedDate = encodeURIComponent(dateKey);
+        const needFold = itemCount > DAY_COLLAPSE_LIMIT;
+        const listClass = needFold ? 'calendar-day-items collapsed' : 'calendar-day-items';
+        const listHtml = dayItems.map((item) => renderCompactScheduleItem(item)).join('');
+        const toggleHtml = needFold
+            ? `<button type="button" class="btn btn-sm btn-outline-secondary day-fold-toggle-btn" data-date-key="${encodedDate}" data-expanded="0">펼치기 (+${itemCount - DAY_COLLAPSE_LIMIT}건)</button>`
+            : '';
+        return `<div class="${listClass}" data-date-key="${encodedDate}">${listHtml}</div>${toggleHtml}`;
+    }
+
     function renderMobileCalendar(sortedDates, groupedData, todayStr) {
         const todayCount = (groupedData[todayStr] || []).length;
         let html = `<div class="mobile-today-pin">오늘 일정: ${todayCount}건</div>`;
@@ -226,13 +243,7 @@
             const dayItems = groupedData[date] || [];
             const todayClass = date === todayStr ? 'today' : '';
             html += `<div class="mobile-day-block"><div class="mobile-day-title ${todayClass}"><span>📅 ${escapeHtml(date)} ${dayName}${date === todayStr ? ' [오늘]' : ''}</span><span class="day-count-badge">${dayItems.length}건</span></div>`;
-            if (dayItems.length === 0) {
-                html += '<div class="calendar-empty-line">등록된 일정이 없습니다.</div>';
-            } else {
-                dayItems.forEach((item) => {
-                    html += renderCompactScheduleItem(item);
-                });
-            }
+            html += renderDayItemsSection(date, dayItems);
             html += '</div>';
         });
         return html;
@@ -269,13 +280,7 @@
             const count = inRange ? dayItems.length : 0;
             html += `<div class="calendar-date-label"><span>${escapeHtml(dateKey)}${isToday ? ' [오늘]' : ''}</span><span class="day-count-badge">${count}건</span></div>`;
             if (inRange) {
-                if (dayItems.length === 0) {
-                    html += '<div class="calendar-empty-line">등록된 일정이 없습니다.</div>';
-                } else {
-                    dayItems.forEach((item) => {
-                        html += renderCompactScheduleItem(item);
-                    });
-                }
+                html += renderDayItemsSection(dateKey, dayItems);
             }
             html += '</div>';
         }
@@ -286,6 +291,22 @@
     function bindCompactItemActions() {
         const board = document.getElementById('scheduleBoard');
         board.addEventListener('click', (e) => {
+            const dayToggleBtn = e.target.closest('.day-fold-toggle-btn');
+            if (dayToggleBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const encodedDate = dayToggleBtn.getAttribute('data-date-key') || '';
+                if (!encodedDate) return;
+                const dayItemsWrap = board.querySelector(`.calendar-day-items[data-date-key="${encodedDate}"]`);
+                if (!dayItemsWrap) return;
+                const isExpanded = dayItemsWrap.classList.toggle('collapsed') === false;
+                dayToggleBtn.setAttribute('data-expanded', isExpanded ? '1' : '0');
+                dayToggleBtn.textContent = isExpanded ? '접기' : `펼치기 (+${Math.max(dayItemsWrap.querySelectorAll('.schedule-compact-item').length - DAY_COLLAPSE_LIMIT, 0)}건)`;
+                if (!isExpanded) {
+                    dayItemsWrap.scrollIntoView({ block: 'nearest' });
+                }
+                return;
+            }
             const card = e.target.closest('.schedule-compact-item');
             if (!card) return;
             if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
