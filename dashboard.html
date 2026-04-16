@@ -18,8 +18,128 @@
         .dashboard-header {
             background-color: #003366;
             color: white;
-            padding: 15px 20px;
+            padding: 10px 20px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030;
+        }
+
+        .dashboard-shell {
+            padding-top: 82px;
+        }
+
+        @media (max-width: 992px) {
+            .dashboard-shell {
+                padding-top: 122px;
+            }
+        }
+
+        .app-top-nav {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .top-nav-shell {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .top-nav-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.82);
+            line-height: 1;
+        }
+
+        .app-top-nav .btn {
+            border-radius: 999px;
+            font-size: 0.76rem;
+            padding: 4px 10px;
+            line-height: 1.2;
+            min-width: 74px;
+            font-weight: 700;
+        }
+
+        .app-top-nav .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .brand-mark {
+            margin: 0;
+            font-size: 1.35rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            line-height: 1;
+            transform: skewX(-12deg);
+            display: inline-block;
+            background: linear-gradient(180deg, #ff5a46 0%, #e32727 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 10px rgba(255, 80, 60, 0.28);
+        }
+
+        .dashboard-header-toolbar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .header-sync-meta {
+            font-size: 0.76rem;
+            color: rgba(255, 255, 255, 0.78);
+            letter-spacing: 0.01em;
+        }
+
+        .header-live-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(34, 197, 94, 0.18);
+            border: 1px solid rgba(121, 255, 179, 0.45);
+            color: #d8ffe6;
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            line-height: 1.1;
+            white-space: nowrap;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #63f3a0;
+            box-shadow: 0 0 0 0 rgba(99, 243, 160, 0.75);
+            animation: livePulse 1.8s infinite;
+        }
+
+        @keyframes livePulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(99, 243, 160, 0.65);
+            }
+
+            70% {
+                box-shadow: 0 0 0 8px rgba(99, 243, 160, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(99, 243, 160, 0);
+            }
         }
 
         .card {
@@ -101,6 +221,122 @@
             justify-content: space-between;
             align-items: center;
             gap: 6px;
+        }
+
+        .calendar-date-main {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .day-add-btn {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #d2dbe7;
+            border-radius: 999px;
+            background: #fff;
+            color: #5d6f83;
+            font-size: 0.74rem;
+            line-height: 1;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.5;
+            transition: all 0.15s ease;
+        }
+
+        .calendar-cell:hover .day-add-btn,
+        .calendar-cell:focus-within .day-add-btn,
+        .mobile-day-title .day-add-btn {
+            opacity: 1;
+        }
+
+        .day-add-btn:hover {
+            border-color: #8fb0d3;
+            color: #1f4f8f;
+            background: #eef5ff;
+        }
+
+        .calendar-cell.today .day-add-btn,
+        .mobile-day-title.today .day-add-btn {
+            opacity: 1;
+            border-color: #5f8ec7;
+            color: #0f4d97;
+            background: #eaf2ff;
+            box-shadow: 0 0 0 1px rgba(31, 111, 229, 0.16);
+        }
+
+        .quick-add-staff-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            max-height: 112px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 7px;
+            background: #fafcff;
+        }
+
+        .quick-add-staff-btn {
+            font-size: 0.74rem;
+            line-height: 1.1;
+            border-radius: 999px;
+            padding: 3px 8px;
+            border: 1px solid #b9cbe0;
+            color: #2a4f7c;
+            background: #fff;
+        }
+
+        .quick-add-staff-btn.active {
+            border-color: #2a6cc7;
+            background: #eaf2ff;
+            color: #134d97;
+            font-weight: 700;
+        }
+
+        .quick-add-fold {
+            border: 1px solid #e1e8f1;
+            border-radius: 10px;
+            background: #fbfdff;
+            padding: 0 10px;
+        }
+
+        .quick-add-fold + .quick-add-fold {
+            margin-top: 8px;
+        }
+
+        .quick-add-fold summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 9px 0;
+            font-size: 0.84rem;
+            font-weight: 700;
+            color: #2a4563;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+        }
+
+        .quick-add-fold summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .quick-add-fold summary::after {
+            content: '▾';
+            color: #6e8198;
+            font-size: 0.74rem;
+        }
+
+        .quick-add-fold[open] summary::after {
+            content: '▴';
+        }
+
+        .quick-add-fold-body {
+            padding-bottom: 10px;
         }
 
         .day-count-badge {
@@ -213,10 +449,21 @@
 
         .day-fold-toggle-btn {
             margin-top: 4px;
-            padding: 2px 8px;
-            font-size: 0.72rem;
+            padding: 3px 10px;
+            font-size: 0.7rem;
             line-height: 1.2;
             border-radius: 999px;
+            border: 1px solid #d3deea;
+            background: #f7faff;
+            color: #4f6782;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+
+        .day-fold-toggle-btn:hover {
+            border-color: #a8bfd9;
+            background: #edf4ff;
+            color: #1f4f8f;
         }
 
         .schedule-compact-item.cat-construction.construction-shift-day {
@@ -564,6 +811,19 @@
                 font-size: 1.05rem;
             }
 
+            .app-top-nav {
+                width: 100%;
+            }
+
+            .dashboard-header-toolbar {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .header-sync-meta {
+                font-size: 0.72rem;
+            }
+
             .container-fluid {
                 margin-top: 12px !important;
                 padding-left: 10px !important;
@@ -623,6 +883,13 @@
                 justify-content: space-between;
                 align-items: center;
                 gap: 6px;
+            }
+
+            .day-add-btn {
+                width: 19px;
+                height: 19px;
+                font-size: 0.68rem;
+                opacity: 1;
             }
 
             .mobile-day-title.today {
@@ -779,12 +1046,21 @@
         <div class="d-flex align-items-center gap-2 flex-wrap flex-grow-1 header-title-block" style="min-width: 0;">
             <button type="button" class="btn btn-outline-light btn-sm" id="appMenuBtn" onclick="toggleAppDrawer(true)"
                 aria-label="메뉴 열기">☰</button>
-            <h3 class="m-0 fw-bold text-truncate" style="max-width: min(100%, 14rem);">📊 YJS 현황판</h3>
+            <h3 class="brand-mark text-truncate" style="max-width: min(100%, 14rem);">YEC</h3>
+            <div class="top-nav-shell ms-1">
+                <span class="top-nav-label">메뉴</span>
+                <nav class="app-top-nav" aria-label="주요 화면 이동">
+                    <a href="/home.html" class="btn btn-sm btn-outline-light">홈</a>
+                    <a href="/dashboard.html" class="btn btn-sm btn-light">월간 계획표</a>
+                    <a href="/index.html" class="btn btn-sm btn-outline-light">AI 비서</a>
+                    <a href="/admin.html" class="btn btn-sm btn-outline-warning js-admin-only d-none">관리자</a>
+                </nav>
+            </div>
         </div>
-        <div class="d-flex align-items-center flex-wrap gap-2 justify-content-end dashboard-header-toolbar">
+        <div class="dashboard-header-toolbar">
             <h5 class="m-0" id="currentDate"></h5>
-            <small class="text-white-50 text-nowrap" id="lastUpdated">업데이트 중...</small>
-            <span class="badge bg-success fs-6 blink-bg">🟢 실시간 연동 중</span>
+            <small class="header-sync-meta text-nowrap" id="lastUpdated">동기화 중...</small>
+            <span class="header-live-pill"><span class="live-dot" aria-hidden="true"></span>실시간 연동</span>
         </div>
     </header>
 
@@ -797,8 +1073,9 @@
         </div>
         <div class="app-drawer-body">
             <div class="list-group list-group-flush">
+                <a href="/home.html" class="list-group-item list-group-item-action">🏠 운영 홈</a>
                 <a href="/index.html" class="list-group-item list-group-item-action">🤖 AI 비서</a>
-                <a href="/admin.html" id="drawerAdminLink" class="list-group-item list-group-item-action d-none">⚙
+                <a href="/admin.html" id="drawerAdminLink" class="list-group-item list-group-item-action js-admin-only d-none">⚙
                     관리자</a>
                 <button type="button" class="list-group-item list-group-item-action text-start"
                     onclick="logout(); toggleAppDrawer(false);">로그아웃</button>
@@ -832,10 +1109,10 @@
         </div>
     </aside>
 
-    <div class="container-fluid mt-4 px-4">
+    <div class="container-fluid px-4 dashboard-shell">
         <div class="row g-3">
 
-            <div class="col-xl-9 col-lg-8" id="mainBoardColumn">
+            <div class="col-12" id="mainBoardColumn">
                 <div class="toolbar-card">
                     <div class="row g-2 align-items-center">
                         <div class="col-12 col-md-4 col-lg-3">
@@ -899,10 +1176,14 @@
                                     style="max-width: 100%;">공지: 중요 안내는 관리자에게 문의하세요.</span>
                             </div>
                             <div class="d-flex gap-2 flex-shrink-0">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="rightColumnToggleBtn"
-                                    onclick="toggleRightColumn()">↔ 우측 패널 접기</button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary"
-                                    onclick="loadSchedules()">🔄 수동 갱신</button>
+                                    onclick="loadSchedules()" title="새로고침" aria-label="새로고침">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                                        <path d="M8 3a5 5 0 1 0 4.546 2.916.5.5 0 1 1 .908-.418A6 6 0 1 1 8 2v1z"/>
+                                        <path d="M8 0a.5.5 0 0 1 .5.5V2a.5.5 0 0 1-1 0V.5A.5.5 0 0 1 8 0z"/>
+                                        <path d="M8.5 2.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1z"/>
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -912,75 +1193,6 @@
                             <div class="spinner-border text-primary" role="status"></div>
                             <p class="mt-3">현장 데이터를 불러오는 중입니다...</p>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-lg-4" id="rightPanelColumn">
-                <div class="card" id="workerPanelCard">
-                    <div class="card-header py-3 fw-bold">
-                        <span>🏃‍♂️ 외출 및 행선표</span>
-                    </div>
-                    <div class="card-body side-panel-body" id="workerPanelBody">
-                        <div class="small text-muted mb-2 worker-panel-note" id="workerPanelNote">관리자 등록 인원 기준으로 상태를 클릭
-                            편집할 수 있으며, 행선/복귀 시각은 외출 상태에서만 표시됩니다.</div>
-                        <ul class="list-group list-group-flush" id="workerStatusList"></ul>
-                    </div>
-                </div>
-
-                <div class="card mt-3">
-                    <div class="card-header py-3">
-                        <button type="button" class="side-panel-header-btn" onclick="toggleRightPanel('memo')">
-                            <span>📝 기타 메모</span>
-                            <span class="toggle-indicator" id="memoPanelToggleIcon">▼</span>
-                        </button>
-                    </div>
-                    <div class="card-body side-panel-body" id="memoPanelBody">
-                        <div class="input-group input-group-sm mb-2">
-                            <input id="memoInput" class="form-control" placeholder="메모 입력">
-                            <button class="btn btn-outline-secondary" onclick="saveMemo()">등록</button>
-                        </div>
-                        <div id="memoList" class="vstack gap-2"></div>
-                    </div>
-                </div>
-
-                <div class="card mt-3">
-                    <div class="card-header py-3">
-                        <button type="button" class="side-panel-header-btn" onclick="toggleRightPanel('board')">
-                            <span>🧩 상황판 등록</span>
-                            <span class="toggle-indicator" id="boardPanelToggleIcon">▼</span>
-                        </button>
-                    </div>
-                    <div class="card-body side-panel-body" id="boardPanelBody">
-                        <div class="input-group input-group-sm mb-2">
-                            <span class="input-group-text small">등록</span>
-                            <input id="boardDate" class="form-control" type="date">
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label small mb-0">카테고리</label>
-                            <select id="boardCategory" class="form-select form-select-sm">
-                                <option value="공사 일정" selected>공사 일정</option>
-                                <option value="일반 작업">일반 작업</option>
-                                <option value="일정">일정</option>
-                            </select>
-                        </div>
-                        <div class="mb-2">
-                            <input id="boardTask" class="form-control form-control-sm mb-1" placeholder="작업/메모 제목">
-                            <textarea id="boardDetails" class="form-control form-control-sm" rows="2"
-                                placeholder="상세"></textarea>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label small mb-0">주간/야간</label>
-                            <select id="boardShiftType" class="form-select form-select-sm">
-                                <option value="" selected>미지정</option>
-                                <option value="주간">주간</option>
-                                <option value="야간">야간</option>
-                            </select>
-                        </div>
-                        <input id="boardWorkCode" class="form-control form-control-sm mb-2"
-                            placeholder="공사 코드 (예: AN-2408)">
-                        <button class="btn btn-sm btn-outline-primary w-100" onclick="submitBoardTemplate()">템플릿
-                            전송</button>
                     </div>
                 </div>
             </div>
@@ -1027,8 +1239,7 @@
                         placeholder="상세 내용"></textarea>
                     <label class="form-label small mb-0">카테고리</label>
                     <select id="editCategory" class="form-select form-select-sm mb-2">
-                        <option value="공사 일정">공사 일정</option>
-                        <option value="일반 작업">일반 작업</option>
+                        <option value="공사 일정">공사</option>
                         <option value="일정">일정</option>
                     </select>
                     <label class="form-label small mb-0">주간/야간</label>
@@ -1101,6 +1312,74 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="quickAddScheduleModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">일정 빠른 등록</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2 mb-2">
+                        <div class="col-5">
+                            <label class="form-label small mb-1">날짜</label>
+                            <input id="quickAddDate" class="form-control form-control-sm" type="date">
+                        </div>
+                        <div class="col-7">
+                            <label class="form-label small mb-1">제목</label>
+                            <input id="quickAddTask" class="form-control form-control-sm" placeholder="작업명">
+                        </div>
+                    </div>
+
+                    <details id="quickAddPeopleSection" class="quick-add-fold">
+                        <summary>작업 인원 추가</summary>
+                        <div class="quick-add-fold-body">
+                            <input id="quickAddPerson" class="form-control form-control-sm mb-2" placeholder="직접입력 혹은 아래에서 선택">
+                            <div id="quickAddFieldStaffList" class="quick-add-staff-list">
+                                <span class="small text-muted">펼치면 인원 목록이 보입니다.</span>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details id="quickAddAdvancedSection" class="quick-add-fold">
+                        <summary>추가 옵션</summary>
+                        <div class="quick-add-fold-body">
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">카테고리</label>
+                                <select id="quickAddCategory" class="form-select form-select-sm">
+                                    <option value="공사 일정" selected>공사</option>
+                                    <option value="일정">일정</option>
+                                </select>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">상세</label>
+                                <textarea id="quickAddDetails" class="form-control form-control-sm" rows="2" placeholder="상세 내용"></textarea>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label small mb-1">주간/야간</label>
+                                    <select id="quickAddShiftType" class="form-select form-select-sm">
+                                        <option value="" selected>미지정</option>
+                                        <option value="주간">주간</option>
+                                        <option value="야간">야간</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small mb-1">공사 코드</label>
+                                    <input id="quickAddWorkCode" class="form-control form-control-sm" placeholder="AN-2408">
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="submitQuickAddSchedule()">등록</button>
                 </div>
             </div>
         </div>
@@ -1227,6 +1506,7 @@
         let personFilterModal = null;
         let workerReturnTimeModal = null;
         let detailPreviewModal = null;
+        let quickAddScheduleModal = null;
         let dashboardLoginModal = null;
         const fieldStaffNameById = {};
         const selectedFieldStaffIds = new Set();
@@ -1240,7 +1520,6 @@
             showWorkCode: false,
         };
         let rightPanelState = {
-            memo: false,
             board: false,
         };
         let rightColumnMode = 'full'; // full -> rail -> hidden
@@ -1329,7 +1608,6 @@
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     rightPanelState = {
-                        memo: Boolean(parsed.memo),
                         board: Boolean(parsed.board),
                     };
                 }
@@ -1344,7 +1622,6 @@
         function applyRightPanelState() {
             const rail = rightColumnMode === 'rail';
             const collapsibleMap = [
-                ['memo', 'memoPanelBody', 'memoPanelToggleIcon'],
                 ['board', 'boardPanelBody', 'boardPanelToggleIcon'],
             ];
             collapsibleMap.forEach(([key, bodyId, iconId]) => {
@@ -1367,7 +1644,6 @@
                 saveRightPanelState();
                 applyRightColumnState();
                 applyRightPanelState();
-                loadMemos();
                 return;
             }
             rightPanelState[key] = !rightPanelState[key];
@@ -1413,7 +1689,6 @@
             }
             applyRightPanelState();
             loadWorkerStatus();
-            loadMemos();
         }
 
         function toggleRightColumn() {
@@ -1485,8 +1760,9 @@
 
         function displayCategoryLabel(category) {
             const c = String(category || '').trim();
-            if (!c || c === '공사일정' || c === '공사 일정') return '공사 일정';
-            return c;
+            if (!c || c === '공사일정' || c === '공사 일정' || c === '공사') return '공사';
+            if (c === '일반 작업' || c === '일정' || isGeneralWorkCategory(c)) return '일정';
+            return c || '일정';
         }
 
         function isGeneralWorkCategory(category) {
@@ -1571,7 +1847,9 @@
                         person: nextPerson,
                         details: item.details || '',
                         category: item.category || '공사 일정',
-                        shift_type: normalizeShiftType(item.shift_type || ''),
+                        shift_type: (typeof applyDefaultShiftType === 'function')
+                            ? applyDefaultShiftType(item.category || '공사 일정', item.shift_type || '')
+                            : normalizeShiftType(item.shift_type || ''),
                         work_code: String(item.work_code || '').trim(),
                     },
                     reason: '작업 인원 일괄 추가',
@@ -1707,7 +1985,7 @@
         function updateLastSyncTime() {
             const now = new Date();
             const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-            document.getElementById('lastUpdated').innerText = `마지막 동기화: ${timeStr}`;
+            document.getElementById('lastUpdated').innerText = `동기화 ${timeStr}`;
         }
 
         function escapeHtml(value) {
@@ -1757,6 +2035,8 @@
             window.workerReturnTimeModal = workerReturnTimeModal;
             detailPreviewModal = new bootstrap.Modal(document.getElementById('detailPreviewModal'));
             window.detailPreviewModal = detailPreviewModal;
+            quickAddScheduleModal = new bootstrap.Modal(document.getElementById('quickAddScheduleModal'));
+            window.quickAddScheduleModal = quickAddScheduleModal;
             window.documentTemplateModal = new bootstrap.Modal(document.getElementById('documentTemplateModal'));
             window.documentGenerateModal = new bootstrap.Modal(document.getElementById('documentGenerateModal'));
             window.documentExtractModal = new bootstrap.Modal(document.getElementById('documentExtractModal'));
@@ -1768,8 +2048,6 @@
             bindDashboardNoticeEditor();
             loadScheduleViewOptions();
             bindScheduleViewOptions();
-            loadRightPanelState();
-            loadRightColumnState();
             updatePersonFilterSummary();
             bindCompactItemActions();
             document.getElementById('todayOnlyCheck').addEventListener('change', () => {
@@ -1788,7 +2066,6 @@
                 if (picked) setCurrentBoardMonth(picked);
             });
             document.getElementById('todayOnlyCheck').dispatchEvent(new Event('change'));
-            document.getElementById('boardDate').value = formatLocalDateYYYYMMDD();
             loadSchedules();
 
             // 60초마다 백그라운드에서 자동으로 데이터 갱신
@@ -1806,7 +2083,7 @@
             initializeDashboardPage();
         };
     </script>
-    <script src="/dashboard.auth.js"></script>
+    <script src="/dashboard.auth.js?v=20260416"></script>
     <script src="/dashboard.sidebar.js"></script>
     <script src="/dashboard.schedule.js"></script>
     <script src="/dashboard.document.js"></script>

@@ -103,13 +103,18 @@ app.include_router(documents.router)
 app.include_router(local_apps.router)
 
 # --- 프론트엔드 화면 서빙 ---
-@app.get("/", summary="기본 상황판 화면", tags=["Pages"])
+@app.get("/", summary="기본 운영 홈 화면", tags=["Pages"])
 async def serve_home():
-    return FileResponse("dashboard.html")
+    return FileResponse("home.html")
 
 @app.get("/dashboard.html", summary="상황판 화면", tags=["Pages"])
 async def serve_dashboard():
     return FileResponse("dashboard.html")
+
+
+@app.get("/home.html", summary="운영 홈 화면", tags=["Pages"])
+async def serve_home_page():
+    return FileResponse("home.html")
 
 
 @app.get("/index.html", summary="채팅 입력 화면", tags=["Pages"])
@@ -160,6 +165,11 @@ async def serve_dashboard_schedule_js():
 @app.get("/dashboard.document.js", summary="대시보드 문서 스크립트", tags=["Pages"])
 async def serve_dashboard_document_js():
     return FileResponse("dashboard.document.js", media_type="application/javascript")
+
+
+@app.get("/home.js", summary="홈 화면 스크립트", tags=["Pages"])
+async def serve_home_js():
+    return FileResponse("home.js", media_type="application/javascript")
 
 
 if __name__ == "__main__":

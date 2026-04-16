@@ -49,7 +49,7 @@ def login_as_admin(client, monkeypatch, tmp_path):
 
 def test_static_pages_are_served(client):
     page_markers = {
-        "/": ["현장 보고 실시간 현황", "오늘만"],
+        "/": ["YJS 운영 홈", "외출/행선표"],
         "/index.html": ["사진 카테고리 선택", "요청 접수"],
         "/dashboard.html": ["일정 수정", "오늘만"],
         "/admin.html": ["요청 반려", "백업데이터 생성 실행"],
@@ -195,20 +195,8 @@ def test_import_construction_plan_invalid_date(client, monkeypatch, tmp_path):
     assert bad.status_code == 400
 
 
-def test_memo_and_worker_status_flow(client, monkeypatch, tmp_path):
+def test_worker_status_flow(client, monkeypatch, tmp_path):
     login_as_admin(client, monkeypatch, tmp_path)
-
-    memo_res = client.post(
-        "/api/schedules/memos",
-        json={"content": "현장 메모 테스트", "memo_type": "일반", "visibility": "all"},
-    )
-    assert memo_res.status_code == 200
-    assert memo_res.json()["status"] == "success"
-
-    memo_list_res = client.get("/api/schedules/memos")
-    assert memo_list_res.status_code == 200
-    memo_items = memo_list_res.json()["data"]
-    assert any(item["content"] == "현장 메모 테스트" for item in memo_items)
 
     status_set_res = client.post(
         "/api/schedules/worker-status",

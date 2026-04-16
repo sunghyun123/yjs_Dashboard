@@ -148,22 +148,8 @@ class DBManager:
                     conn.execute("ALTER TABLE photo_uploads ADD COLUMN file_size INTEGER DEFAULT 0")
                 if "file_sha256" not in photo_columns:
                     conn.execute("ALTER TABLE photo_uploads ADD COLUMN file_sha256 TEXT DEFAULT ''")
-                conn.execute("""
-                             CREATE TABLE IF NOT EXISTS memo_items
-                             (
-                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                 memo_type TEXT NOT NULL DEFAULT '일반',
-                                 content TEXT NOT NULL,
-                                 target_date TEXT NOT NULL,
-                                 linked_schedule_id INTEGER,
-                                 visibility TEXT NOT NULL DEFAULT 'all',
-                                 status TEXT NOT NULL DEFAULT 'active',
-                                 last_actor_user TEXT,
-                                 last_actor_device TEXT,
-                                 last_actor_at TEXT,
-                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                             )
-                             """)
+                # 메모 기능 제거: 기존 테이블이 있어도 정리한다.
+                conn.execute("DROP TABLE IF EXISTS memo_items")
                 conn.execute("""
                              CREATE TABLE IF NOT EXISTS worker_status
                              (
@@ -203,6 +189,16 @@ class DBManager:
                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
                                  name TEXT NOT NULL UNIQUE,
                                  sort_order INTEGER DEFAULT 0
+                             )
+                             """)
+                conn.execute("""
+                             CREATE TABLE IF NOT EXISTS frequent_sites
+                             (
+                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 title TEXT NOT NULL,
+                                 url TEXT NOT NULL UNIQUE,
+                                 sort_order INTEGER DEFAULT 0,
+                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                              )
                              """)
                 conn.execute("""
@@ -1035,66 +1031,6 @@ class DBManager:
                 )
                 return int(cursor.lastrowid)
 
-    def create_memo(
-        self,
-        content: str,
-        target_date: str,
-        memo_type: str = "일반",
-        linked_schedule_id: Optional[int] = None,
-        visibility: str = "all",
-        actor_user: str = "",
-        actor_device: str = "",
-    ) -> int:
-        with closing(sqlite3.connect(self.db_path)) as conn:
-            with conn:
-                cursor = conn.execute(
-                    """
-                    INSERT INTO memo_items (
-                        memo_type, content, target_date, linked_schedule_id, visibility, status,
-                        last_actor_user, last_actor_device, last_actor_at
-                    ) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)
-                    """,
-                    (
-                        memo_type, content, target_date, linked_schedule_id, visibility,
-                        actor_user, actor_device, datetime.utcnow().isoformat()
-                    ),
-                )
-                return int(cursor.lastrowid)
-
-    def list_memos(self, target_date: Optional[str] = None) -> List[Dict[str, Any]]:
-        query = """
-            SELECT id, memo_type, content, target_date, linked_schedule_id, visibility, status,
-                   last_actor_user, last_actor_device, last_actor_at,
-                   datetime(created_at, 'localtime') AS created_at
-            FROM memo_items
-            WHERE status = 'active'
-        """
-        params: List[Any] = []
-        if target_date:
-            query += " AND target_date = ?"
-            params.append(target_date)
-        query += " ORDER BY id DESC LIMIT 200"
-        with closing(sqlite3.connect(self.db_path)) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(query, params).fetchall()
-            return [dict(row) for row in rows]
-
-    def soft_delete_memo(self, memo_id: int, actor_user: str = "", actor_device: str = "") -> bool:
-        with closing(sqlite3.connect(self.db_path)) as conn:
-            with conn:
-                cursor = conn.execute(
-                    """
-                    UPDATE memo_items
-                    SET status = 'deleted',
-                        last_actor_user = ?,
-                        last_actor_device = ?,
-                        last_actor_at = ?
-                    WHERE id = ? AND status = 'active'
-                    """,
-                    (actor_user, actor_device, datetime.utcnow().isoformat(), memo_id),
-                )
-                return cursor.rowcount > 0
-
     def upsert_worker_status(
         self,
         user_name: str,
@@ -1302,6 +1238,37 @@ class DBManager:
                 cursor = conn.execute("DELETE FROM outing_staff WHERE id = ?", (staff_id,))
                 return cursor.rowcount > 0
 
+    def list_frequent_sites(self) -> List[Dict[str, Any]]:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT id, title, url, sort_order FROM frequent_sites ORDER BY sort_order ASC, id ASC"
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def add_frequent_site(self, title: str, url: str, sort_order: int = 0) -> int:
+        t = (title or "").strip()
+        u = (url or "").strip()
+        if not t:
+            raise ValueError("사이트 이름이 필요합니다.")
+        if not u:
+            raise ValueError("사이트 URL이 필요합니다.")
+        if not (u.startswith("http://") or u.startswith("https://")):
+            raise ValueError("URL은 http:// 또는 https:// 로 시작해야 합니다.")
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                cursor = conn.execute(
+                    "INSERT INTO frequent_sites (title, url, sort_order) VALUES (?, ?, ?)",
+                    (t, u, sort_order),
+                )
+                return int(cursor.lastrowid)
+
+    def delete_frequent_site(self, site_id: int) -> bool:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                cursor = conn.execute("DELETE FROM frequent_sites WHERE id = ?", (site_id,))
+                return cursor.rowcount > 0
+
     def get_daily_schedules(self, target_date: str) -> List[Dict[str, Any]]:
         query = """
             SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
@@ -1331,20 +1298,6 @@ class DBManager:
         with closing(sqlite3.connect(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(query).fetchall()
-            return [dict(row) for row in rows]
-
-    def get_daily_memos(self, target_date: str) -> List[Dict[str, Any]]:
-        query = """
-            SELECT id, memo_type, content, target_date, linked_schedule_id, visibility, status,
-                   last_actor_user, last_actor_device, last_actor_at,
-                   datetime(created_at, 'localtime') AS created_at
-            FROM memo_items
-            WHERE target_date = ?
-            ORDER BY created_at DESC
-        """
-        with closing(sqlite3.connect(self.db_path)) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(query, (target_date,)).fetchall()
             return [dict(row) for row in rows]
 
     def create_export_job(self, target_date: str, status: str, output_path: str = "", message: str = "") -> int:
@@ -1477,10 +1430,6 @@ class DBManager:
                 """,
                 (target_date,),
             ).fetchone()["cnt"]
-            memo_count = conn.execute(
-                "SELECT COUNT(*) AS cnt FROM memo_items WHERE target_date = ?",
-                (target_date,),
-            ).fetchone()["cnt"]
             outing_status_count = conn.execute(
                 "SELECT COUNT(*) AS cnt FROM worker_status",
             ).fetchone()["cnt"]
@@ -1552,10 +1501,6 @@ class DBManager:
                     FROM field_schedules
                     WHERE date(last_actor_at) = ?
                     UNION ALL
-                    SELECT COALESCE(last_actor_user, '') AS actor_user
-                    FROM memo_items
-                    WHERE date(last_actor_at) = ?
-                    UNION ALL
                     SELECT COALESCE(requested_by, '') AS actor_user
                     FROM admin_requests
                     WHERE date(datetime(created_at, 'localtime')) = ?
@@ -1589,7 +1534,6 @@ class DBManager:
                     target_date,
                     target_date,
                     target_date,
-                    target_date,
                 ),
             ).fetchall()
             dau_count = len(daily_active_users)
@@ -1598,7 +1542,6 @@ class DBManager:
                 "target_date": target_date,
                 "active_schedule_count": int(active_schedule_count or 0),
                 "schedule_created_count": int(schedule_created_count or 0),
-                "memo_count": int(memo_count or 0),
                 "outing_status_snapshot_count": int(outing_status_count or 0),
                 "admin_request_count": int(admin_request_count or 0),
                 "photo_upload_count": int(photo_upload_count or 0),

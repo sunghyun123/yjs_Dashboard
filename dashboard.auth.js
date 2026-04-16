@@ -46,19 +46,32 @@
         window.location.href = '/api/auth/kakao/login?next=' + next;
     }
 
+    async function fetchSessionWithRetry(maxRetry = 2, delayMs = 500) {
+        for (let i = 0; i <= maxRetry; i++) {
+            try {
+                const res = await fetch('/api/auth/me', { cache: 'no-store' });
+                return res;
+            } catch (_e) {
+                if (i >= maxRetry) break;
+                await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+            }
+        }
+        throw new Error('session_check_network_error');
+    }
+
     async function ensureSession() {
         const urlMsg = consumeKakaoUrlMessage();
         try {
-            const response = await fetch('/api/auth/me');
+            const response = await fetchSessionWithRetry();
             if (!response.ok) {
                 showDashboardLoginError(urlMsg);
                 window.dashboardLoginModal.show();
                 return false;
             }
             const me = await response.json();
-            const drawerAdmin = document.getElementById('drawerAdminLink');
-            if (me.role === 'admin') drawerAdmin.classList.remove('d-none');
-            else drawerAdmin.classList.add('d-none');
+            document.querySelectorAll('.js-admin-only').forEach((el) => {
+                el.classList.toggle('d-none', me.role !== 'admin');
+            });
             window.dashboardLoginModal.hide();
             showDashboardLoginError('');
             return true;
@@ -76,10 +89,10 @@
 
     async function reopenDashboardLoginIfLoggedOut() {
         try {
-            const res = await fetch('/api/auth/me');
+            const res = await fetchSessionWithRetry(1, 400);
             if (!res.ok) openDashboardLoginModal('');
         } catch (_e) {
-            openDashboardLoginModal('로그인 상태를 확인하지 못했습니다. 네트워크를 확인해 주세요.');
+            openDashboardLoginModal('로그인 상태를 확인하지 못했습니다. 서버 재시작 중일 수 있습니다. 잠시 후 다시 시도해 주세요.');
         }
     }
 

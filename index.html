@@ -16,6 +16,40 @@
         /* 상단 헤더 */
         .chat-header { background-color: #003366; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
         .chat-header h5 { margin: 0; font-size: 1.1rem; font-weight: bold; }
+        .app-top-nav { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+        .top-nav-shell {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .top-nav-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.82);
+            line-height: 1;
+        }
+        .brand-mark {
+            margin: 0;
+            font-size: 1.28rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            line-height: 1;
+            transform: skewX(-12deg);
+            display: inline-block;
+            background: linear-gradient(180deg, #ff5a46 0%, #e32727 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 10px rgba(255, 80, 60, 0.28);
+        }
+        .app-top-nav .btn { border-radius: 999px; font-size: 0.75rem; padding: 4px 10px; line-height: 1.2; min-width: 74px; font-weight: 700; }
+        .app-top-nav .btn:hover { transform: translateY(-1px); }
 
         /* 채팅 내역 영역 */
         .chat-box { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
@@ -95,6 +129,8 @@
         @media (max-width: 768px) {
             .chat-header { padding: 10px 12px; gap: 8px; align-items: flex-start; }
             .chat-header h5 { font-size: 0.98rem; }
+            .top-nav-shell { width: 100%; justify-content: space-between; }
+            .app-top-nav { width: 100%; }
             .chat-box { padding: 10px; }
             .interactive-card { width: 100%; }
             .input-area { padding: 8px 10px; gap: 8px; }
@@ -107,17 +143,28 @@
 
 <div class="app-container">
     <header class="chat-header">
-        <div class="d-flex align-items-center gap-2 flex-wrap" style="min-width:0;">
-            <button type="button" class="btn btn-outline-light btn-sm rounded-pill" onclick="toggleIndexDrawer(true)" aria-label="메뉴">☰</button>
-            <h5 class="m-0 text-truncate" style="max-width: 11rem;">🤖 YJS AI 비서</h5>
-            <span id="loginUserBadge" class="badge bg-light text-dark d-none"></span>
+        <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap w-100">
+            <div class="d-flex align-items-center gap-2 flex-wrap" style="min-width:0;">
+                <button type="button" class="btn btn-outline-light btn-sm rounded-pill" onclick="toggleIndexDrawer(true)" aria-label="메뉴">☰</button>
+                <h5 class="brand-mark text-truncate" style="max-width: 11rem;">YEC</h5>
+                <span id="loginUserBadge" class="badge bg-light text-dark d-none"></span>
+            </div>
+            <div class="top-nav-shell">
+                <span class="top-nav-label">메뉴</span>
+                <nav class="app-top-nav" aria-label="주요 화면 이동">
+                    <a href="/home.html" class="btn btn-sm btn-outline-light">홈</a>
+                    <a href="/dashboard.html" class="btn btn-sm btn-outline-light">월간 계획표</a>
+                    <a href="/index.html" class="btn btn-sm btn-light">AI 비서</a>
+                    <a href="/admin.html" class="btn btn-sm btn-outline-warning js-admin-only d-none">관리자</a>
+                </nav>
+            </div>
         </div>
     </header>
 
     <div class="chat-box" id="chatBox">
         <div class="bubble bubble-bot">
             안녕하세요! 현장 관리 AI 비서입니다.<br>
-            오늘 일정 등록/조회, 메모 작성이나 작업일지 사진을 보내주시면 제가 도와드릴게요! 😊<br>
+            오늘 일정 등록/조회나 작업일지 사진을 보내주시면 제가 도와드릴게요! 😊<br>
             <small class="text-muted">(예: "오늘 안양 현장 야간작업 추가해줘")</small>
         </div>
     </div>
@@ -136,7 +183,6 @@
         <select id="inputCategory" class="form-select form-select-sm" style="max-width: 150px;">
             <option value="schedule_create" selected>공사 일정 등록</option>
             <option value="general_work">일반 작업</option>
-            <option value="memo">메모</option>
             <option value="other">기타(관리자에게 전송)</option>
         </select>
 
@@ -156,8 +202,9 @@
     </div>
     <div class="idx-drawer-body">
         <div class="list-group list-group-flush">
+            <a href="/home.html" class="list-group-item list-group-item-action">🏠 운영 홈</a>
             <a href="/dashboard.html" class="list-group-item list-group-item-action">📊 상황판</a>
-            <a href="/admin.html" id="drawerAdminLink" class="list-group-item list-group-item-action d-none">⚙ 관리자</a>
+            <a href="/admin.html" id="drawerAdminLink" class="list-group-item list-group-item-action js-admin-only d-none">⚙ 관리자</a>
             <button type="button" class="list-group-item list-group-item-action text-start" onclick="logout()">로그아웃</button>
         </div>
         <hr class="my-3">
@@ -211,7 +258,6 @@
     const typingIndicator = document.getElementById('typingIndicator');
     const loginOverlay = document.getElementById('loginOverlay');
     const loginUserBadge = document.getElementById('loginUserBadge');
-    const drawerAdminLink = document.getElementById('drawerAdminLink');
     const imageInput = document.getElementById('imageInput');
     const uploadCategorySelect = document.getElementById('uploadCategorySelect');
 
@@ -538,8 +584,20 @@
 
     async function checkSession() {
         const urlMsg = consumeIndexKakaoUrlMessage();
+        async function fetchSessionWithRetry(maxRetry = 2, delayMs = 500) {
+            for (let i = 0; i <= maxRetry; i++) {
+                try {
+                    const res = await fetch('/api/auth/me', { cache: 'no-store' });
+                    return res;
+                } catch (_e) {
+                    if (i >= maxRetry) break;
+                    await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+                }
+            }
+            throw new Error('session_check_network_error');
+        }
         try {
-            const res = await fetch('/api/auth/me');
+            const res = await fetchSessionWithRetry();
             if (!res.ok) {
                 showIndexLoginError(urlMsg);
                 return false;
@@ -548,13 +606,14 @@
             currentUserId = me.user_id;
             loginUserBadge.textContent = `${me.user_id}`;
             loginUserBadge.classList.remove('d-none');
-            if (me.role === 'admin') drawerAdminLink.classList.remove('d-none');
-            else drawerAdminLink.classList.add('d-none');
+            document.querySelectorAll('.js-admin-only').forEach((el) => {
+                el.classList.toggle('d-none', me.role !== 'admin');
+            });
             loginOverlay.style.display = 'none';
             showIndexLoginError('');
             return true;
         } catch (e) {
-            showIndexLoginError(urlMsg || '로그인 상태를 확인하지 못했습니다.');
+            showIndexLoginError(urlMsg || '로그인 상태를 확인하지 못했습니다. 서버 재시작 중일 수 있습니다. 잠시 후 다시 시도해 주세요.');
             return false;
         }
     }
