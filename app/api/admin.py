@@ -34,6 +34,12 @@ class FieldStaffCreate(BaseModel):
     sort_order: int = Field(default=0, description="정렬 순서")
 
 
+class FrequentSiteCreate(BaseModel):
+    title: str = Field(..., min_length=1, description="사이트 이름")
+    url: str = Field(..., min_length=1, description="사이트 URL")
+    sort_order: int = Field(default=0, description="정렬 순서")
+
+
 @router.get("/requests")
 def list_requests(
     status: str = "pending",
@@ -214,6 +220,33 @@ def add_outing_staff(payload: FieldStaffCreate, _admin=Depends(require_admin)):
 @router.delete("/outing-staff/{staff_id}")
 def delete_outing_staff(staff_id: int, _admin=Depends(require_admin)):
     if not db.delete_outing_staff(staff_id):
+        raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다.")
+    return {"status": "success", "message": "삭제되었습니다."}
+
+
+@router.get("/frequent-sites")
+def list_frequent_sites(_admin=Depends(require_admin)):
+    return {"status": "success", "data": db.list_frequent_sites()}
+
+
+@router.post("/frequent-sites")
+def add_frequent_site(payload: FrequentSiteCreate, _admin=Depends(require_admin)):
+    try:
+        new_id = db.add_frequent_site(
+            title=payload.title.strip(),
+            url=payload.url.strip(),
+            sort_order=payload.sort_order,
+        )
+        return {"status": "success", "id": new_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="이미 등록된 URL입니다.")
+
+
+@router.delete("/frequent-sites/{site_id}")
+def delete_frequent_site(site_id: int, _admin=Depends(require_admin)):
+    if not db.delete_frequent_site(site_id):
         raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다.")
     return {"status": "success", "message": "삭제되었습니다."}
 

@@ -57,77 +57,23 @@
         el.addEventListener('click', beginEditDashboardNotice, { once: true });
     }
 
-    async function loadMemos() {
-        const memoList = document.getElementById('memoList');
-        const today = formatLocalDateYYYYMMDD();
-        const response = await fetch(`/api/schedules/memos?date=${today}`);
-        const data = await response.json();
-        if (!response.ok) {
-            memoList.innerHTML = '<div class="text-danger small">메모 조회 실패</div>';
-            return;
-        }
-        const rows = data.data || [];
-        const generalMemos = rows.filter((m) => !m.linked_schedule_id);
-        if (generalMemos.length === 0) {
-            memoList.innerHTML = '<div class="text-muted small">오늘 메모가 없습니다.</div>';
-            return;
-        }
-        memoList.innerHTML = generalMemos.map((m) => `
-                <div class="border rounded p-2 bg-white">
-                    <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div>
-                            <div class="fw-semibold">${m.content}</div>
-                            <div class="small text-muted">${m.last_actor_user || '-'}</div>
-                        </div>
-                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" title="삭제" onclick="deleteMemo(${m.id})">🗑</button>
-                    </div>
-                </div>
-            `).join('');
-    }
-
-    async function deleteMemo(memoId) {
-        if (!confirm('해당 메모를 삭제하시겠습니까?')) return;
-        const response = await fetch(`/api/schedules/memos/${memoId}`, { method: 'DELETE' });
-        const data = await response.json();
-        if (!response.ok) {
-            alert(data.detail || data.message || '메모 삭제 실패');
-            return;
-        }
-        await loadMemos();
-    }
-
-    async function saveMemo() {
-        const content = document.getElementById('memoInput').value.trim();
-        if (!content) return;
-        const payload = { content, memo_type: '일반', visibility: 'all' };
-        const response = await fetch('/api/schedules/memos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await response.json();
-        if (!response.ok) {
-            alert(data.detail || '메모 등록 실패');
-            return;
-        }
-        document.getElementById('memoInput').value = '';
-        loadMemos();
-    }
-
     async function submitBoardTemplate() {
-        const cat = document.getElementById('boardCategory').value.trim() || '공사 일정';
+        const catRaw = document.getElementById('boardCategory').value.trim() || '공사 일정';
+        const cat = (catRaw === '일정' || catRaw === '일반 작업') ? '일정' : '공사 일정';
         const task = document.getElementById('boardTask').value.trim();
         if (!task) {
             alert('공사명·작업명을 입력하세요.');
             return;
         }
+        const rawShift = document.getElementById('boardShiftType').value.trim();
+        const shift = (!rawShift && cat === '공사 일정') ? '주간' : rawShift;
         const payload = {
             action_type: 'register',
             date: document.getElementById('boardDate').value.trim() || null,
             task: task,
             person: '',
             details: document.getElementById('boardDetails').value.trim(),
-            shift_type: document.getElementById('boardShiftType').value.trim(),
+            shift_type: shift,
             work_code: document.getElementById('boardWorkCode').value.trim(),
             category: cat,
             request_note: '',
@@ -173,9 +119,6 @@
     window.renderDashboardNotice = renderDashboardNotice;
     window.beginEditDashboardNotice = beginEditDashboardNotice;
     window.bindDashboardNoticeEditor = bindDashboardNoticeEditor;
-    window.loadMemos = loadMemos;
-    window.deleteMemo = deleteMemo;
-    window.saveMemo = saveMemo;
     window.submitBoardTemplate = submitBoardTemplate;
     window.toggleAppDrawer = toggleAppDrawer;
     window.toggleDocSubmenu = toggleDocSubmenu;

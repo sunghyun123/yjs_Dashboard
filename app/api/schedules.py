@@ -24,7 +24,7 @@ db = DBManager(db_path=settings.sqlite_db_path)
 # 3. Request 모델
 class ChatRequest(BaseModel):
     text: str = Field(..., description="사용자가 채팅창에 입력한 자연어 메시지")
-    input_category: Literal["schedule_create", "general_work", "memo", "other", "update_request", "delete_request"] = Field(
+    input_category: Literal["schedule_create", "general_work", "other", "update_request", "delete_request"] = Field(
         default="schedule_create",
         description="사용자 선택 입력 카테고리"
     )
@@ -39,14 +39,6 @@ class ExecuteRequest(BaseModel):
     schedule_id: Optional[int] = Field(default=None, description="삭제 시 필요한 일정 고유 ID")
 
 
-class MemoCreateRequest(BaseModel):
-    content: str = Field(..., description="메모 내용")
-    target_date: Optional[str] = Field(default=None, description="YYYY-MM-DD, 없으면 오늘")
-    memo_type: str = Field(default="일반", description="메모 유형")
-    linked_schedule_id: Optional[int] = Field(default=None, description="연결된 일정 ID")
-    visibility: str = Field(default="all", description="all 또는 private")
-
-
 class WorkerStatusRequest(BaseModel):
     user_name: str = Field(..., description="상태 대상 사용자")
     status: Literal["사무실", "외출", "야간작업"] = Field(..., description="변경 상태")
@@ -56,7 +48,7 @@ class WorkerStatusRequest(BaseModel):
 
 
 class BoardTemplateActionRequest(BaseModel):
-    action_type: Literal["register", "memo", "update_request", "delete_request"] = Field(
+    action_type: Literal["register", "update_request", "delete_request"] = Field(
         ...,
         description="전자칠판 템플릿 액션 타입"
     )
@@ -168,25 +160,6 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
         return {
             "intent": "incomplete",
             "reply_message": f"요청이 관리자 검토 큐로 접수되었습니다. (요청번호: #{req_id})",
-            "candidates": [],
-            "schedule_data": None
-        }
-
-    if request.input_category == "memo":
-        memo_id = db.create_memo(
-            content=request.text,
-            target_date=datetime.now().strftime("%Y-%m-%d"),
-            memo_type="일반",
-            linked_schedule_id=None,
-            visibility="all",
-            actor_user=user_session["user_id"],
-            actor_device=user_session.get("device_name", "unknown-device"),
-        )
-        response_intent = "incomplete"
-        record_chat_event()
-        return {
-            "intent": "incomplete",
-            "reply_message": f"메모가 등록되었습니다. (메모번호: #{memo_id})",
             "candidates": [],
             "schedule_data": None
         }
@@ -317,6 +290,11 @@ def list_outing_staff(_user_session=Depends(require_session)):
     return {"status": "success", "data": db.list_outing_staff()}
 
 
+@router.get("/frequent-sites", summary="홈 바로가기(자주 가는 사이트) 목록")
+def list_frequent_sites(_user_session=Depends(require_session)):
+    return {"status": "success", "data": db.list_frequent_sites()}
+
+
 @router.get("/today", summary="상황판용 오늘자 일정 조회")
 def get_todays_schedules(
     date: Optional[str] = None,
@@ -344,38 +322,6 @@ def get_todays_schedules(
     except Exception as e:
         logger.error(f"일정 조회 실패: {e}")
         raise HTTPException(status_code=500, detail="서버 내부 오류가 발생했습니다.")
-
-
-@router.post("/memos", summary="기타 메모 등록")
-def create_memo(request: MemoCreateRequest, user_session=Depends(require_session)):
-    target_date = request.target_date or datetime.now().strftime("%Y-%m-%d")
-    memo_id = db.create_memo(
-        content=request.content,
-        target_date=target_date,
-        memo_type=request.memo_type,
-        linked_schedule_id=request.linked_schedule_id,
-        visibility=request.visibility,
-        actor_user=user_session["user_id"],
-        actor_device=user_session.get("device_name", "unknown-device"),
-    )
-    return {"status": "success", "message": "메모가 등록되었습니다.", "memo_id": memo_id}
-
-
-@router.delete("/memos/{memo_id}", summary="메모 삭제")
-def delete_memo(memo_id: int, user_session=Depends(require_session)):
-    success = db.soft_delete_memo(
-        memo_id=memo_id,
-        actor_user=user_session["user_id"],
-        actor_device=user_session.get("device_name", "unknown-device"),
-    )
-    if not success:
-        raise HTTPException(status_code=404, detail="삭제할 메모를 찾을 수 없습니다.")
-    return {"status": "success", "message": "메모가 삭제되었습니다."}
-
-
-@router.get("/memos", summary="메모 조회")
-def list_memos(date: Optional[str] = None, _user_session=Depends(require_session)):
-    return {"status": "success", "data": db.list_memos(target_date=date)}
 
 
 @router.post("/worker-status", summary="외출/야간/사무실 상태 변경")
@@ -430,18 +376,6 @@ def board_template_action(request: BoardTemplateActionRequest, _user_session=Dep
             actor_device=actor_device,
         )
         return {"status": "success", "message": result_msg}
-
-    if request.action_type == "memo":
-        memo_id = db.create_memo(
-            content=request.task or request.details or request.request_note,
-            target_date=target_date,
-            memo_type="일반",
-            linked_schedule_id=None,
-            visibility="all",
-            actor_user=actor_user,
-            actor_device=actor_device,
-        )
-        return {"status": "success", "message": f"전자칠판 메모 등록 완료 (#{memo_id})"}
 
     req_type = "update_request" if request.action_type == "update_request" else "delete_request"
     req_id = db.create_admin_request(

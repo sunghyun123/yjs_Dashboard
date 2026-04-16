@@ -2,7 +2,7 @@
   "name": "YJS 현장 상황판",
   "short_name": "YJS",
   "description": "공사계획·현황·문서 도구",
-  "start_url": "/dashboard.html",
+  "start_url": "/home.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f4f6f9",

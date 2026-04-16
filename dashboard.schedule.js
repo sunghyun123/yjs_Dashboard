@@ -1,5 +1,6 @@
 (function () {
     const DAY_COLLAPSE_LIMIT = 4;
+    const quickAddSelectedPersonNames = new Set();
 
     function getScheduleState() {
         if (!window.__dashboardScheduleState) {
@@ -37,8 +38,14 @@
             if (!wrap || !btn) return;
             wrap.classList.remove('collapsed');
             btn.setAttribute('data-expanded', '1');
-            btn.textContent = '접기';
+            btn.textContent = dayFoldToggleLabel(0, true);
         });
+    }
+
+    function dayFoldToggleLabel(hiddenCount, expanded) {
+        if (expanded) return '간단히';
+        const count = Math.max(Number(hiddenCount) || 0, 0);
+        return `+${count} 더보기`;
     }
 
     /** DB에 [공사1팀] 접두가 남아 있어도 제목만 보이게(레거시 호환) */
@@ -168,7 +175,9 @@
             restoreActiveScheduleCard(prevActiveScheduleId);
             restoreExpandedDayFoldKeys();
             updateLastSyncTime();
-            await Promise.all([loadWorkerStatus(), loadMemos()]);
+            const sideTasks = [];
+            if (document.getElementById('workerStatusList')) sideTasks.push(loadWorkerStatus());
+            if (sideTasks.length) await Promise.all(sideTasks);
 
         } catch (error) {
             console.error('데이터 갱신 실패:', error);
@@ -183,6 +192,20 @@
         return '';
     }
 
+    function normalizeCategoryForSave(rawCategory) {
+        const ui = displayCategoryLabel(rawCategory || '').trim();
+        if (ui === '공사') return '공사 일정';
+        if (ui === '일정') return '일정';
+        return '일정';
+    }
+
+    function applyDefaultShiftType(rawCategory, rawShiftType) {
+        const normalized = normalizeShiftType(rawShiftType || '');
+        const ui = displayCategoryLabel(rawCategory || '').trim();
+        if (ui === '공사') return normalized || '주간';
+        return normalized;
+    }
+
     function shiftBadgeClass(shiftType) {
         const s = normalizeShiftType(shiftType);
         if (s === '주간') return 'shift-day';
@@ -192,8 +215,8 @@
 
     function constructionShiftCardClass(item) {
         const cat = displayCategoryLabel(item?.category || '').trim();
-        if (cat !== '공사 일정') return '';
-        return normalizeShiftType(item?.shift_type || '') === '야간' ? 'construction-shift-night' : 'construction-shift-day';
+        if (cat !== '공사') return '';
+        return applyDefaultShiftType(item?.category || '', item?.shift_type || '') === '야간' ? 'construction-shift-night' : 'construction-shift-day';
     }
 
     function fullPersonLabel(personRaw) {
@@ -209,16 +232,15 @@
 
     function categoryPriority(category) {
         const c = displayCategoryLabel(category || '').trim();
-        if (!c || c === '공사 일정') return 1;
+        if (!c || c === '공사') return 1;
         if (c === '일정') return 4;
-        if (c === '일반 작업') return 5;
         return 9;
     }
 
     function constructionShiftPriority(item) {
         const category = displayCategoryLabel(item?.category || '').trim();
-        if (category !== '공사 일정') return 0;
-        const shiftType = normalizeShiftType(item?.shift_type);
+        if (category !== '공사') return 0;
+        const shiftType = applyDefaultShiftType(item?.category || '', item?.shift_type || '');
         if (shiftType === '주간') return 1;
         if (shiftType === '야간') return 2;
         return 3;
@@ -226,10 +248,9 @@
 
     function compactCategoryClass(category) {
         const c = displayCategoryLabel(category || '').trim();
-        if (!c || c === '공사 일정') return 'cat-construction';
-        if (c === '일반 작업') return 'cat-general';
+        if (!c || c === '공사') return 'cat-construction';
         if (c === '일정') return 'cat-schedule';
-        return 'cat-general';
+        return 'cat-schedule';
     }
 
     function detailLineCount(text) {
@@ -248,12 +269,96 @@
             .join('<br>');
     }
 
+    function dayAddButtonHtml(dateKey) {
+        const encodedDate = encodeURIComponent(dateKey);
+        const ariaLabel = `${dateKey} 일정 추가`;
+        return `<button type="button" class="day-add-btn" data-date-key="${encodedDate}" aria-label="${escapeHtml(ariaLabel)}" title="일정 추가">+</button>`;
+    }
+
+    function personTokens(personRaw) {
+        return String(personRaw || '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+    }
+
+    function syncQuickAddPersonInput() {
+        const personInput = document.getElementById('quickAddPerson');
+        if (!personInput) return;
+        personInput.value = Array.from(quickAddSelectedPersonNames).join(', ');
+    }
+
+    function hydrateQuickAddSelectedNamesFromInput() {
+        const personInput = document.getElementById('quickAddPerson');
+        quickAddSelectedPersonNames.clear();
+        personTokens(personInput?.value || '').forEach((name) => quickAddSelectedPersonNames.add(name));
+    }
+
+    function toggleQuickAddStaffName(name) {
+        const trimmed = String(name || '').trim();
+        if (!trimmed) return;
+        if (quickAddSelectedPersonNames.has(trimmed)) quickAddSelectedPersonNames.delete(trimmed);
+        else quickAddSelectedPersonNames.add(trimmed);
+        syncQuickAddPersonInput();
+        paintQuickAddStaffButtons();
+    }
+
+    function paintQuickAddStaffButtons() {
+        const box = document.getElementById('quickAddFieldStaffList');
+        if (!box) return;
+        box.querySelectorAll('.quick-add-staff-btn').forEach((btn) => {
+            const name = decodeURIComponent(btn.getAttribute('data-name') || '');
+            btn.classList.toggle('active', quickAddSelectedPersonNames.has(name));
+        });
+    }
+
+    async function loadQuickAddFieldStaffOptions() {
+        const box = document.getElementById('quickAddFieldStaffList');
+        if (!box) return;
+        box.innerHTML = '<span class="small text-muted">불러오는 중...</span>';
+        try {
+            const res = await fetch('/api/schedules/field-staff');
+            const data = await res.json();
+            if (!res.ok) {
+                box.innerHTML = `<span class="small text-danger">${escapeHtml(data.detail || '인원 목록을 불러오지 못했습니다.')}</span>`;
+                return;
+            }
+            const rows = data.data || [];
+            const validNames = rows
+                .map((r) => String(r.name || '').trim())
+                .filter(Boolean);
+            if (!validNames.length) {
+                box.innerHTML = '<span class="small text-muted">등록된 인원이 없습니다.</span>';
+                return;
+            }
+            box.innerHTML = validNames.map((name) =>
+                `<button type="button" class="quick-add-staff-btn" data-name="${encodeURIComponent(name)}">${escapeHtml(name)}</button>`
+            ).join('');
+            box.querySelectorAll('.quick-add-staff-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const name = decodeURIComponent(btn.getAttribute('data-name') || '');
+                    toggleQuickAddStaffName(name);
+                });
+            });
+            paintQuickAddStaffButtons();
+        } catch (_e) {
+            box.innerHTML = '<span class="small text-danger">인원 목록을 불러오지 못했습니다.</span>';
+        }
+    }
+
+    function bindQuickAddSectionEvents() {
+        const peopleSection = document.getElementById('quickAddPeopleSection');
+        if (!peopleSection || peopleSection.dataset.bound === '1') return;
+        peopleSection.dataset.bound = '1';
+        peopleSection.addEventListener('toggle', () => {
+            if (!peopleSection.open) return;
+            loadQuickAddFieldStaffOptions();
+        });
+    }
+
     function renderCompactScheduleItem(item) {
         const catClass = compactCategoryClass(item.category);
         const personLine = fullPersonLabel(item.person);
         const detailLine = String(item.details || '').trim();
         const detailLines = detailLineCount(detailLine);
-        const shiftType = normalizeShiftType(item.shift_type || '');
+        const shiftType = applyDefaultShiftType(item.category || '', item.shift_type || '');
         const shiftClass = shiftBadgeClass(shiftType);
         const workCode = String(item.work_code || '').trim();
         const taskLabel = `${escapeHtml(displayScheduleTaskTitle(item.task) || '공사명 미기재')}`;
@@ -283,7 +388,6 @@
                         ${detailModalBtn}
                         <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
                             ${isPhotoPlanPendingReview(item) ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); acknowledgePhotoPlanImport(${item.id})">추출 검토 완료</button>` : ''}
-                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openFieldStaffModal(${item.id})">작업 인원 추가</button>
                             <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openEditRequestById('${item.id}')">수정</button>
                             <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); requestDeleteById('${item.id}')">삭제</button>
                         </div>
@@ -295,14 +399,14 @@
     function renderDayItemsSection(dateKey, dayItems) {
         const itemCount = dayItems.length;
         if (itemCount === 0) {
-            return '<div class="calendar-empty-line">등록된 일정이 없습니다.</div>';
+            return '<div class="calendar-empty-line"></div>';
         }
         const encodedDate = encodeURIComponent(dateKey);
         const needFold = itemCount > DAY_COLLAPSE_LIMIT;
         const listClass = needFold ? 'calendar-day-items collapsed' : 'calendar-day-items';
         const listHtml = dayItems.map((item) => renderCompactScheduleItem(item)).join('');
         const toggleHtml = needFold
-            ? `<button type="button" class="btn btn-sm btn-outline-secondary day-fold-toggle-btn" data-date-key="${encodedDate}" data-expanded="0">펼치기 (+${itemCount - DAY_COLLAPSE_LIMIT}건)</button>`
+            ? `<button type="button" class="day-fold-toggle-btn" data-date-key="${encodedDate}" data-expanded="0">${dayFoldToggleLabel(itemCount - DAY_COLLAPSE_LIMIT, false)}</button>`
             : '';
         return `<div class="${listClass}" data-date-key="${encodedDate}">${listHtml}</div>${toggleHtml}`;
     }
@@ -314,7 +418,7 @@
             const dayName = getDayName(date);
             const dayItems = groupedData[date] || [];
             const todayClass = date === todayStr ? 'today' : '';
-            html += `<div class="mobile-day-block"><div class="mobile-day-title ${todayClass}"><span>📅 ${escapeHtml(date)} ${dayName}${date === todayStr ? ' [오늘]' : ''}</span><span class="day-count-badge">${dayItems.length}건</span></div>`;
+            html += `<div class="mobile-day-block"><div class="mobile-day-title ${todayClass}"><span class="calendar-date-main"><span>📅 ${escapeHtml(date)} ${dayName}${date === todayStr ? ' [오늘]' : ''}</span>${dayAddButtonHtml(date)}</span><span class="day-count-badge">${dayItems.length}건</span></div>`;
             html += renderDayItemsSection(date, dayItems);
             html += '</div>';
         });
@@ -350,7 +454,8 @@
 
             html += `<div class="${classes}">`;
             const count = inRange ? dayItems.length : 0;
-            html += `<div class="calendar-date-label"><span>${escapeHtml(dateKey)}${isToday ? ' [오늘]' : ''}</span><span class="day-count-badge">${count}건</span></div>`;
+            const addBtn = inRange ? dayAddButtonHtml(dateKey) : '';
+            html += `<div class="calendar-date-label"><span class="calendar-date-main"><span>${escapeHtml(dateKey)}${isToday ? ' [오늘]' : ''}</span>${addBtn}</span><span class="day-count-badge">${count}건</span></div>`;
             if (inRange) {
                 html += renderDayItemsSection(dateKey, dayItems);
             }
@@ -363,6 +468,16 @@
     function bindCompactItemActions() {
         const board = document.getElementById('scheduleBoard');
         board.addEventListener('click', (e) => {
+            const dayAddBtn = e.target.closest('.day-add-btn');
+            if (dayAddBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const encodedDate = dayAddBtn.getAttribute('data-date-key') || '';
+                const dateKey = encodedDate ? decodeURIComponent(encodedDate) : '';
+                if (!dateKey) return;
+                openQuickAddForDate(dateKey);
+                return;
+            }
             const dayToggleBtn = e.target.closest('.day-fold-toggle-btn');
             if (dayToggleBtn) {
                 e.preventDefault();
@@ -373,7 +488,8 @@
                 if (!dayItemsWrap) return;
                 const isExpanded = dayItemsWrap.classList.toggle('collapsed') === false;
                 dayToggleBtn.setAttribute('data-expanded', isExpanded ? '1' : '0');
-                dayToggleBtn.textContent = isExpanded ? '접기' : `펼치기 (+${Math.max(dayItemsWrap.querySelectorAll('.schedule-compact-item').length - DAY_COLLAPSE_LIMIT, 0)}건)`;
+                const hiddenCount = Math.max(dayItemsWrap.querySelectorAll('.schedule-compact-item').length - DAY_COLLAPSE_LIMIT, 0);
+                dayToggleBtn.textContent = dayFoldToggleLabel(hiddenCount, isExpanded);
                 if (!isExpanded) {
                     dayItemsWrap.scrollIntoView({ block: 'nearest' });
                 }
@@ -417,10 +533,88 @@
         document.getElementById('editTask').value = item.task || '';
         document.getElementById('editPerson').value = item.person || '';
         document.getElementById('editDetails').value = item.details || '';
-        document.getElementById('editCategory').value = displayCategoryLabel(item.category || '공사 일정');
-        document.getElementById('editShiftType').value = normalizeShiftType(item.shift_type || '');
+        document.getElementById('editCategory').value = normalizeCategoryForSave(item.category || '공사 일정');
+        document.getElementById('editShiftType').value = applyDefaultShiftType(item.category || '공사 일정', item.shift_type || '');
         document.getElementById('editWorkCode').value = String(item.work_code || '').trim();
         window.editRequestModal.show();
+    }
+
+    function openQuickAddForDate(dateKey) {
+        const dateInput = document.getElementById('quickAddDate');
+        const categoryInput = document.getElementById('quickAddCategory');
+        const taskInput = document.getElementById('quickAddTask');
+        const detailsInput = document.getElementById('quickAddDetails');
+        const personInput = document.getElementById('quickAddPerson');
+        const shiftInput = document.getElementById('quickAddShiftType');
+        const workCodeInput = document.getElementById('quickAddWorkCode');
+        const peopleSection = document.getElementById('quickAddPeopleSection');
+        const advancedSection = document.getElementById('quickAddAdvancedSection');
+        const staffListBox = document.getElementById('quickAddFieldStaffList');
+        if (!dateInput || !window.quickAddScheduleModal) return;
+        quickAddSelectedPersonNames.clear();
+        bindQuickAddSectionEvents();
+        if (peopleSection) peopleSection.open = false;
+        if (advancedSection) advancedSection.open = false;
+        dateInput.value = String(dateKey || '').trim() || formatLocalDateYYYYMMDD();
+        if (categoryInput) categoryInput.value = '공사 일정';
+        if (taskInput) taskInput.value = '';
+        if (detailsInput) detailsInput.value = '';
+        if (personInput) {
+            personInput.value = '';
+            personInput.oninput = () => {
+                hydrateQuickAddSelectedNamesFromInput();
+                paintQuickAddStaffButtons();
+            };
+        }
+        if (shiftInput) shiftInput.value = '';
+        if (workCodeInput) workCodeInput.value = '';
+        if (staffListBox) {
+            staffListBox.innerHTML = '<span class="small text-muted">펼치면 인원 목록이 보입니다.</span>';
+        }
+        window.quickAddScheduleModal.show();
+        if (taskInput) taskInput.focus();
+    }
+
+    async function submitQuickAddSchedule() {
+        const date = document.getElementById('quickAddDate')?.value.trim() || formatLocalDateYYYYMMDD();
+        const category = normalizeCategoryForSave(document.getElementById('quickAddCategory')?.value.trim() || '공사 일정');
+        const task = document.getElementById('quickAddTask')?.value.trim() || '';
+        const details = document.getElementById('quickAddDetails')?.value.trim() || '';
+        const personRaw = document.getElementById('quickAddPerson')?.value || '';
+        const person = personTokens(personRaw).join(', ');
+        const shiftType = applyDefaultShiftType(category, document.getElementById('quickAddShiftType')?.value.trim() || '');
+        const workCode = document.getElementById('quickAddWorkCode')?.value.trim() || '';
+        if (!task) {
+            alert('작업/메모 제목을 입력하세요.');
+            return;
+        }
+        const payload = {
+            action_type: 'register',
+            date,
+            task,
+            person,
+            details,
+            shift_type: shiftType,
+            work_code: workCode,
+            category,
+            request_note: '',
+            schedule_id: null,
+        };
+        const response = await fetch('/api/schedules/board/template-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            alert(data.detail || '일정 등록에 실패했습니다.');
+            return;
+        }
+        if (window.quickAddScheduleModal) window.quickAddScheduleModal.hide();
+        if (typeof showSaveToast === 'function') {
+            showSaveToast(data.message || '일정을 등록했습니다.', 'success');
+        }
+        await loadSchedules();
     }
 
     async function submitDirectEdit() {
@@ -430,7 +624,8 @@
             return;
         }
 
-        const catVal = document.getElementById('editCategory').value.trim() || '공사 일정';
+        const catVal = normalizeCategoryForSave(document.getElementById('editCategory').value.trim() || '공사 일정');
+        const shiftVal = applyDefaultShiftType(catVal, document.getElementById('editShiftType').value.trim());
         const payload = {
             action: 'update',
             schedule_id: scheduleId,
@@ -441,7 +636,7 @@
                 person: document.getElementById('editPerson').value.trim(),
                 details: document.getElementById('editDetails').value.trim(),
                 category: catVal,
-                shift_type: document.getElementById('editShiftType').value.trim(),
+                shift_type: shiftVal,
                 work_code: document.getElementById('editWorkCode').value.trim(),
             }
         };
@@ -702,6 +897,8 @@
     window.loadSchedules = loadSchedules;
     window.acknowledgePhotoPlanImport = acknowledgePhotoPlanImport;
     window.normalizeShiftType = normalizeShiftType;
+    window.applyDefaultShiftType = applyDefaultShiftType;
+    window.normalizeCategoryForSave = normalizeCategoryForSave;
     window.shiftBadgeClass = shiftBadgeClass;
     window.constructionShiftCardClass = constructionShiftCardClass;
     window.fullPersonLabel = fullPersonLabel;
@@ -717,6 +914,8 @@
     window.bindCompactItemActions = bindCompactItemActions;
     window.getActiveScheduleCardId = getActiveScheduleCardId;
     window.restoreActiveScheduleCard = restoreActiveScheduleCard;
+    window.openQuickAddForDate = openQuickAddForDate;
+    window.submitQuickAddSchedule = submitQuickAddSchedule;
     window.openEditRequestById = openEditRequestById;
     window.submitDirectEdit = submitDirectEdit;
     window.requestDeleteById = requestDeleteById;

@@ -16,7 +16,6 @@ class DailyExportService:
     def export_date(self, target_date: str) -> Dict[str, Any]:
         schedules = self.db.get_daily_schedules(target_date) # 일일 일정 조회
         all_schedules = self.db.get_all_schedules_for_backup() # 전체 공사 이력 조회
-        memos = self.db.get_daily_memos(target_date) # 일일 메모 조회
         statuses = self.db.list_worker_status() # 일일 상태 조회
         admin_requests = self.db.get_daily_admin_requests(target_date) # 관리자 요청
         audit_events = self.db.get_daily_audit_events(target_date) # 변경 이력
@@ -50,7 +49,6 @@ class DailyExportService:
             pd.DataFrame(core_rows).to_excel(writer, sheet_name="공사일정_핵심", index=False)
 
             # 2) 운영 보조 데이터
-            pd.DataFrame(memos).to_excel(writer, sheet_name="기타메모", index=False)
             status_rows = []
             for row in statuses:
                 copied = dict(row)
@@ -71,7 +69,7 @@ class DailyExportService:
             status="success", # 상태 초기화
             output_path=str(workbook_path), # 출력 경로 초기화
             message=(
-                f"schedules={len(schedules)}, memos={len(memos)}, status={len(statuses)}, "
+                f"schedules={len(schedules)}, status={len(statuses)}, "
                 f"dau={metrics.get('daily_active_user_count', 0)}, chat={metrics.get('chat_count', 0)}"
             ), # 메시지 초기화
         )
@@ -81,7 +79,6 @@ class DailyExportService:
             "counts": {
                 "schedules_daily": len(schedules),
                 "schedules_all": len(all_schedules),
-                "memos": len(memos),
                 "statuses": len(statuses),
                 "admin_requests": len(admin_requests),
                 "audit_events": len(audit_events),

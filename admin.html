@@ -13,20 +13,83 @@
         .request-chip { display: inline-block; font-size: 0.75rem; border-radius: 999px; padding: 2px 8px; margin-right: 6px; border: 1px solid #d6d6d6; background: #f8f9fa; color: #495057; }
         .candidate-row { border: 1px solid #e9ecef; border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .candidate-row strong { font-size: 0.9rem; }
+        .admin-topbar {
+            background: #0f1724;
+            color: #fff;
+            padding: 10px 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.12);
+        }
+        .admin-shell {
+            padding-top: 82px;
+        }
+        @media (max-width: 992px) {
+            .admin-shell {
+                padding-top: 122px;
+            }
+        }
+        .app-top-nav { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+        .top-nav-shell {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.32);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .top-nav-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.82);
+            line-height: 1;
+        }
+        .brand-mark {
+            margin: 0;
+            font-size: 1.35rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            line-height: 1;
+            transform: skewX(-12deg);
+            display: inline-block;
+            background: linear-gradient(180deg, #ff5a46 0%, #e32727 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 10px rgba(255, 80, 60, 0.28);
+        }
+        .app-top-nav .btn { border-radius: 999px; font-size: 0.76rem; padding: 4px 10px; line-height: 1.2; min-width: 74px; font-weight: 700; }
+        .app-top-nav .btn:hover { transform: translateY(-1px); }
     </style>
 </head>
 <body class="bg-light">
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3 class="m-0">관리자 요청 큐</h3>
-        <div class="d-flex gap-2 flex-wrap">
-            <a href="/" class="btn btn-outline-secondary btn-sm">채팅</a>
-            <a href="/dashboard.html" class="btn btn-outline-secondary btn-sm">상황판</a>
+<header class="admin-topbar">
+    <div class="container-fluid px-3 px-md-4 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <h3 class="brand-mark">YEC</h3>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+            <div class="top-nav-shell">
+                <span class="top-nav-label">메뉴</span>
+                <nav class="app-top-nav" aria-label="주요 화면 이동">
+                    <a href="/home.html" class="btn btn-sm btn-outline-light">홈</a>
+                    <a href="/dashboard.html" class="btn btn-sm btn-outline-light">월간 계획표</a>
+                    <a href="/index.html" class="btn btn-sm btn-outline-light">AI 비서</a>
+                    <a href="/admin.html" class="btn btn-sm btn-light">관리자</a>
+                </nav>
+            </div>
             <button class="btn btn-outline-primary btn-sm" onclick="runDailyExport()">백업데이터 생성</button>
             <button class="btn btn-primary btn-sm" onclick="loadRequests()">새로고침</button>
             <button class="btn btn-outline-danger btn-sm" onclick="logout()">로그아웃</button>
         </div>
     </div>
+</header>
+
+<div class="container py-4 admin-shell">
 
     <div class="card mb-3">
         <div class="card-body py-2">
@@ -91,6 +154,26 @@
                 </div>
             </div>
             <div id="outingStaffAdminList" class="mt-2 small text-muted">불러오는 중...</div>
+        </div>
+    </div>
+
+    <div class="card mb-3 queue-card">
+        <div class="card-header py-2">홈 화면 바로가기 사이트 관리</div>
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small mb-0">사이트 이름</label>
+                    <input id="frequentSiteTitleInput" class="form-control form-control-sm" placeholder="예: 전자세금계산서">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small mb-0">URL</label>
+                    <input id="frequentSiteUrlInput" class="form-control form-control-sm" placeholder="https://example.com">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-sm btn-primary w-100" onclick="addFrequentSite()">등록</button>
+                </div>
+            </div>
+            <div id="frequentSiteAdminList" class="mt-2 small text-muted">불러오는 중...</div>
         </div>
     </div>
 
@@ -319,6 +402,64 @@
         await loadOutingStaffAdmin();
     }
 
+    async function loadFrequentSiteAdmin() {
+        const box = document.getElementById('frequentSiteAdminList');
+        const res = await fetch('/api/admin/frequent-sites');
+        const data = await res.json();
+        if (!res.ok) {
+            box.textContent = data.detail || '목록을 불러오지 못했습니다.';
+            return;
+        }
+        const rows = data.data || [];
+        if (rows.length === 0) {
+            box.innerHTML = '<span class="text-muted">등록된 사이트가 없습니다.</span>';
+            return;
+        }
+        box.innerHTML = rows.map((r) => `
+            <div class="d-flex justify-content-between align-items-center border rounded px-2 py-1 mb-1 gap-2">
+                <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
+                <button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="deleteFrequentSite(${r.id})">삭제</button>
+            </div>
+        `).join('');
+    }
+
+    async function addFrequentSite() {
+        const title = document.getElementById('frequentSiteTitleInput').value.trim();
+        const url = document.getElementById('frequentSiteUrlInput').value.trim();
+        if (!title) {
+            alert('사이트 이름을 입력하세요.');
+            return;
+        }
+        if (!url) {
+            alert('URL을 입력하세요.');
+            return;
+        }
+        const res = await fetch('/api/admin/frequent-sites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, url, sort_order: 0 })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '등록 실패');
+            return;
+        }
+        document.getElementById('frequentSiteTitleInput').value = '';
+        document.getElementById('frequentSiteUrlInput').value = '';
+        await loadFrequentSiteAdmin();
+    }
+
+    async function deleteFrequentSite(id) {
+        if (!confirm('삭제할까요?')) return;
+        const res = await fetch(`/api/admin/frequent-sites/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '삭제 실패');
+            return;
+        }
+        await loadFrequentSiteAdmin();
+    }
+
     async function deleteOutingStaff(id) {
         if (!confirm('삭제할까요?')) return;
         const res = await fetch(`/api/admin/outing-staff/${id}`, { method: 'DELETE' });
@@ -500,40 +641,25 @@
 
     async function loadRegisteredSnapshot() {
         const snapshotBox = document.getElementById('registeredSnapshotBox');
-        const [scheduleRes, memoRes] = await Promise.all([
-            fetch('/api/schedules/today'),
-            fetch('/api/schedules/memos')
-        ]);
-        if (!scheduleRes.ok || !memoRes.ok) {
+        const scheduleRes = await fetch('/api/schedules/today');
+        if (!scheduleRes.ok) {
             snapshotBox.innerHTML = '<div class="alert alert-warning">현재 반영 컨텐츠 조회에 실패했습니다.</div>';
             return;
         }
         const scheduleJson = await scheduleRes.json();
-        const memoJson = await memoRes.json();
         const schedules = Array.isArray(scheduleJson.data) ? scheduleJson.data : [];
-        const memos = Array.isArray(memoJson.data) ? memoJson.data : [];
         const scheduleRows = schedules.map((s) => (
             `<li class="list-group-item small">ID #${s.id} | ${escapeHtml(s.date || '-')} | ${escapeHtml(s.location || '-')} | ${escapeHtml(s.task || '-')}</li>`
         )).join('');
-        const memoRows = memos.map((m) => {
-            const linkedLabel = m.linked_schedule_id
-                ? `연결 일정 #${m.linked_schedule_id}`
-                : '전역 메모';
-            return `<li class="list-group-item small">ID #${m.id} | ${escapeHtml(m.target_date || '-')} | ${escapeHtml(linkedLabel)} | ${escapeHtml(m.content || '-')}</li>`;
-        }).join('');
         snapshotBox.innerHTML = `
             <div class="card">
                 <div class="card-header">현재 대시보드 반영 컨텐츠 ID</div>
                 <div class="card-body">
-                    <div class="small text-muted mb-2">일정 ${schedules.length}건 / 메모 ${memos.length}건</div>
+                    <div class="small text-muted mb-2">일정 ${schedules.length}건</div>
                     <div class="row g-3">
-                        <div class="col-md-6">
+                        <div class="col-12">
                             <div class="fw-semibold mb-1">일정 목록</div>
                             <ul class="list-group">${scheduleRows || '<li class="list-group-item small text-muted">없음</li>'}</ul>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="fw-semibold mb-1">메모 목록</div>
-                            <ul class="list-group">${memoRows || '<li class="list-group-item small text-muted">없음</li>'}</ul>
                         </div>
                     </div>
                 </div>
@@ -810,6 +936,7 @@
         loadRequests();
         loadFieldStaffAdmin();
         loadOutingStaffAdmin();
+        loadFrequentSiteAdmin();
     });
 </script>
 </body>
