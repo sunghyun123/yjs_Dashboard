@@ -12,13 +12,6 @@
       "table_start_row": 8,
       "table_style_row": 8,
       "table_clear_existing": true,
-      "table_row_key": "team",
-      "table_row_map": {
-        "공사1팀": 8,
-        "공사2팀": 9,
-        "공사3팀": 10,
-        "기타": 11
-      },
       "table_columns": [
         {
           "id": "team",
@@ -27,25 +20,40 @@
           "write": false
         },
         {
-          "id": "work_content",
-          "header": "작업내용",
+          "id": "task",
+          "header": "공사 일정",
           "column": "C"
         },
         {
-          "id": "worker",
-          "header": "작업자",
+          "id": "work_code",
+          "header": "작업코드",
           "column": "D"
+        },
+        {
+          "id": "workers",
+          "header": "작업인원",
+          "column": "E"
+        },
+        {
+          "id": "details",
+          "header": "상세 내용",
+          "column": "F"
         },
         {
           "id": "equipment",
           "header": "차량 및 장비",
-          "column": "E"
+          "column": "G"
+        },
+        {
+          "id": "shift_note",
+          "header": "주야·기간 비고",
+          "column": "H"
         }
       ],
       "required_gate": [],
       "ai": {
         "suggest": "공사 일정 계획서의 제목·기간·담당·요약은 간결하고 실무적인 문장으로 제안한다.",
-        "extract": "공사 일정 계획서 이미지의 표에서 각 행을 team(공사1팀/공사2팀/공사3팀/기타), work_content, worker, equipment 로 추출한다. team 값은 반드시 위 4개 중 하나로 넣고, 해당 팀 행이 비어 있으면 빈 문자열로 둔다. 헤더/제목은 제외한다."
+        "extract": "이미지는 공사 일정 계획서 양식이다. AI는 공사 **건수**마다 한 행을 만들고, 한 팀 칸에 여러 공사가 있으면 여러 행으로 나눈다. 작업코드는 있을 때만 채운다."
       },
       "fields": [
         {

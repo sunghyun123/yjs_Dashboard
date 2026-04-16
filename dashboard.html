@@ -443,6 +443,24 @@
             border: 1px solid #c5d0dc;
         }
 
+        .schedule-meta-badges .schedule-source-badge {
+            display: inline-block;
+            font-size: 0.66rem;
+            font-weight: 700;
+            border-radius: 4px;
+            padding: 2px 6px;
+            margin-left: 4px;
+            vertical-align: middle;
+            color: #084298;
+            background: #e7f1ff;
+            border: 1px solid #9ec5fe;
+        }
+
+        .schedule-compact-item.schedule-item-photo-plan {
+            border-left: 3px solid #0d6efd;
+            padding-left: 6px;
+        }
+
         .schedule-work-code {
             font-size: 0.7rem;
             color: #5c6572;
@@ -1180,6 +1198,8 @@
                             엑셀, 일반 템플릿은 등록된 형식으로 저장됩니다.)</p>
                         <div id="docExtractReviewList" class="small border rounded p-3 bg-light mb-3"></div>
                         <div class="d-grid gap-2">
+                            <button type="button" id="docExtractBoardBtn" class="btn btn-sm btn-success d-none"
+                                onclick="confirmExtractedPlanToBoard()">상황판에 반영</button>
                             <button type="button" id="docExtractConfirmBtn" class="btn btn-sm btn-primary"
                                 onclick="confirmExtractedDocumentExport()">파일 받기</button>
                             <button type="button" class="btn btn-sm btn-outline-secondary"

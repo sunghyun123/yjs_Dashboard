@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     LOCAL_APPS_ROOT: str = ""
     LOCAL_APP_HANGUL: str = "HangulGenerator.exe"
     LOCAL_APP_ERP: str = "ERP.exe"
+    # 외출 복귀 시각(until_time) 비교에 사용. 브라우저는 로컬 날짜+시각으로 저장하므로 서버가 UTC여도 맞춤.
+    APP_TIMEZONE: str = "Asia/Seoul"
 
     # 예전 .env(SIGNUP_ENABLED, INITIAL_ADMIN_PASSWORD 등)가 남아 있어도 기동되게 무시
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

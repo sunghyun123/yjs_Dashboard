@@ -95,6 +95,43 @@ class ReorderBatchRequest(BaseModel):
     items: list[ReorderItem] = Field(default_factory=list, description="드래그 결과 목록")
 
 
+class ImportConstructionPlanRequest(BaseModel):
+    date: str = Field(..., description="저장할 작업일 YYYY-MM-DD")
+    rows: list[Dict[str, Any]] = Field(default_factory=list, description="공사일정계획서 추출 검토 행")
+
+
+def _normalize_work_code_for_plan(raw: str) -> str:
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    for open_b, close_b in (("(", ")"), ("<", ">"), ("（", "）"), ("[", "]")):
+        if len(s) > 2 and s.startswith(open_b) and s.endswith(close_b):
+            s = s[1:-1].strip()
+            break
+    return s.strip()
+
+
+def _shift_hint_from_plan_text(*parts: str) -> str:
+    blob = " ".join((p or "") for p in parts)
+    if "야간" in blob or "심야" in blob:
+        return "야간"
+    if "주간" in blob:
+        return "주간"
+    return ""
+
+
+def _plan_task_overlap(new_task: str, existing_task: str) -> bool:
+    a = "".join((new_task or "").lower().split())
+    b = "".join((existing_task or "").lower().split())
+    if not a or not b:
+        return False
+    if a in b or b in a:
+        return True
+    if len(a) >= 10 and len(b) >= 10 and a[:14] == b[:14]:
+        return True
+    return False
+
+
 # 4. 엔드포인트 통합
 
 @router.post("/chat", summary="[V2] 대화형 의도 분석 및 후보 검색")
@@ -447,6 +484,13 @@ def direct_update_schedule(request: DirectScheduleUpdateRequest, user_session=De
         raise HTTPException(status_code=400, detail="일정 수정에 실패했습니다.")
 
     after = db.get_schedule_by_id(request.schedule_id)
+    if str(before.get("source_kind") or "") == "photo_plan" and not int(before.get("photo_plan_acknowledged") or 0):
+        db.acknowledge_photo_plan_schedule(
+            request.schedule_id,
+            actor_user=user_session["user_id"],
+            actor_device=user_session.get("device_name", "unknown-device"),
+        )
+        after = db.get_schedule_by_id(request.schedule_id)
     db.create_audit_event(
         entity_type="field_schedules",
         entity_id=request.schedule_id,
@@ -501,3 +545,99 @@ def reorder_batch(request: ReorderBatchRequest, user_session=Depends(require_ses
         actor_device=user_session.get("device_name", "unknown-device"),
     )
     return {"status": "success", "message": "정렬이 저장되었습니다.", "applied_count": applied_count}
+
+
+@router.post("/import-construction-plan", summary="공사일정계획서 추출 행을 상황판에 반영")
+def import_construction_plan(request: ImportConstructionPlanRequest, user_session=Depends(require_session)):
+    try:
+        target_date = datetime.strptime(request.date.strip()[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="날짜는 YYYY-MM-DD 형식이어야 합니다.")
+
+    existing = db.search_schedules_by_keyword(date=target_date, keyword=None)
+    inserted_ids: list[int] = []
+    overlap_warnings: list[Dict[str, Any]] = []
+
+    for raw in request.rows:
+        if not isinstance(raw, dict):
+            continue
+        task_title = str(raw.get("task", "")).strip()
+        if not task_title:
+            continue
+        team = str(raw.get("team", "")).strip()
+        display_task = task_title
+        workers = str(raw.get("workers", "")).strip()
+        detail_lines: list[str] = []
+        if team:
+            detail_lines.append(f"[팀] {team}")
+        detail_lines.extend(
+            [
+                str(raw.get("shift_note", "")).strip(),
+                str(raw.get("details", "")).strip(),
+                str(raw.get("equipment", "")).strip(),
+            ]
+        )
+        details_blob = "\n\n".join([p for p in detail_lines if p])
+        wc = _normalize_work_code_for_plan(str(raw.get("work_code", "")).strip())
+        shift_guess = _shift_hint_from_plan_text(
+            raw.get("shift_note", ""),
+            raw.get("details", ""),
+            display_task,
+        )
+        shift_type = db._extract_shift_type(
+            {"shift_type": shift_guess, "task": display_task, "details": details_blob}
+        )
+
+        sim_ids: list[int] = []
+        for ex in existing:
+            sk = str(ex.get("source_kind") or "manual").strip() or "manual"
+            if sk == "photo_plan":
+                continue
+            et = str(ex.get("task") or "")
+            if _plan_task_overlap(display_task, et) or _plan_task_overlap(task_title, et):
+                sim_ids.append(int(ex["id"]))
+        if sim_ids:
+            overlap_warnings.append({"task": display_task, "similar_schedule_ids": sim_ids})
+
+        new_id = db.insert_schedule_row(
+            {
+                "date": target_date,
+                "task": display_task,
+                "person": workers if workers else "-",
+                "details": details_blob,
+                "work_code": wc,
+                "shift_type": shift_type,
+                "tags": "",
+                "category": "공사 일정",
+                "source_kind": "photo_plan",
+                "source_photo_upload_id": None,
+            },
+            actor_user=user_session["user_id"],
+            actor_device=user_session.get("device_name", "unknown-device"),
+        )
+        inserted_ids.append(new_id)
+        existing.append({"id": new_id, "task": display_task, "source_kind": "photo_plan"})
+
+    return {
+        "status": "success",
+        "message": f"{len(inserted_ids)}건을 상황판에 등록했습니다.",
+        "inserted_ids": inserted_ids,
+        "overlap_warnings": overlap_warnings,
+        "count": len(inserted_ids),
+    }
+
+
+class AcknowledgePhotoPlanRequest(BaseModel):
+    schedule_id: int = Field(..., description="일정 ID")
+
+
+@router.post("/acknowledge-photo-plan", summary="사진 추출 일정 검토 완료(자동추출 배지 숨김)")
+def acknowledge_photo_plan(request: AcknowledgePhotoPlanRequest, user_session=Depends(require_session)):
+    ok = db.acknowledge_photo_plan_schedule(
+        request.schedule_id,
+        actor_user=user_session["user_id"],
+        actor_device=user_session.get("device_name", "unknown-device"),
+    )
+    if not ok:
+        raise HTTPException(status_code=404, detail="대상 일정이 없거나 사진 추출 일정이 아닙니다.")
+    return {"status": "success", "message": "검토 완료로 표시했습니다."}

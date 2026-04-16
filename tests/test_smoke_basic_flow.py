@@ -143,6 +143,58 @@ def test_schedule_create_with_missing_optional_fields(client, monkeypatch, tmp_p
     assert inserted["category"] == "공사 일정"
 
 
+def test_import_construction_plan_creates_photo_plan_rows(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    d = _iso_today()
+    imp = client.post(
+        "/api/schedules/import-construction-plan",
+        json={
+            "date": d,
+            "rows": [
+                {
+                    "team": "공사1팀",
+                    "task": "자동추출 스모크 공사",
+                    "work_code": "SY26-005",
+                    "workers": "김,이",
+                    "details": "상세 본문",
+                    "equipment": "1번 크레인",
+                    "shift_note": "야간",
+                }
+            ],
+        },
+    )
+    assert imp.status_code == 200
+    body = imp.json()
+    assert body.get("count") == 1
+    assert isinstance(body.get("inserted_ids"), list)
+    day = client.get(f"/api/schedules/today?date={d}")
+    assert day.status_code == 200
+    rows = day.json().get("data") or []
+    found = [x for x in rows if "자동추출 스모크 공사" in str(x.get("task", ""))]
+    assert len(found) == 1
+    assert found[0].get("source_kind") == "photo_plan"
+    assert found[0].get("work_code") == "SY26-005"
+    assert int(found[0].get("photo_plan_acknowledged") or 0) == 0
+
+    ack = client.post(
+        "/api/schedules/acknowledge-photo-plan",
+        json={"schedule_id": found[0]["id"]},
+    )
+    assert ack.status_code == 200
+    day2 = client.get(f"/api/schedules/today?date={d}")
+    row2 = next((x for x in (day2.json().get("data") or []) if x.get("id") == found[0]["id"]), None)
+    assert row2 and int(row2.get("photo_plan_acknowledged") or 0) == 1
+
+
+def test_import_construction_plan_invalid_date(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    bad = client.post(
+        "/api/schedules/import-construction-plan",
+        json={"date": "not-a-date", "rows": [{"task": "x", "team": "", "workers": ""}]},
+    )
+    assert bad.status_code == 400
+
+
 def test_memo_and_worker_status_flow(client, monkeypatch, tmp_path):
     login_as_admin(client, monkeypatch, tmp_path)
 

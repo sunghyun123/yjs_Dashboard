@@ -1,9 +1,11 @@
 # app/db/db_manager.py
+import json
 import sqlite3
 import logging
 from datetime import datetime, timedelta
 from contextlib import closing
 from typing import List, Dict, Any, Optional
+from zoneinfo import ZoneInfo
 import hashlib
 import secrets
 
@@ -68,6 +70,18 @@ class DBManager:
                     conn.execute("ALTER TABLE field_schedules ADD COLUMN last_actor_at TEXT")
                 if "display_order" not in columns:
                     conn.execute("ALTER TABLE field_schedules ADD COLUMN display_order INTEGER DEFAULT 0")
+                if "source_kind" not in columns:
+                    conn.execute(
+                        "ALTER TABLE field_schedules ADD COLUMN source_kind TEXT DEFAULT 'manual'"
+                    )
+                if "source_photo_upload_id" not in columns:
+                    conn.execute(
+                        "ALTER TABLE field_schedules ADD COLUMN source_photo_upload_id INTEGER"
+                    )
+                if "photo_plan_acknowledged" not in columns:
+                    conn.execute(
+                        "ALTER TABLE field_schedules ADD COLUMN photo_plan_acknowledged INTEGER NOT NULL DEFAULT 0"
+                    )
 
                 # 인증/세션/관리요청/사진업로드 테이블
                 conn.execute("""
@@ -296,6 +310,23 @@ class DBManager:
         elif not isinstance(db_data.get('tags'), str):
             db_data['tags'] = str(db_data.get('tags'))
 
+        sk = str(data.get("source_kind") or "manual").strip() or "manual"
+        if sk not in ("manual", "photo_plan"):
+            sk = "manual"
+        db_data["source_kind"] = sk
+        raw_puid = data.get("source_photo_upload_id")
+        if raw_puid is not None and str(raw_puid).strip() != "":
+            try:
+                db_data["source_photo_upload_id"] = int(raw_puid)
+            except (TypeError, ValueError):
+                db_data["source_photo_upload_id"] = None
+        else:
+            db_data["source_photo_upload_id"] = None
+        try:
+            db_data["photo_plan_acknowledged"] = 1 if int(data.get("photo_plan_acknowledged", 0)) else 0
+        except (TypeError, ValueError):
+            db_data["photo_plan_acknowledged"] = 0
+
         if not db_data['date']:
             raise ValueError("'date' 값이 누락되었습니다.")
         if not db_data['task']:
@@ -321,6 +352,9 @@ class DBManager:
                                  work_code  = :work_code,
                                  shift_type = :shift_type,
                                  category   = :category,
+                                 source_kind = :source_kind,
+                                 source_photo_upload_id = :source_photo_upload_id,
+                                 photo_plan_acknowledged = :photo_plan_acknowledged,
                                  created_at = CURRENT_TIMESTAMP,
                                  last_actor_user = :last_actor_user,
                                  last_actor_device = :last_actor_device,
@@ -341,10 +375,12 @@ class DBManager:
                 insert_sql = """
                              INSERT INTO field_schedules (
                                 date, location, task, person, details, tags, work_code, shift_type, category,
+                                source_kind, source_photo_upload_id, photo_plan_acknowledged,
                                 last_actor_user, last_actor_device, last_actor_at, display_order
                              )
                              VALUES (
                                 :date, :location, :task, :person, :details, :tags, :work_code, :shift_type, :category,
+                                :source_kind, :source_photo_upload_id, :photo_plan_acknowledged,
                                 :last_actor_user, :last_actor_device, :last_actor_at, :display_order
                              )
                              """
@@ -362,6 +398,75 @@ class DBManager:
                 })
                 conn.commit()
                 return f"➕ {loc_label} ({db_data['date']}) 신규 일정이 등록되었습니다. (ID: {cursor.lastrowid})"
+
+    def insert_schedule_row(self, data: Dict[str, Any], actor_user: str = "", actor_device: str = "") -> int:
+        """
+        날짜+지역 병합 없이 항상 신규 INSERT. 공사일정계획서 사진 반영 등에 사용.
+        """
+        db_data = data.copy()
+        db_data["person"] = str(data.get("person", "") or "").strip()
+        db_data["details"] = data.get("details", "")
+        db_data["category"] = data.get("category", "공사 일정")
+        db_data["date"] = str(db_data.get("date", "") or "").strip()
+        db_data["location"] = ""
+        db_data["task"] = str(db_data.get("task", "") or "").strip()
+        db_data["work_code"] = str(db_data.get("work_code", "") or "").strip()
+        db_data["shift_type"] = self._extract_shift_type(db_data)
+        if isinstance(db_data.get("tags"), list):
+            db_data["tags"] = ",".join(db_data.get("tags", []))
+        elif db_data.get("tags") is None:
+            db_data["tags"] = ""
+        elif not isinstance(db_data.get("tags"), str):
+            db_data["tags"] = str(db_data.get("tags"))
+        sk = str(data.get("source_kind") or "manual").strip() or "manual"
+        if sk not in ("manual", "photo_plan"):
+            sk = "manual"
+        db_data["source_kind"] = sk
+        raw_puid = data.get("source_photo_upload_id")
+        if raw_puid is not None and str(raw_puid).strip() != "":
+            try:
+                db_data["source_photo_upload_id"] = int(raw_puid)
+            except (TypeError, ValueError):
+                db_data["source_photo_upload_id"] = None
+        else:
+            db_data["source_photo_upload_id"] = None
+        try:
+            db_data["photo_plan_acknowledged"] = 1 if int(data.get("photo_plan_acknowledged", 0)) else 0
+        except (TypeError, ValueError):
+            db_data["photo_plan_acknowledged"] = 0
+        if not db_data["date"]:
+            raise ValueError("'date' 값이 누락되었습니다.")
+        if not db_data["task"]:
+            raise ValueError("'task' 값이 누락되었습니다.")
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                max_order_row = conn.execute(
+                    "SELECT COALESCE(MAX(display_order), -1) FROM field_schedules WHERE date = ? AND deleted_at IS NULL",
+                    (db_data["date"],),
+                ).fetchone()
+                next_order = int(max_order_row[0]) + 1 if max_order_row else 0
+                cursor = conn.execute(
+                    """
+                    INSERT INTO field_schedules (
+                       date, location, task, person, details, tags, work_code, shift_type, category,
+                       source_kind, source_photo_upload_id, photo_plan_acknowledged,
+                       last_actor_user, last_actor_device, last_actor_at, display_order
+                    )
+                    VALUES (
+                       :date, :location, :task, :person, :details, :tags, :work_code, :shift_type, :category,
+                       :source_kind, :source_photo_upload_id, :photo_plan_acknowledged,
+                       :last_actor_user, :last_actor_device, :last_actor_at, :display_order
+                    )
+                    """,
+                    {
+                        **db_data,
+                        "last_actor_user": actor_user,
+                        "last_actor_device": actor_device,
+                        "last_actor_at": datetime.utcnow().isoformat(),
+                        "display_order": next_order,
+                    },
+                )
+                return int(cursor.lastrowid)
 
     def search_schedules_by_keyword(self, date: Optional[str] = None, keyword: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -439,6 +544,7 @@ class DBManager:
         """
         select_query = """
             SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
+                   source_kind, source_photo_upload_id, photo_plan_acknowledged,
                    datetime(created_at, 'localtime') as created_at
             FROM field_schedules
             WHERE deleted_at IS NULL
@@ -464,6 +570,7 @@ class DBManager:
         end_date = (today + timedelta(days=future_days)).strftime("%Y-%m-%d")
         query = """
             SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
+                   source_kind, source_photo_upload_id, photo_plan_acknowledged,
                    datetime(created_at, 'localtime') as created_at
             FROM field_schedules
             WHERE deleted_at IS NULL
@@ -479,6 +586,7 @@ class DBManager:
     def search_schedules_by_date_range(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         query = """
             SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
+                   source_kind, source_photo_upload_id, photo_plan_acknowledged,
                    datetime(created_at, 'localtime') as created_at
             FROM field_schedules
             WHERE deleted_at IS NULL
@@ -495,7 +603,8 @@ class DBManager:
         query = """
             SELECT id, date, location, task, person, details, tags, work_code, shift_type, category, created_at,
                    deleted_at, deleted_by, delete_reason,
-                   last_actor_user, last_actor_device, last_actor_at, display_order
+                   last_actor_user, last_actor_device, last_actor_at, display_order,
+                   source_kind, source_photo_upload_id, photo_plan_acknowledged
             FROM field_schedules
             WHERE id = ?
         """
@@ -704,6 +813,37 @@ class DBManager:
     def update_schedule_by_id(self, schedule_id: int, data: Dict[str, Any], actor_user: str = "", actor_device: str = "") -> bool:
         with closing(sqlite3.connect(self.db_path)) as conn:
             with conn:
+                prev = conn.execute(
+                    "SELECT source_kind, source_photo_upload_id, photo_plan_acknowledged FROM field_schedules WHERE id = ? AND deleted_at IS NULL",
+                    (schedule_id,),
+                ).fetchone()
+                prev_sk = (prev[0] if prev else None) or "manual"
+                prev_puid = prev[1] if prev and len(prev) > 1 else None
+                prev_ack = int(prev[2] or 0) if prev and len(prev) > 2 else 0
+                if "source_kind" in data:
+                    sk = str(data.get("source_kind") or "manual").strip() or "manual"
+                    if sk not in ("manual", "photo_plan"):
+                        sk = "manual"
+                else:
+                    sk = str(prev_sk).strip() or "manual"
+                if "source_photo_upload_id" in data:
+                    raw_puid = data.get("source_photo_upload_id")
+                    if raw_puid is not None and str(raw_puid).strip() != "":
+                        try:
+                            puid = int(raw_puid)
+                        except (TypeError, ValueError):
+                            puid = None
+                    else:
+                        puid = None
+                else:
+                    puid = prev_puid
+                if "photo_plan_acknowledged" in data:
+                    try:
+                        ack = 1 if int(data.get("photo_plan_acknowledged", 0)) else 0
+                    except (TypeError, ValueError):
+                        ack = prev_ack
+                else:
+                    ack = prev_ack
                 cursor = conn.execute(
                     """
                     UPDATE field_schedules
@@ -716,6 +856,9 @@ class DBManager:
                         work_code = :work_code,
                         shift_type = :shift_type,
                         category = :category,
+                        source_kind = :source_kind,
+                        source_photo_upload_id = :source_photo_upload_id,
+                        photo_plan_acknowledged = :photo_plan_acknowledged,
                         created_at = CURRENT_TIMESTAMP,
                         last_actor_user = :last_actor_user,
                         last_actor_device = :last_actor_device,
@@ -733,12 +876,33 @@ class DBManager:
                         "work_code": str(data.get("work_code", "") or "").strip(),
                         "shift_type": self._extract_shift_type(data),
                         "category": data.get("category", "일반메모"),
+                        "source_kind": sk,
+                        "source_photo_upload_id": puid,
+                        "photo_plan_acknowledged": ack,
                         "last_actor_user": actor_user,
                         "last_actor_device": actor_device,
                         "last_actor_at": datetime.utcnow().isoformat(),
                     },
                 )
                 return cursor.rowcount > 0
+
+    def acknowledge_photo_plan_schedule(self, schedule_id: int, actor_user: str = "", actor_device: str = "") -> bool:
+        """사진 추출 일정(source_kind=photo_plan)에 대해 '검토 완료' 표시. 자동추출 배지 숨김용."""
+        now_iso = datetime.utcnow().isoformat()
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                cur = conn.execute(
+                    """
+                    UPDATE field_schedules
+                    SET photo_plan_acknowledged = 1,
+                        last_actor_user = ?,
+                        last_actor_device = ?,
+                        last_actor_at = ?
+                    WHERE id = ? AND deleted_at IS NULL AND source_kind = 'photo_plan'
+                    """,
+                    (actor_user, actor_device, now_iso, schedule_id),
+                )
+                return bool(cur.rowcount)
 
     def apply_schedule_reorder(
         self,
@@ -983,7 +1147,21 @@ class DBManager:
         return None
 
     def apply_outing_auto_return(self) -> int:
-        now_local = datetime.now()
+        """
+        until_time 이 APP_TIMEZONE 기준 현재 시각 이하인 외출을 사무실로 되돌린다.
+        (브라우저가 저장한 날짜+시각은 타임존 정보가 없으므로 APP_TIMEZONE 에 붙여 비교)
+        """
+        from app.core.config import settings
+
+        tz_name = (getattr(settings, "APP_TIMEZONE", None) or "Asia/Seoul").strip() or "Asia/Seoul"
+        try:
+            tz = ZoneInfo(tz_name)
+        except Exception:
+            tz = ZoneInfo("Asia/Seoul")
+        now_z = datetime.now(tz)
+
+        expired_users: List[str] = []
+        n = 0
         with closing(sqlite3.connect(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             with conn:
@@ -994,15 +1172,22 @@ class DBManager:
                     WHERE status = '외출' AND until_time IS NOT NULL AND until_time != ''
                     """,
                 ).fetchall()
-                expired_users: List[str] = []
                 for row in rows:
-                    until_dt = self._parse_local_datetime(row["until_time"])
-                    if until_dt and until_dt <= now_local:
+                    naive = self._parse_local_datetime(row["until_time"])
+                    if naive is None:
+                        continue
+                    try:
+                        until_z = naive.replace(tzinfo=tz)
+                    except Exception:
+                        continue
+                    if until_z <= now_z:
                         expired_users.append(str(row["user_name"]))
                 if not expired_users:
                     return 0
+                expired_snapshot = list(expired_users)
                 placeholders = ",".join(["?"] * len(expired_users))
-                params: List[Any] = [datetime.utcnow().isoformat(), *expired_users]
+                now_iso = datetime.utcnow().isoformat()
+                params: List[Any] = [now_iso, *expired_users]
                 cursor = conn.execute(
                     f"""
                     UPDATE worker_status
@@ -1018,7 +1203,22 @@ class DBManager:
                     """,
                     tuple(params),
                 )
-                return int(cursor.rowcount or 0)
+                n = int(cursor.rowcount or 0)
+        if n > 0:
+            try:
+                self.create_audit_event(
+                    entity_type="worker_status",
+                    entity_id=None,
+                    action="outing_auto_return",
+                    before_json=json.dumps({"users": expired_snapshot}, ensure_ascii=False),
+                    after_json=json.dumps({"status": "사무실", "count": n}, ensure_ascii=False),
+                    reason="until_time 경과 자동 사무실 복귀",
+                    actor_user="auto-system",
+                    actor_device="auto-system",
+                )
+            except Exception as ex:
+                logger.warning("outing_auto_return audit 로그 실패(무시): %s", ex)
+        return n
 
     def list_worker_status(self) -> List[Dict[str, Any]]:
         self.apply_outing_auto_return()
@@ -1105,6 +1305,7 @@ class DBManager:
     def get_daily_schedules(self, target_date: str) -> List[Dict[str, Any]]:
         query = """
             SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
+                   source_kind, source_photo_upload_id, photo_plan_acknowledged,
                    deleted_at, deleted_by, delete_reason,
                    last_actor_user, last_actor_device, last_actor_at,
                    datetime(created_at, 'localtime') AS created_at
@@ -1120,6 +1321,7 @@ class DBManager:
     def get_all_schedules_for_backup(self) -> List[Dict[str, Any]]:
         query = """
             SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
+                   source_kind, source_photo_upload_id, photo_plan_acknowledged,
                    deleted_at, deleted_by, delete_reason,
                    last_actor_user, last_actor_device, last_actor_at,
                    datetime(created_at, 'localtime') AS created_at

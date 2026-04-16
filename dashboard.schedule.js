@@ -5,9 +5,73 @@
         if (!window.__dashboardScheduleState) {
             window.__dashboardScheduleState = {
                 workerReturnTimeTargetUser: '',
+                expandedDayDateKeys: null,
             };
         }
+        if (!window.__dashboardScheduleState.expandedDayDateKeys) {
+            window.__dashboardScheduleState.expandedDayDateKeys = new Set();
+        }
         return window.__dashboardScheduleState;
+    }
+
+    function collectExpandedDayFoldKeys() {
+        const board = document.getElementById('scheduleBoard');
+        if (!board) return;
+        const st = getScheduleState();
+        st.expandedDayDateKeys.clear();
+        board.querySelectorAll('.day-fold-toggle-btn[data-expanded="1"]').forEach((btn) => {
+            const enc = btn.getAttribute('data-date-key');
+            if (enc) st.expandedDayDateKeys.add(decodeURIComponent(enc));
+        });
+    }
+
+    function restoreExpandedDayFoldKeys() {
+        const board = document.getElementById('scheduleBoard');
+        if (!board) return;
+        const st = getScheduleState();
+        if (!st.expandedDayDateKeys || st.expandedDayDateKeys.size === 0) return;
+        st.expandedDayDateKeys.forEach((rawDateKey) => {
+            const enc = encodeURIComponent(rawDateKey);
+            const wrap = board.querySelector(`.calendar-day-items[data-date-key="${enc}"]`);
+            const btn = board.querySelector(`.day-fold-toggle-btn[data-date-key="${enc}"]`);
+            if (!wrap || !btn) return;
+            wrap.classList.remove('collapsed');
+            btn.setAttribute('data-expanded', '1');
+            btn.textContent = '접기';
+        });
+    }
+
+    /** DB에 [공사1팀] 접두가 남아 있어도 제목만 보이게(레거시 호환) */
+    function displayScheduleTaskTitle(taskRaw) {
+        const s = String(taskRaw || '').trim();
+        return s.replace(/^\[(?:공사[123]팀|기타)\]\s*/, '');
+    }
+
+    function isPhotoPlanPendingReview(item) {
+        return String(item.source_kind || '').trim() === 'photo_plan' && !Number(item.photo_plan_acknowledged || 0);
+    }
+
+    async function acknowledgePhotoPlanImport(scheduleId) {
+        const id = Number(scheduleId);
+        if (!id) return;
+        try {
+            const res = await fetch('/api/schedules/acknowledge-photo-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule_id: id }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(data.detail || '처리에 실패했습니다.');
+                return;
+            }
+            if (typeof showSaveToast === 'function') {
+                showSaveToast(data.message || '검토 완료로 표시했습니다.', 'success');
+            }
+            await loadSchedules();
+        } catch (_e) {
+            alert('요청 중 오류가 발생했습니다.');
+        }
     }
 
     function getScheduleFilters() {
@@ -94,12 +158,15 @@
                 sortedDates = monthlyRange.dates;
             }
 
+            collectExpandedDayFoldKeys();
+
             const boardHTML = isMobileViewport()
                 ? renderMobileCalendar(sortedDates, groupedData, todayStr)
                 : renderDesktopCalendar(sortedDates, groupedData, todayStr);
 
             board.innerHTML = boardHTML;
             restoreActiveScheduleCard(prevActiveScheduleId);
+            restoreExpandedDayFoldKeys();
             updateLastSyncTime();
             await Promise.all([loadWorkerStatus(), loadMemos()]);
 
@@ -189,21 +256,25 @@
         const shiftType = normalizeShiftType(item.shift_type || '');
         const shiftClass = shiftBadgeClass(shiftType);
         const workCode = String(item.work_code || '').trim();
-        const taskLabel = `${escapeHtml(item.task || '공사명 미기재')}`;
+        const taskLabel = `${escapeHtml(displayScheduleTaskTitle(item.task) || '공사명 미기재')}`;
         const badgeParts = [];
         if (shiftType) badgeParts.push(`<span class="schedule-shift-badge ${shiftClass}">${shiftType}</span>`);
         if (scheduleViewOptions.showWorkCode && workCode) {
             badgeParts.push(`<span class="schedule-workcode-badge">${escapeHtml(workCode)}</span>`);
         }
+        if (isPhotoPlanPendingReview(item)) {
+            badgeParts.push('<span class="schedule-source-badge">자동추출</span>');
+        }
         const badgesHtml = badgeParts.length
             ? `<span class="schedule-meta-badges">${badgeParts.join('')}</span>`
             : '';
         const shiftCardClass = constructionShiftCardClass(item);
+        const photoPlanClass = isPhotoPlanPendingReview(item) ? ' schedule-item-photo-plan' : '';
         const detailModalBtn = detailLine && detailLines >= 3
             ? `<button type="button" class="btn btn-sm btn-outline-dark mt-1" onclick="event.stopPropagation(); openScheduleDetailModal('${item.id}')">상세 정보</button>`
             : '';
         return `
-                <div class="schedule-compact-item ${catClass} ${shiftCardClass}" data-id="${item.id}">
+                <div class="schedule-compact-item ${catClass} ${shiftCardClass}${photoPlanClass}" data-id="${item.id}">
                     <div class="schedule-compact-task"><span class="schedule-task-head"><span class="schedule-category-dot ${catClass}"></span>${taskLabel}</span>${badgesHtml}</div>
                     ${scheduleViewOptions.showPerson && personLine ? `<div class="schedule-compact-person">👷 ${escapeHtml(personLine)}</div>` : ''}
                     ${scheduleViewOptions.showDetails && detailLine ? `<div class="schedule-compact-detail-preview">📝 ${escapeHtml(detailLine)}</div>` : ''}
@@ -211,6 +282,7 @@
                         ${detailLine && detailLines <= 2 ? `<div class="detail-text">📝 ${detailInlineHtml(detailLine)}</div>` : ''}
                         ${detailModalBtn}
                         <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
+                            ${isPhotoPlanPendingReview(item) ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); acknowledgePhotoPlanImport(${item.id})">추출 검토 완료</button>` : ''}
                             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); openFieldStaffModal(${item.id})">작업 인원 추가</button>
                             <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openEditRequestById('${item.id}')">수정</button>
                             <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); requestDeleteById('${item.id}')">삭제</button>
@@ -628,6 +700,7 @@
     window.getScheduleFilters = getScheduleFilters;
     window.updateBoardViewModeLabel = updateBoardViewModeLabel;
     window.loadSchedules = loadSchedules;
+    window.acknowledgePhotoPlanImport = acknowledgePhotoPlanImport;
     window.normalizeShiftType = normalizeShiftType;
     window.shiftBadgeClass = shiftBadgeClass;
     window.constructionShiftCardClass = constructionShiftCardClass;

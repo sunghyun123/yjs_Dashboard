@@ -226,6 +226,8 @@
         document.getElementById('docExtractUploadSection').style.display = 'block';
         document.getElementById('docExtractReviewSection').style.display = 'none';
         document.getElementById('docExtractDropZone').textContent = '📷 이미지 선택 / 드래그';
+        const boardBtn = document.getElementById('docExtractBoardBtn');
+        if (boardBtn) boardBtn.classList.add('d-none');
         window.documentExtractModal.show();
     }
 
@@ -297,16 +299,27 @@
             }
             state.extractIsTable = data.extract_mode === 'table';
             state.extractLastValues = data.values || {};
+            const boardBtn = document.getElementById('docExtractBoardBtn');
             if (state.extractIsTable) {
                 renderDocExtractTableReview(data.rows || [], state.extractLastValues);
                 const btn = document.getElementById('docExtractConfirmBtn');
                 const hint = document.getElementById('docExtractReviewHint');
                 if (btn) btn.textContent = '엑셀 다운로드';
-                if (hint) {
-                    hint.textContent =
-                        '표 셀을 직접 수정한 뒤 엑셀을 받습니다. 빈 행은 저장 시 자동으로 제외됩니다.';
+                if (state.extractTemplateId === 'construction_schedule_xlsx') {
+                    if (boardBtn) boardBtn.classList.remove('d-none');
+                    if (hint) {
+                        hint.textContent =
+                            '행을 수정한 뒤 엑셀로 받거나, 녹색 버튼으로 상황판(공사 일정)에 반영할 수 있습니다.';
+                    }
+                } else {
+                    if (boardBtn) boardBtn.classList.add('d-none');
+                    if (hint) {
+                        hint.textContent =
+                            '표 셀을 직접 수정한 뒤 엑셀을 받습니다. 빈 행은 저장 시 자동으로 제외됩니다.';
+                    }
                 }
             } else {
+                if (boardBtn) boardBtn.classList.add('d-none');
                 renderDocExtractReviewForm(state.extractLastValues);
                 const btn = document.getElementById('docExtractConfirmBtn');
                 const hint = document.getElementById('docExtractReviewHint');
@@ -342,12 +355,74 @@
         state.extractLastValues = {};
         state.extractIsTable = false;
         document.getElementById('docExtractReviewList').innerHTML = '';
+        const boardBtn = document.getElementById('docExtractBoardBtn');
+        if (boardBtn) boardBtn.classList.add('d-none');
         const btn = document.getElementById('docExtractConfirmBtn');
         const hint = document.getElementById('docExtractReviewHint');
         if (btn) btn.textContent = '파일 받기';
         if (hint) {
             hint.textContent =
                 '틀린 부분을 고친 뒤 아래 버튼으로 파일을 받습니다. (표 추출은 엑셀, 일반 템플릿은 등록된 형식으로 저장됩니다.)';
+        }
+    }
+
+    function normalizePlanDateInput(raw) {
+        const t = String(raw || '').trim();
+        if (!t) return '';
+        let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+        if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+        m = /(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/.exec(t);
+        if (m) {
+            const y = m[1];
+            const mo = String(m[2]).padStart(2, '0');
+            const day = String(m[3]).padStart(2, '0');
+            return `${y}-${mo}-${day}`;
+        }
+        return '';
+    }
+
+    async function confirmExtractedPlanToBoard() {
+        const state = getDocState();
+        if (state.extractTemplateId !== 'construction_schedule_xlsx') return;
+        const values = collectDocExtractReviewValues();
+        const dateRaw = (values.constuction_time || '').trim();
+        const date = normalizePlanDateInput(dateRaw);
+        if (!date) {
+            alert(
+                '작업일자를 입력해 주세요. (예: 2026-04-16 또는 2026년 4월 16일)\n상단 "작업일자" 칸을 확인하세요.'
+            );
+            return;
+        }
+        const rows = collectDocExtractTableRows().filter((r) => String(r.task || '').trim());
+        if (!rows.length) {
+            alert('반영할 공사 일정(추출 행)이 없습니다. task 열이 비어 있지 않은지 확인하세요.');
+            return;
+        }
+        try {
+            const res = await fetch('/api/schedules/import-construction-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, rows }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                alert(data.detail || '상황판 반영에 실패했습니다.');
+                return;
+            }
+            if (Array.isArray(data.overlap_warnings) && data.overlap_warnings.length) {
+                showSaveToast(
+                    `${data.message || '등록했습니다.'} 유사한 기존 일정이 ${data.overlap_warnings.length}건 있어 확인해 주세요.`,
+                    'warning'
+                );
+            } else {
+                showSaveToast(data.message || '상황판에 반영했습니다.', 'success');
+            }
+            if (typeof window.loadSchedules === 'function') {
+                window.loadSchedules();
+            }
+            window.documentExtractModal.hide();
+        } catch (_e) {
+            alert('상황판 반영 중 오류가 발생했습니다.');
         }
     }
 
@@ -503,4 +578,5 @@
     window.renderDocExtractReviewForm = renderDocExtractReviewForm;
     window.collectDocExtractReviewValues = collectDocExtractReviewValues;
     window.confirmExtractedDocumentExport = confirmExtractedDocumentExport;
+    window.confirmExtractedPlanToBoard = confirmExtractedPlanToBoard;
 })();

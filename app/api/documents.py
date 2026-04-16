@@ -249,6 +249,18 @@ async def extract_document_fields(
                 status_code=400,
                 detail="표 추출 템플릿에 table_columns 정의가 필요합니다.",
             )
+        if str(template_id).strip() == "construction_schedule_xlsx":
+            col_ids = [str(c.get("id", "")).strip() for c in cols if c.get("id")]
+            rows, header_iso = await _ai().extract_construction_schedule_plan(
+                data,
+                mime,
+                col_ids,
+                template_instruction=template_ai_extract_instruction(template),
+            )
+            values_out: Dict[str, str] = {}
+            if header_iso:
+                values_out["constuction_time"] = header_iso
+            return {"extract_mode": "table", "rows": rows, "values": values_out}
         rows = await _ai().extract_table_rows_from_image(
             data,
             mime,
