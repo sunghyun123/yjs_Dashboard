@@ -1167,6 +1167,7 @@ class DBManager:
                         WHEN '외출' THEN 1
                         WHEN '사무실' THEN 2
                         WHEN '야간작업' THEN 3
+                        WHEN '휴가' THEN 4
                         ELSE 9
                      END ASC,
                      updated_at DESC,

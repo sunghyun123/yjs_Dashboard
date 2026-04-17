@@ -41,7 +41,7 @@ class ExecuteRequest(BaseModel):
 
 class WorkerStatusRequest(BaseModel):
     user_name: str = Field(..., description="상태 대상 사용자")
-    status: Literal["사무실", "외출", "야간작업"] = Field(..., description="변경 상태")
+    status: Literal["사무실", "외출", "야간작업", "휴가"] = Field(..., description="변경 상태")
     location: str = Field(default="", description="장소")
     until_time: str = Field(default="", description="외출 종료시각 ISO 문자열")
     note: str = Field(default="", description="메모")
@@ -324,7 +324,7 @@ def get_todays_schedules(
         raise HTTPException(status_code=500, detail="서버 내부 오류가 발생했습니다.")
 
 
-@router.post("/worker-status", summary="외출/야간/사무실 상태 변경")
+@router.post("/worker-status", summary="외출/야간/휴가/사무실 상태 변경")
 def set_worker_status(request: WorkerStatusRequest, user_session=Depends(require_session)):
     db.upsert_worker_status(
         user_name=request.user_name,
@@ -338,12 +338,12 @@ def set_worker_status(request: WorkerStatusRequest, user_session=Depends(require
     return {"status": "success", "message": "상태가 변경되었습니다."}
 
 
-@router.get("/worker-status", summary="외출/야간/사무실 상태 조회")
+@router.get("/worker-status", summary="외출/야간/휴가/사무실 상태 조회")
 def get_worker_status(_user_session=Depends(require_session)):
     return {"status": "success", "data": db.list_worker_status()}
 
 
-@router.delete("/worker-status/{user_name}", summary="외출/야간/사무실 상태 삭제")
+@router.delete("/worker-status/{user_name}", summary="외출/야간/휴가/사무실 상태 삭제")
 def delete_worker_status(user_name: str, _user_session=Depends(require_session)):
     if not user_name.strip():
         raise HTTPException(status_code=400, detail="삭제할 사용자명이 필요합니다.")

@@ -216,6 +216,24 @@ def test_worker_status_flow(client, monkeypatch, tmp_path):
     statuses = status_get_res.json()["data"]
     assert any(item["user_name"] == "홍길동" and item["status"] == "외출" for item in statuses)
 
+    vacation_set_res = client.post(
+        "/api/schedules/worker-status",
+        json={
+            "user_name": "홍길동",
+            "status": "휴가",
+            "location": "",
+            "until_time": "",
+            "note": "연차",
+        },
+    )
+    assert vacation_set_res.status_code == 200
+    assert vacation_set_res.json()["status"] == "success"
+
+    status_get_res2 = client.get("/api/schedules/worker-status")
+    assert status_get_res2.status_code == 200
+    statuses2 = status_get_res2.json()["data"]
+    assert any(item["user_name"] == "홍길동" and item["status"] == "휴가" for item in statuses2)
+
 
 def test_admin_request_queue_basic_flow(client, monkeypatch, tmp_path):
     login_as_admin(client, monkeypatch, tmp_path)

@@ -5,7 +5,6 @@
     function getScheduleState() {
         if (!window.__dashboardScheduleState) {
             window.__dashboardScheduleState = {
-                workerReturnTimeTargetUser: '',
                 expandedDayDateKeys: null,
             };
         }
@@ -693,24 +692,15 @@
     function statusBadgeClass(status) {
         if (status === '외출') return 'bg-warning text-dark';
         if (status === '야간작업') return 'bg-danger';
+        if (status === '휴가') return 'bg-secondary';
         return 'bg-success';
     }
 
     function nextStatus(current) {
         if (current === '사무실') return '외출';
         if (current === '외출') return '야간작업';
+        if (current === '야간작업') return '휴가';
         return '사무실';
-    }
-
-    function parseTimeText(value) {
-        const raw = String(value || '').trim();
-        if (!raw) return '';
-        const m = raw.match(/^(\d{2}):(\d{2})$/);
-        if (!m) return '';
-        const hh = Number(m[1]);
-        const mm = Number(m[2]);
-        if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || (mm !== 0 && mm !== 30)) return '';
-        return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
     }
 
     async function saveWorkerStatusPatch(userName, patch) {
@@ -754,61 +744,6 @@
         if (ok) await loadWorkerStatus();
     }
 
-    async function handleWorkerUntilClick(userName, currentUntil) {
-        const state = getScheduleState();
-        const decodedName = decodeURIComponent(userName || '');
-        const decodedUntil = decodeURIComponent(currentUntil || '');
-        const currentText = formatReturnTime(decodedUntil);
-        state.workerReturnTimeTargetUser = decodedName;
-        document.getElementById('workerReturnTimeInput').value = currentText || '';
-        updateWorkerReturnTimePreview();
-        window.workerReturnTimeModal.show();
-    }
-
-    async function saveWorkerReturnTime() {
-        const state = getScheduleState();
-        const target = state.workerReturnTimeTargetUser;
-        if (!target) return;
-        const picked = document.getElementById('workerReturnTimeInput').value;
-        const normalized = parseTimeText(picked);
-        if (picked && !normalized) {
-            alert('복귀 시각은 HH:mm 형식이며 분은 00 또는 30만 가능합니다.');
-            return;
-        }
-        const nextUntil = normalized ? `${formatLocalDateYYYYMMDD()}T${normalized}` : '';
-        const ok = await saveWorkerStatusPatch(target, { until_time: nextUntil });
-        if (!ok) return;
-        window.workerReturnTimeModal.hide();
-        await loadWorkerStatus();
-    }
-
-    function shiftWorkerReturnTime(deltaMinutes) {
-        const inputEl = document.getElementById('workerReturnTimeInput');
-        const current = String(inputEl.value || '').trim();
-        let hh = 9;
-        let mm = 0;
-        if (current) {
-            const matched = current.match(/^(\d{2}):(\d{2})$/);
-            if (matched) {
-                hh = Number(matched[1]);
-                mm = Number(matched[2]);
-            }
-        }
-        const total = ((hh * 60 + mm + deltaMinutes) % 1440 + 1440) % 1440;
-        const snapped = total - (total % 30);
-        const nextH = Math.floor(snapped / 60);
-        const nextM = snapped % 60;
-        inputEl.value = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`;
-        updateWorkerReturnTimePreview();
-    }
-
-    function updateWorkerReturnTimePreview() {
-        const inputEl = document.getElementById('workerReturnTimeInput');
-        const previewEl = document.getElementById('workerReturnTimePreview');
-        const normalized = parseTimeText(inputEl.value);
-        previewEl.textContent = normalized || '--:--';
-    }
-
     function autoFitWorkerLocationText() {
         const MAX_FONT_PX = 13;
         const MIN_NOWRAP_FONT_PX = 8;
@@ -829,16 +764,6 @@
                 btn.classList.add('allow-wrap');
             }
         });
-    }
-
-    async function clearWorkerReturnTime() {
-        const state = getScheduleState();
-        const target = state.workerReturnTimeTargetUser;
-        if (!target) return;
-        const ok = await saveWorkerStatusPatch(target, { until_time: '' });
-        if (!ok) return;
-        window.workerReturnTimeModal.hide();
-        await loadWorkerStatus();
     }
 
     function openScheduleDetailModal(scheduleId) {
@@ -876,8 +801,7 @@
         list.innerHTML = outingStaff.map((staff) => {
             const row = statusMap.get(String(staff.name)) || { user_name: staff.name, status: '사무실', location: '', until_time: '' };
             const metaInner = workerExpanded && row.status === '외출'
-                ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted worker-location-btn" onclick="handleWorkerLocationClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${escapeHtml(row.location || '행선 입력')}</button>
-                       <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none return-time-emphasis" onclick="handleWorkerUntilClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${row.until_time ? `복귀: ${escapeHtml(formatReturnTime(row.until_time))}` : '복귀 설정'}</button>`
+                ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted worker-location-btn" onclick="handleWorkerLocationClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${escapeHtml(row.location || '행선 입력')}</button>`
                 : '';
             return `
                 <li class="list-group-item d-flex justify-content-between align-items-center py-2 gap-1">
@@ -921,16 +845,10 @@
     window.requestDeleteById = requestDeleteById;
     window.statusBadgeClass = statusBadgeClass;
     window.nextStatus = nextStatus;
-    window.parseTimeText = parseTimeText;
     window.saveWorkerStatusPatch = saveWorkerStatusPatch;
     window.handleWorkerStatusClick = handleWorkerStatusClick;
     window.handleWorkerLocationClick = handleWorkerLocationClick;
-    window.handleWorkerUntilClick = handleWorkerUntilClick;
-    window.saveWorkerReturnTime = saveWorkerReturnTime;
-    window.shiftWorkerReturnTime = shiftWorkerReturnTime;
-    window.updateWorkerReturnTimePreview = updateWorkerReturnTimePreview;
     window.autoFitWorkerLocationText = autoFitWorkerLocationText;
-    window.clearWorkerReturnTime = clearWorkerReturnTime;
     window.openScheduleDetailModal = openScheduleDetailModal;
     window.openDetailPreviewModal = openDetailPreviewModal;
     window.loadWorkerStatus = loadWorkerStatus;
