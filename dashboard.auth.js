@@ -7,6 +7,8 @@
             if (u.searchParams.get('kakao_denied') === 'whitelist') {
                 msg =
                     '허용 목록에 없는 카카오 계정입니다. 저장소의 kakao_whitelist.json에 본인 카카오 사용자 ID를 추가한 뒤 다시 시도하세요.';
+            } else if (u.searchParams.get('kakao_denied') === 'pending') {
+                msg = '관리자 승인 대기 중인 카카오 계정입니다. 관리자 화면에서 승인 후 다시 로그인해 주세요.';
             } else {
                 const e = u.searchParams.get('kakao_error');
                 if (e) msg = decodeURIComponent(e.replace(/\+/g, ' '));

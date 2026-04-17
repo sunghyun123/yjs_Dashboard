@@ -116,6 +116,21 @@ class DBManager:
                              )
                              """)
                 conn.execute("""
+                             CREATE TABLE IF NOT EXISTS login_access_requests
+                             (
+                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 kakao_id TEXT NOT NULL UNIQUE,
+                                 user_id TEXT,
+                                 user_name TEXT,
+                                 role TEXT NOT NULL DEFAULT 'worker',
+                                 status TEXT NOT NULL DEFAULT 'pending',
+                                 requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                 reviewed_at TEXT,
+                                 reviewed_by TEXT,
+                                 note TEXT
+                             )
+                             """)
+                conn.execute("""
                              CREATE TABLE IF NOT EXISTS admin_requests
                              (
                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -690,6 +705,145 @@ class DBManager:
                         """,
                         (u_id, u_name, pw_hash, "", r_db),
                     )
+
+    def upsert_login_access_request(self, kakao_id: str, note: str = "") -> Dict[str, Any]:
+        k_id = str(kakao_id or "").strip()
+        if not k_id:
+            raise ValueError("kakao_id가 비어 있습니다.")
+        default_user_id = f"kakao_{k_id}"
+        default_user_name = default_user_id
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO login_access_requests
+                    (kakao_id, user_id, user_name, role, status, requested_at, note)
+                    VALUES (?, ?, ?, 'worker', 'pending', datetime('now', 'localtime'), ?)
+                    ON CONFLICT(kakao_id) DO UPDATE SET
+                        status = 'pending',
+                        requested_at = datetime('now', 'localtime'),
+                        note = excluded.note
+                    """,
+                    (k_id, default_user_id, default_user_name, note),
+                )
+                row = conn.execute(
+                    """
+                    SELECT id, kakao_id, user_id, user_name, role, status, requested_at,
+                           reviewed_at, reviewed_by, note
+                    FROM login_access_requests
+                    WHERE kakao_id = ?
+                    """,
+                    (k_id,),
+                ).fetchone()
+                return dict(row) if row else {}
+
+    def get_login_access_by_kakao_id(self, kakao_id: str) -> Optional[Dict[str, Any]]:
+        k_id = str(kakao_id or "").strip()
+        if not k_id:
+            return None
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT id, kakao_id, user_id, user_name, role, status, requested_at,
+                       reviewed_at, reviewed_by, note
+                FROM login_access_requests
+                WHERE kakao_id = ?
+                """,
+                (k_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_login_access_requests(self, status: str = "pending") -> List[Dict[str, Any]]:
+        st = (status or "pending").strip()
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT id, kakao_id, user_id, user_name, role, status, requested_at,
+                       reviewed_at, reviewed_by, note
+                FROM login_access_requests
+                WHERE status = ?
+                ORDER BY requested_at DESC, id DESC
+                """,
+                (st,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def review_login_access_request(
+        self,
+        request_id: int,
+        decision: str,
+        reviewed_by: str,
+        role: str = "worker",
+        note: str = "",
+    ) -> Dict[str, Any]:
+        req_id = int(request_id)
+        dec = (decision or "").strip().lower()
+        rv_by = (reviewed_by or "").strip() or "admin"
+        rv_role = "admin" if str(role or "").strip().lower() == "admin" else "worker"
+        rv_note = str(note or "").strip()
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            with conn:
+                row = conn.execute(
+                    """
+                    SELECT id, kakao_id, user_id, user_name, role, status, requested_at,
+                           reviewed_at, reviewed_by, note
+                    FROM login_access_requests
+                    WHERE id = ?
+                    """,
+                    (req_id,),
+                ).fetchone()
+                if not row:
+                    raise ValueError("요청을 찾을 수 없습니다.")
+                current = dict(row)
+                if current.get("status") != "pending":
+                    raise ValueError("이미 처리된 요청입니다.")
+
+                if dec == "approve":
+                    next_user_id = str(current.get("user_id") or "").strip() or f"kakao_{current['kakao_id']}"
+                    next_user_name = str(current.get("user_name") or "").strip() or next_user_id
+                    conn.execute(
+                        """
+                        UPDATE login_access_requests
+                        SET status = 'approved',
+                            role = ?,
+                            user_id = ?,
+                            user_name = ?,
+                            reviewed_at = datetime('now', 'localtime'),
+                            reviewed_by = ?,
+                            note = ?
+                        WHERE id = ?
+                        """,
+                        (rv_role, next_user_id, next_user_name, rv_by, rv_note, req_id),
+                    )
+                elif dec == "reject":
+                    conn.execute(
+                        """
+                        UPDATE login_access_requests
+                        SET status = 'rejected',
+                            reviewed_at = datetime('now', 'localtime'),
+                            reviewed_by = ?,
+                            note = ?
+                        WHERE id = ?
+                        """,
+                        (rv_by, rv_note, req_id),
+                    )
+                else:
+                    raise ValueError("decision 값이 올바르지 않습니다.")
+
+                reviewed = conn.execute(
+                    """
+                    SELECT id, kakao_id, user_id, user_name, role, status, requested_at,
+                           reviewed_at, reviewed_by, note
+                    FROM login_access_requests
+                    WHERE id = ?
+                    """,
+                    (req_id,),
+                ).fetchone()
+                return dict(reviewed) if reviewed else {}
 
     def reset_user_password(self, user_id: str, user_name: str, new_password: str) -> bool:
         u_id = (user_id or "").strip()

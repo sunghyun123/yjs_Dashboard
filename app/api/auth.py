@@ -103,11 +103,17 @@ def kakao_callback(
 
     entry = find_whitelisted_user(kakao_id)
     if not entry:
-        logger.warning(
-            "카카오 로그인 거부: 화이트리스트에 없음 (kakao 사용자 id=%s, kakao_whitelist.json에 추가하세요)",
-            kakao_id,
-        )
-        return _fail_redirect("?kakao_denied=whitelist")
+        access_row = db.get_login_access_by_kakao_id(kakao_id)
+        if access_row and access_row.get("status") == "approved":
+            entry = {
+                "user_id": str(access_row.get("user_id") or f"kakao_{kakao_id}"),
+                "user_name": str(access_row.get("user_name") or f"kakao_{kakao_id}"),
+                "role": str(access_row.get("role") or "worker"),
+            }
+        else:
+            db.upsert_login_access_request(kakao_id, note="카카오 로그인 승인 대기")
+            logger.info("카카오 로그인 승인 대기 등록: kakao_id=%s", kakao_id)
+            return _fail_redirect("?kakao_denied=pending")
 
     try:
         db.ensure_oauth_user(entry["user_id"], entry["user_name"], entry["role"])

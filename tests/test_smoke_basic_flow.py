@@ -85,6 +85,44 @@ def test_auth_login_me_logout_flow(client, monkeypatch, tmp_path):
     assert unauthorized_me.status_code == 401
 
 
+def test_kakao_login_pending_then_admin_approve_flow(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+
+    monkeypatch.setattr(kakao_oauth, "fetch_kakao_user_id", lambda token: "111222333")
+    login_res = client.get("/api/auth/kakao/login?next=/dashboard.html", follow_redirects=False)
+    assert login_res.status_code == 302
+    state = parse_qs(urlparse(login_res.headers.get("location") or "").query)["state"][0]
+    callback_res = client.get(f"/api/auth/kakao/callback?code=fake-code&state={state}", follow_redirects=False)
+    assert callback_res.status_code == 302
+    assert "kakao_denied=pending" in (callback_res.headers.get("location") or "")
+
+    pending_res = client.get("/api/admin/login-access-requests?status=pending")
+    assert pending_res.status_code == 200
+    pending_rows = pending_res.json().get("data") or []
+    target = next((row for row in pending_rows if row.get("kakao_id") == "111222333"), None)
+    assert target is not None
+
+    approve_res = client.post(
+        f"/api/admin/login-access-requests/{target['id']}/review",
+        json={"decision": "approve", "role": "worker", "note": "테스트 승인"},
+    )
+    assert approve_res.status_code == 200
+    assert approve_res.json().get("status") == "success"
+
+    login_res2 = client.get("/api/auth/kakao/login?next=/dashboard.html", follow_redirects=False)
+    assert login_res2.status_code == 302
+    state2 = parse_qs(urlparse(login_res2.headers.get("location") or "").query)["state"][0]
+    callback_res2 = client.get(f"/api/auth/kakao/callback?code=fake-code&state={state2}", follow_redirects=False)
+    assert callback_res2.status_code == 302
+    assert callback_res2.headers.get("location") == "/dashboard.html"
+
+    me_res = client.get("/api/auth/me")
+    assert me_res.status_code == 200
+    me = me_res.json()
+    assert me.get("user_id") == "kakao_111222333"
+    assert me.get("role") == "worker"
+
+
 def test_schedule_create_and_today_read(client, monkeypatch, tmp_path):
     login_as_admin(client, monkeypatch, tmp_path)
     d = _iso_today()

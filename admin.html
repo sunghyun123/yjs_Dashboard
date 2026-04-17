@@ -177,6 +177,14 @@
         </div>
     </div>
 
+    <div class="card mb-3 queue-card">
+        <div class="card-header py-2">카카오 로그인 승인 대기</div>
+        <div class="card-body py-2">
+            <div class="small text-muted mb-2">처음 로그인한 카카오 계정은 여기에서 승인하면 즉시 접속할 수 있습니다.</div>
+            <div id="loginAccessPendingList" class="small text-muted">불러오는 중...</div>
+        </div>
+    </div>
+
     <div id="requestList" class="vstack gap-2"></div>
     <div id="registeredSnapshotBox" class="mt-3"></div>
     <div id="auditEventBox" class="mt-3"></div>
@@ -469,6 +477,58 @@
             return;
         }
         await loadOutingStaffAdmin();
+    }
+
+    async function loadLoginAccessRequests() {
+        const box = document.getElementById('loginAccessPendingList');
+        const res = await fetch('/api/admin/login-access-requests?status=pending');
+        const data = await res.json();
+        if (!res.ok) {
+            box.innerHTML = `<span class="text-danger">${escapeHtml(data.detail || '목록을 불러오지 못했습니다.')}</span>`;
+            return;
+        }
+        const rows = data.data || [];
+        if (rows.length === 0) {
+            box.innerHTML = '<span class="text-muted">대기 중인 계정이 없습니다.</span>';
+            return;
+        }
+        box.innerHTML = rows.map((row) => `
+            <div class="border rounded px-2 py-2 mb-2">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <div><b>${escapeHtml(row.user_name || '-')}</b></div>
+                        <div class="text-muted">kakao_id: ${escapeHtml(row.kakao_id || '-')}</div>
+                        <div class="text-muted">요청시각: ${escapeHtml(row.requested_at || '-')}</div>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-success" onclick="reviewLoginAccessRequest(${row.id}, 'approve')">승인</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="reviewLoginAccessRequest(${row.id}, 'reject')">반려</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function reviewLoginAccessRequest(requestId, decision) {
+        if (!requestId) return;
+        if (decision === 'reject' && !confirm('이 계정 요청을 반려할까요?')) return;
+        const payload = {
+            decision,
+            role: 'worker',
+            note: decision === 'approve' ? '관리자 승인' : '관리자 반려'
+        };
+        const res = await fetch(`/api/admin/login-access-requests/${requestId}/review`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '처리 실패');
+            return;
+        }
+        alert(decision === 'approve' ? '승인 완료' : '반려 완료');
+        await loadLoginAccessRequests();
     }
 
     async function logout() {
@@ -937,6 +997,7 @@
         loadFieldStaffAdmin();
         loadOutingStaffAdmin();
         loadFrequentSiteAdmin();
+        loadLoginAccessRequests();
     });
 </script>
 </body>
