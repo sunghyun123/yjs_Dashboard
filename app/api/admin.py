@@ -40,6 +40,12 @@ class FrequentSiteCreate(BaseModel):
     sort_order: int = Field(default=0, description="정렬 순서")
 
 
+class LoginAccessReviewRequest(BaseModel):
+    decision: str = Field(..., description="approve 또는 reject")
+    role: str = Field(default="worker", description="approve 시 부여할 역할(admin/worker)")
+    note: str = Field(default="", description="관리자 메모")
+
+
 @router.get("/requests")
 def list_requests(
     status: str = "pending",
@@ -186,6 +192,36 @@ def review_request(payload: ReviewRequest, admin=Depends(require_admin)):
     if not applied:
         raise HTTPException(status_code=400, detail="요청 적용에 실패했습니다. 데이터 확인이 필요합니다.")
     return {"status": "success", "message": "요청이 승인 처리되었습니다."}
+
+
+@router.get("/login-access-requests")
+def list_login_access_requests(status: str = "pending", _admin=Depends(require_admin)):
+    return {"status": "success", "data": db.list_login_access_requests(status=status)}
+
+
+@router.post("/login-access-requests/{request_id}/review")
+def review_login_access_request(
+    request_id: int,
+    payload: LoginAccessReviewRequest,
+    admin=Depends(require_admin),
+):
+    try:
+        reviewed = db.review_login_access_request(
+            request_id=request_id,
+            decision=payload.decision,
+            reviewed_by=admin["user_id"],
+            role=payload.role,
+            note=payload.note,
+        )
+        if reviewed.get("status") == "approved":
+            db.ensure_oauth_user(
+                user_id=str(reviewed.get("user_id") or f"kakao_{reviewed.get('kakao_id', '')}"),
+                user_name=str(reviewed.get("user_name") or f"kakao_{reviewed.get('kakao_id', '')}"),
+                role=str(reviewed.get("role") or "worker"),
+            )
+        return {"status": "success", "data": reviewed}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/field-staff")
