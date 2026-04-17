@@ -288,6 +288,29 @@
             border-radius: 12px;
         }
 
+        .time-stepper {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .time-stepper-value {
+            min-width: 90px;
+            text-align: center;
+            font-weight: 800;
+            color: #1f3045;
+        }
+
+        .time-range-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: #6a7888;
+            margin-top: 2px;
+        }
+
         @media (max-width: 768px) {
             .header-title {
                 font-size: 1.05rem;
@@ -407,6 +430,37 @@
             </div>
         </section>
     </main>
+
+    <div class="modal fade" id="workerReturnTimeModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">복귀 시각 설정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-2">드래그/버튼 모두 30분 단위로만 선택됩니다.</div>
+                    <input id="workerReturnTimeSlider" class="form-range" type="range" min="0" max="47" step="1" value="18">
+                    <div class="time-range-labels">
+                        <span>00:00</span>
+                        <span>23:30</span>
+                    </div>
+                    <div class="time-stepper">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" title="30분 감소"
+                            onclick="shiftWorkerReturnTimeHome(-30)">▼</button>
+                        <div id="workerReturnTimePreview" class="time-stepper-value">--:--</div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" title="30분 증가"
+                            onclick="shiftWorkerReturnTimeHome(30)">▲</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                        onclick="clearWorkerReturnTimeHome()">초기화</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="saveWorkerReturnTimeHome()">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="modal fade" id="dashboardLoginModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
         aria-hidden="true">

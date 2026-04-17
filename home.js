@@ -7,15 +7,6 @@
         { name: '평택 사무동 인테리어', percent: 76, manager: '현장소장 송주임', phase: '마감 준비' },
     ];
 
-    const SAMPLE_SHORTCUTS = [
-        { title: '네이버', url: 'https://www.naver.com', icon: '🟢' },
-        { title: '구글 드라이브', url: 'https://drive.google.com', icon: '📁' },
-        { title: '전자세금계산서', url: 'https://www.hometax.go.kr', icon: '🧾' },
-        { title: '공동인증서', url: 'https://www.yessign.or.kr', icon: '🔐' },
-        { title: '카카오워크', url: 'https://work.kakao.com', icon: '💬' },
-        { title: '공사협업 폴더', url: 'https://drive.google.com', icon: '📂' },
-    ];
-
     const SALES_PROFIT_SAMPLE = {
         labels: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
         profit: [175000000, 271000000, -24000000, 18000000, 5000000, 7000000, 12000000, 9000000, 4000000, 3000000, 8000000, 14000000],
@@ -25,6 +16,8 @@
 
     let salesProfitChart = null;
     let projectProgressCarousel = null;
+    let workerReturnTimeModal = null;
+    let workerReturnTimeTargetUser = '';
 
     function formatLocalDateYYYYMMDD(d = new Date()) {
         const y = d.getFullYear();
@@ -57,13 +50,42 @@
     function statusBadgeClass(status) {
         if (status === '외출') return 'bg-warning text-dark';
         if (status === '야간작업') return 'bg-danger';
+        if (status === '휴가') return 'bg-secondary';
         return 'bg-success';
     }
 
     function nextStatus(current) {
         if (current === '사무실') return '외출';
         if (current === '외출') return '야간작업';
+        if (current === '야간작업') return '휴가';
         return '사무실';
+    }
+
+    function parseTimeText(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const m = raw.match(/^(\d{2}):(\d{2})$/);
+        if (!m) return '';
+        const hh = Number(m[1]);
+        const mm = Number(m[2]);
+        if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || (mm !== 0 && mm !== 30)) return '';
+        return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    }
+
+    function halfHourIndexToTimeText(index) {
+        const safe = Math.max(0, Math.min(47, Number(index) || 0));
+        const hh = Math.floor(safe / 2);
+        const mm = safe % 2 === 0 ? 0 : 30;
+        return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    }
+
+    function timeTextToHalfHourIndex(value) {
+        const normalized = parseTimeText(value);
+        if (!normalized) return 18;
+        const [hhText, mmText] = normalized.split(':');
+        const hh = Number(hhText);
+        const mm = Number(mmText);
+        return hh * 2 + (mm === 30 ? 1 : 0);
     }
 
     function formatReturnTime(untilTime) {
@@ -233,6 +255,11 @@
         const box = document.getElementById('homeFrequentSiteList');
         if (!box) return;
 
+        if (!rows || rows.length === 0) {
+            box.innerHTML = '<div class="text-muted small">등록된 바로가기가 없습니다. 관리자 페이지의「홈 화면 바로가기 사이트 관리」에서 추가하면 여기에 표시됩니다.</div>';
+            return;
+        }
+
         box.innerHTML = rows.map((row) => {
             const safeUrl = toSafeExternalUrl(row.url || '#');
             const fallbackIcon = escapeHtml(row.icon || '🔗');
@@ -363,6 +390,15 @@
                 };
                 const locationLabel = row.location ? `행선: ${escapeHtml(row.location)}` : '행선 입력';
                 const returnLabel = row.until_time ? `복귀 ${escapeHtml(formatReturnTime(row.until_time))}` : '복귀 미정';
+                const isOuting = String(row.status || '') === '외출';
+                const outingMetaHtml = isOuting
+                    ? `
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                                onclick="handleWorkerLocationClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${locationLabel}</button>
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                                onclick="handleWorkerUntilClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${returnLabel}</button>
+                    `
+                    : '';
                 return `
                     <div class="worker-row">
                         <div class="d-flex justify-content-between align-items-center gap-2">
@@ -373,9 +409,7 @@
                             </button>
                         </div>
                         <div class="mt-1 small text-muted d-flex flex-wrap gap-2">
-                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
-                                onclick="handleWorkerLocationClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${locationLabel}</button>
-                            <span>${returnLabel}</span>
+                            ${outingMetaHtml}
                         </div>
                     </div>
                 `;
@@ -403,17 +437,71 @@
         await Promise.all([loadWorkerStatusHome(), loadOverview()]);
     }
 
+    async function handleWorkerUntilClickHome(userName, currentUntil) {
+        const decodedName = decodeURIComponent(userName || '');
+        const decodedUntil = decodeURIComponent(currentUntil || '');
+        const currentText = formatReturnTime(decodedUntil);
+        workerReturnTimeTargetUser = decodedName;
+        const sliderEl = document.getElementById('workerReturnTimeSlider');
+        if (!sliderEl) return;
+        sliderEl.value = String(timeTextToHalfHourIndex(currentText || ''));
+        updateWorkerReturnTimePreviewHome();
+        if (workerReturnTimeModal) workerReturnTimeModal.show();
+    }
+
+    function shiftWorkerReturnTimeHome(deltaMinutes) {
+        const sliderEl = document.getElementById('workerReturnTimeSlider');
+        if (!sliderEl) return;
+        const step = deltaMinutes >= 0 ? 1 : -1;
+        const current = Number(sliderEl.value) || 0;
+        const next = ((current + step) % 48 + 48) % 48;
+        sliderEl.value = String(next);
+        updateWorkerReturnTimePreviewHome();
+    }
+
+    function updateWorkerReturnTimePreviewHome() {
+        const sliderEl = document.getElementById('workerReturnTimeSlider');
+        const previewEl = document.getElementById('workerReturnTimePreview');
+        if (!sliderEl || !previewEl) return;
+        previewEl.textContent = halfHourIndexToTimeText(sliderEl.value);
+    }
+
+    async function saveWorkerReturnTimeHome() {
+        const target = workerReturnTimeTargetUser;
+        if (!target) return;
+        const sliderEl = document.getElementById('workerReturnTimeSlider');
+        if (!sliderEl) return;
+        const normalized = halfHourIndexToTimeText(sliderEl.value);
+        const nextUntil = normalized ? `${formatLocalDateYYYYMMDD()}T${normalized}` : '';
+        const ok = await saveWorkerStatusPatch(target, { until_time: nextUntil });
+        if (!ok) return;
+        if (workerReturnTimeModal) workerReturnTimeModal.hide();
+        await Promise.all([loadWorkerStatusHome(), loadOverview()]);
+    }
+
+    async function clearWorkerReturnTimeHome() {
+        const target = workerReturnTimeTargetUser;
+        if (!target) return;
+        const ok = await saveWorkerStatusPatch(target, { until_time: '' });
+        if (!ok) return;
+        if (workerReturnTimeModal) workerReturnTimeModal.hide();
+        await Promise.all([loadWorkerStatusHome(), loadOverview()]);
+    }
+
     async function loadFrequentSitesHome() {
+        const box = document.getElementById('homeFrequentSiteList');
         try {
             const response = await fetch('/api/schedules/frequent-sites');
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
-                renderShortcutGridHome(SAMPLE_SHORTCUTS);
+                if (box) {
+                    box.innerHTML = '<div class="text-danger small">바로가기 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>';
+                }
                 return;
             }
             const rows = Array.isArray(data.data) ? data.data : [];
             if (rows.length === 0) {
-                renderShortcutGridHome(SAMPLE_SHORTCUTS);
+                renderShortcutGridHome([]);
                 return;
             }
             const normalized = rows.slice(0, 8).map((row) => ({
@@ -423,14 +511,23 @@
             }));
             renderShortcutGridHome(normalized);
         } catch (_e) {
-            renderShortcutGridHome(SAMPLE_SHORTCUTS);
+            if (box) {
+                box.innerHTML = '<div class="text-danger small">바로가기 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</div>';
+            }
         }
     }
 
     async function initializeHomePage() {
         window.dashboardLoginModal = new bootstrap.Modal(document.getElementById('dashboardLoginModal'));
+        workerReturnTimeModal = new bootstrap.Modal(document.getElementById('workerReturnTimeModal'));
         const ok = await ensureSession();
         if (!ok) return;
+        const returnTimeSliderEl = document.getElementById('workerReturnTimeSlider');
+        if (returnTimeSliderEl) {
+            returnTimeSliderEl.addEventListener('input', updateWorkerReturnTimePreviewHome);
+            returnTimeSliderEl.addEventListener('change', updateWorkerReturnTimePreviewHome);
+        }
+        updateWorkerReturnTimePreviewHome();
         updateNowLabel();
         await fetchMeAndPaint();
         renderProjectProgressHome();
@@ -447,6 +544,11 @@
     window.loadWorkerStatusHome = loadWorkerStatusHome;
     window.handleWorkerStatusClickHome = handleWorkerStatusClickHome;
     window.handleWorkerLocationClickHome = handleWorkerLocationClickHome;
+    window.handleWorkerUntilClickHome = handleWorkerUntilClickHome;
+    window.shiftWorkerReturnTimeHome = shiftWorkerReturnTimeHome;
+    window.updateWorkerReturnTimePreviewHome = updateWorkerReturnTimePreviewHome;
+    window.saveWorkerReturnTimeHome = saveWorkerReturnTimeHome;
+    window.clearWorkerReturnTimeHome = clearWorkerReturnTimeHome;
     window.loadFrequentSitesHome = loadFrequentSitesHome;
 
     window.addEventListener('load', initializeHomePage);
