@@ -39,6 +39,8 @@
 | `app/db/db_manager.py` | 스키마 초기화, CRUD, 관리자 큐, 감사로그, 상태/메모, 내보내기 이력 |
 | `app/services/export_service.py` | 일일 백업 엑셀 생성(핵심 일정/운영지표/활동로그 다중 시트) |
 | `index.html` | 채팅 입력 화면 |
+| `home.html` | 운영 홈 대시보드 화면(요약 KPI/외출현황/공정률/매출차트) |
+| `home.js` | 홈 대시보드 렌더링(외출 현황, 공정률 슬라이드, 총 공정률 도넛, 매출/손익 차트) |
 | `dashboard.html` | 통합 상황판의 뷰/레이아웃 엔트리(기능 로직은 분리 스크립트 로드) |
 | `dashboard.auth.js` | 대시보드 인증/세션(로그인·로그아웃·회원가입·계정찾기·비밀번호 재설정) |
 | `dashboard.sidebar.js` | 공지 인라인 편집, 기타 메모 CRUD, 상황판 등록, 앱 드로어/문서 서브메뉴 토글 |
@@ -49,7 +51,7 @@
 
 ### 3.2 런타임 라우팅
 
-- 페이지/정적: `/`(기본 `dashboard.html`), `/index.html`, `/dashboard.html`, `/admin.html`, `/board.html`(접속 시 `dashboard.html`로 307 리다이렉트), `/site.webmanifest`, `/sw.js`, `/icon.svg`, `/dashboard.auth.js`, `/dashboard.sidebar.js`, `/dashboard.schedule.js`, `/dashboard.document.js`
+- 페이지/정적: `/`(기본 `dashboard.html`), `/home.html`, `/index.html`, `/dashboard.html`, `/admin.html`, `/board.html`(접속 시 `dashboard.html`로 307 리다이렉트), `/site.webmanifest`, `/sw.js`, `/icon.svg`, `/home.js`, `/dashboard.auth.js`, `/dashboard.sidebar.js`, `/dashboard.schedule.js`, `/dashboard.document.js`
 - API: `/api/auth/*`, `/api/schedules/*`, `/api/admin/*`, `/api/vision/*`, `/api/documents/*`, `/api/local/*`
 
 ---
@@ -58,9 +60,11 @@
 
 1. 사용자가 `/`(`dashboard.html`) 첫 접속 시 로그인 모달에서 인증하거나, `index.html`에서 로그인 후 채팅 입력
 2. `/api/schedules/chat`이 카테고리 기반 라우팅
-   - `memo`: 즉시 메모 저장
+   - UI 기본 입력 카테고리: `공사`, `일정`
+   - 레거시 입력 호환: `schedule_create -> 공사`, `general_work -> 일정`
    - `other`, `update_request`, `delete_request`: 관리자 큐 접수
-   - `schedule_create`, `general_work`: AI 분석 후 등록 후보 반환
+   - `공사`는 AI 후보 생성 시 `category="공사 일정"`으로 정규화하고, `shift_type` 미지정이면 `주간` 기본값을 적용
+   - `일정`은 AI 후보 생성 시 `category="일정"`으로 정규화
 3. 사용자가 확인 시 `/api/schedules/execute`
    - `create`: 즉시 `field_schedules` 반영
    - `update/delete`: 관리자 큐 접수
@@ -146,11 +150,18 @@
 
 - `index.html`
   - 상단 **햄버거 메뉴**: 상황판, 관리자(관리자만), 로그아웃, 로컬 exe 실행. 문서 생성·추출은 상황판 메뉴뉴로 안내(중복 UI 최소화).
-  - 입력 카테고리: `schedule_create`, `general_work`, `memo`, `other`
-  - `general_work` 선택 시 백엔드에서 `category="일반 작업"` 강제
+  - 입력 카테고리(현재 UI): `공사`, `일정`
+  - 레거시 API 값(`schedule_create`, `general_work`)은 서버에서 현재 정책(`공사`, `일정`)으로 자동 매핑해 하위 호환한다.
   - 모바일 입력은 **문장만** 보내고, 근무 구분·공사 코드는 AI 해석 또는 `dashboard.html` 상황판 등록/수정에서 입력한다(채팅 화면 전용 입력란 없음).
   - 모바일 레이아웃 보완(`100dvh`, `max-width: 768px` 대응)
   - AI 일정 조회(`search`) 응답 카드에는 현장 위치·날짜·작업명·상세와 함께 **작업 인원(`person`)**을 표시한다(§11.20.6).
+- `home.html`
+  - 운영 홈 카드 레이아웃: `외출/행선표` + `4월 총 공정률(도넛)` + `월별 공정률(슬라이드)` 상단, `매출/손익` + `바로가기` 하단.
+  - 외출/행선표는 **1열 8명 가시 영역 + 초과 스크롤** 정책을 사용한다. 외출 상태의 `행선/복귀`는 이름 옆 인라인으로 표시해 카드 높이 증가를 막는다.
+  - 월별 공정률은 슬라이드 1페이지당 5건을 표시한다.
+  - 총 공정률은 CSS 도넛(`conic-gradient`)으로 렌더링하며 중앙 수치/범례를 함께 보여준다.
+  - 매출/손익 차트는 **백만원 단위** 축/툴팁을 사용하고, 합계(`성과/투입/손익`)는 제목 우측 요약칩으로 압축 표기한다.
+  - 1080p급 데스크톱(`min-width:1600`, `min-height:900`)에서는 한 화면 가시성을 위해 간격/카드 높이/차트 높이를 줄이는 압축 레이아웃을 적용한다.
 - `dashboard.html`
   - 루트 경로(`/`) 기본 진입 화면이며, 비로그인 첫 접속 시 페이지 내 로그인 모달을 띄워 인증 후 대시보드를 초기화한다.
   - **햄버거 메뉴(좌상단)**: AI 비서 링크, 관리자(관리자만), 로그아웃, 한글 생성기/ERP 로컬 실행 API 호출, 문서 생성·문서 데이터 추출(템플릿 선택 → 모달 플로우). 문서 기능은 `§5.5`와 연동한다.
@@ -211,6 +222,7 @@
 
 - 문서 기준 “일반 작업 통합” 핵심 요구사항은 코드에 반영됨.
 - 검증 기준(실기기 해상도별 UI 최종 QA, 운영 데이터 마이그레이션 검증)은 수동 점검이 필요함.
+- 2026-04 기준 채팅 UI 카테고리는 `공사/일정`으로 단순화되었고, 서버는 레거시 값(`schedule_create/general_work`)을 계속 허용한다.
 
 ---
 
@@ -735,3 +747,6 @@
 17. **문서/로컬/PWA**: `document_templates` + `/api/documents/*`, `LOCAL_APPS_ROOT` + `/api/local/launch`, `site.webmanifest`/`sw.js` 및 대시보드·채팅 화면 햄버거 메뉴(2026-04).
 18. **대시보드 프론트 모듈화(2026-04)**: `dashboard.html`의 대형 인라인 스크립트를 `dashboard.auth.js`/`dashboard.sidebar.js`/`dashboard.schedule.js`/`dashboard.document.js`로 분리해 유지보수성을 개선했다.
 19. **운영 이슈 대응(2026-04)**: 모듈화 직후 발생한 무한 로딩 이슈는 정적 JS 경로 404가 원인이었고, `main.py`에 `/dashboard.auth.js`, `/dashboard.sidebar.js`, `/dashboard.schedule.js`, `/dashboard.document.js` 라우트를 추가해 해결했다.
+20. **채팅 카테고리 정책 갱신(2026-04)**: `index.html` 입력 카테고리를 `공사/일정`으로 단순화했다. 서버는 `schedule_create/general_work`를 각각 `공사/일정`으로 매핑해 하위 호환한다.
+21. **AI 의도 스키마 안정화(2026-04)**: `shift_type`은 `주간/야간`만 사용하고, 공사 카테고리에서 미지정 시 기본값 `주간`을 적용한다.
+22. **홈 대시보드 신설/확장(2026-04)**: `home.html`/`home.js`에서 외출현황(8명+스크롤), 월별 공정률(슬라이드 5건), 4월 총 공정률 도넛, 매출/손익(백만원) 및 합계 요약칩 UI를 운영한다.
