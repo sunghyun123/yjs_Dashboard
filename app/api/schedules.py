@@ -24,8 +24,8 @@ db = DBManager(db_path=settings.sqlite_db_path)
 # 3. Request 모델
 class ChatRequest(BaseModel):
     text: str = Field(..., description="사용자가 채팅창에 입력한 자연어 메시지")
-    input_category: Literal["schedule_create", "general_work", "other", "update_request", "delete_request"] = Field(
-        default="schedule_create",
+    input_category: Literal["공사", "일정", "schedule_create", "general_work", "other", "update_request", "delete_request"] = Field(
+        default="공사",
         description="사용자 선택 입력 카테고리"
     )
     model_config = ConfigDict(
@@ -124,6 +124,32 @@ def _plan_task_overlap(new_task: str, existing_task: str) -> bool:
     return False
 
 
+def _normalize_chat_input_category(raw: str) -> str:
+    val = str(raw or "").strip()
+    if val in ("공사", "schedule_create"):
+        return "공사"
+    if val in ("일정", "general_work"):
+        return "일정"
+    if val in ("other", "update_request", "delete_request"):
+        return val
+    return "공사"
+
+
+def _apply_chat_category_policy(input_category: str, schedule_data: Dict[str, Any]) -> Dict[str, Any]:
+    data = dict(schedule_data or {})
+    normalized_input = _normalize_chat_input_category(input_category)
+    if normalized_input == "공사":
+        data["category"] = "공사 일정"
+        # 공사는 주간/야간 미지정 시 주간 기본값을 사용한다.
+        if str(data.get("shift_type") or "").strip() not in ("주간", "야간"):
+            data["shift_type"] = "주간"
+    elif normalized_input == "일정":
+        data["category"] = "일정"
+        if str(data.get("shift_type") or "").strip() not in ("주간", "야간"):
+            data["shift_type"] = ""
+    return data
+
+
 # 4. 엔드포인트 통합
 
 @router.post("/chat", summary="[V2] 대화형 의도 분석 및 후보 검색")
@@ -145,13 +171,15 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
             response_status=response_status,
         )
 
+    normalized_input_category = _normalize_chat_input_category(request.input_category)
+
     # 카테고리 기반 즉시 관리자 큐 라우팅
-    if request.input_category in ["other", "update_request", "delete_request"]:
+    if normalized_input_category in ["other", "update_request", "delete_request"]:
         req_id = db.create_admin_request(
-            request_type=request.input_category,
-            source_category=request.input_category,
+            request_type=normalized_input_category,
+            source_category=normalized_input_category,
             request_text=request.text,
-            summary=f"[{request.input_category}] 사용자 요청 접수",
+            summary=f"[{normalized_input_category}] 사용자 요청 접수",
             payload_json="",
             requested_by=user_session["user_id"],
         )
@@ -165,7 +193,7 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
         }
 
     # 1. AI 의도 분석기 호출
-    action_data = await ai_svc.process_command(request.text)
+    action_data = await ai_svc.process_command(request.text, normalized_input_category)
 
     if not action_data:
         response_status = "error"
@@ -178,9 +206,8 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
     target_date = action_data.get('target_date')
     target_keyword = action_data.get('target_keyword')
     schedule_data = action_data.get('schedule_data')
-    if request.input_category == "general_work" and isinstance(schedule_data, dict):
-        # '일반 작업'은 기존 일정 등록 플로우를 사용하되 category를 강제한다.
-        schedule_data["category"] = "일반 작업"
+    if isinstance(schedule_data, dict):
+        schedule_data = _apply_chat_category_policy(normalized_input_category, schedule_data)
 
     logger.info(f"AI 판단 의도: {intent}")
 
@@ -190,7 +217,7 @@ async def chat_with_ai(request: ChatRequest, user_session=Depends(require_sessio
         if intent in ["update", "delete"]:
             req_id = db.create_admin_request(
                 request_type=f"{intent}_request",
-                source_category=request.input_category,
+                source_category=normalized_input_category,
                 request_text=request.text,
                 summary=f"AI가 {intent} 요청으로 분류",
                 payload_json=json.dumps(action_data, ensure_ascii=False),

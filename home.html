@@ -124,19 +124,60 @@
             color: #1f3045;
         }
 
+        .worker-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+
         .worker-row {
             border: 1px solid #e3ebf4;
             border-radius: 10px;
             background: #f9fbff;
-            padding: 7px 10px;
+            padding: 6px 8px;
+            min-height: 44px;
         }
 
         .worker-row b {
-            font-size: 0.95rem;
+            font-size: 0.87rem;
+        }
+
+        .worker-row .btn.badge {
+            font-size: 0.72rem;
+            padding: 4px 7px;
+        }
+
+        .worker-main-line {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .worker-name {
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .worker-outing-meta {
+            min-width: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.74rem;
+            color: #3f5f86;
+            white-space: nowrap;
+        }
+
+        .worker-outing-meta .btn-link {
+            font-size: 0.74rem;
+            color: #0d6efd;
         }
 
         .worker-status-scroll {
-            max-height: 330px;
+            max-height: 398px;
             overflow-y: auto;
             padding-right: 2px;
         }
@@ -192,14 +233,14 @@
         .progress-slide-card {
             border: 1px solid #e3ebf6;
             border-radius: 12px;
-            padding: 10px 12px;
+            padding: 8px 10px;
             background: #f8fbff;
             height: 100%;
         }
 
         .progress-project {
             font-weight: 800;
-            font-size: 0.97rem;
+            font-size: 0.9rem;
             color: #1f3045;
             white-space: nowrap;
             overflow: hidden;
@@ -209,10 +250,11 @@
         .progress-percent {
             font-weight: 800;
             color: #1c8b4c;
+            font-size: 0.9rem;
         }
 
         .progress-meta {
-            font-size: 0.8rem;
+            font-size: 0.76rem;
             color: #5c6f84;
             white-space: nowrap;
             overflow: hidden;
@@ -221,9 +263,98 @@
 
         .progress-slide-stack {
             display: grid;
-            grid-template-rows: repeat(3, minmax(0, 1fr));
-            gap: 8px;
-            min-height: 252px;
+            grid-template-rows: repeat(5, minmax(0, 1fr));
+            gap: 6px;
+            min-height: 332px;
+        }
+
+        .total-progress-wrap {
+            min-height: 332px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .total-progress-canvas-wrap {
+            width: min(220px, 100%);
+            margin: 0 auto;
+        }
+
+        .total-progress-donut {
+            --progress: 68;
+            width: 100%;
+            max-width: 220px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            border-radius: 50%;
+            background: conic-gradient(#2f8df7 calc(var(--progress) * 1%), #ff7a00 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .total-progress-donut::before {
+            content: "";
+            width: 74%;
+            height: 74%;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: inset 0 0 0 1px #e6edf6;
+            position: absolute;
+            z-index: 1;
+        }
+
+        .total-progress-center {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            line-height: 1.15;
+        }
+
+        .total-progress-value {
+            font-size: 1.7rem;
+            font-weight: 800;
+            color: #1f3045;
+        }
+
+        .total-progress-sub {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #62758b;
+        }
+
+        .total-progress-legend {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 8px;
+            font-size: 0.78rem;
+            color: #4f6278;
+        }
+
+        .dot-chip {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 4px;
+            transform: translateY(-1px);
+        }
+
+        .dot-chip.progress {
+            background: #2f8df7;
+        }
+
+        .dot-chip.remain {
+            background: #ff7a00;
+        }
+
+        .total-progress-caption {
+            font-size: 0.82rem;
+            color: #5f6f82;
+            text-align: center;
+            margin-top: 8px;
         }
 
         .progress-slide-card.is-placeholder {
@@ -283,6 +414,38 @@
             max-height: 290px;
         }
 
+        .sales-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .sales-total-inline {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .sales-total-chip {
+            border: 1px solid #dce8f4;
+            background: #f8fbff;
+            border-radius: 999px;
+            padding: 3px 8px;
+            font-size: 0.72rem;
+            color: #4f6074;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        .sales-total-chip b {
+            color: #1f3045;
+            font-weight: 800;
+            margin-left: 3px;
+        }
+
         .login-card {
             width: min(420px, 92vw);
             border-radius: 12px;
@@ -324,8 +487,49 @@
                 font-size: 1.3rem;
             }
 
-            .worker-status-scroll {
-                max-height: 290px;
+            .worker-status-scroll { max-height: 360px; }
+
+            .total-progress-wrap { min-height: 0; }
+        }
+
+        /* 1980x1080급 데스크톱에서 한 화면 가시성을 높이기 위한 압축 레이아웃 */
+        @media (min-width: 1600px) and (min-height: 900px) {
+            .home-shell {
+                padding-top: 80px;
+                padding-bottom: 10px;
+            }
+
+            .home-shell .row {
+                --bs-gutter-x: 0.75rem;
+                --bs-gutter-y: 0.55rem;
+            }
+
+            .summary-value {
+                font-size: 1.36rem;
+            }
+
+            .section-title {
+                font-size: 0.9rem;
+            }
+
+            .worker-status-scroll { max-height: 400px; }
+
+            .progress-slide-stack { min-height: 270px; }
+
+            .total-progress-wrap { min-height: 270px; }
+
+            #salesProfitChart {
+                max-height: 205px;
+            }
+
+            .mini-link {
+                padding: 8px 6px;
+                font-size: 0.74rem;
+            }
+
+            .sales-total-chip {
+                padding: 2px 7px;
+                font-size: 0.68rem;
             }
         }
     </style>
@@ -381,7 +585,7 @@
         </section>
 
         <section class="row g-3">
-            <div class="col-12 col-xl-6">
+            <div class="col-12 col-xl-4">
                 <div class="home-card p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="section-title">외출/행선표</div>
@@ -394,14 +598,37 @@
                         </button>
                     </div>
                     <div class="worker-status-scroll">
-                        <div id="workerStatusListHome" class="vstack gap-2"></div>
+                        <div id="workerStatusListHome" class="worker-grid"></div>
                     </div>
                 </div>
             </div>
-            <div class="col-12 col-xl-6">
+            <div class="col-12 col-xl-3">
                 <div class="home-card p-3 h-100">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div class="section-title">공사별 공정률 (예시)</div>
+                        <div class="section-title">4월 총 공정률</div>
+                        <span class="badge text-bg-light border">진행/미달성</span>
+                    </div>
+                    <div class="total-progress-wrap">
+                        <div class="total-progress-canvas-wrap">
+                            <div id="totalProgressDonut" class="total-progress-donut" style="--progress:68;">
+                                <div class="total-progress-center">
+                                    <div id="totalProgressValue" class="total-progress-value">68%</div>
+                                    <div class="total-progress-sub">4월 총 공정률</div>
+                                </div>
+                            </div>
+                            <div class="total-progress-legend">
+                                <span><i class="dot-chip progress"></i><span id="totalProgressLegendDone">진행 68%</span></span>
+                                <span><i class="dot-chip remain"></i><span id="totalProgressLegendRemain">미달성 32%</span></span>
+                            </div>
+                            <div class="total-progress-caption">진행 공정률 / 미달성 공정률</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-5">
+                <div class="home-card p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="section-title">월별 공정률</div>
                         <span class="badge text-bg-light border">슬라이드</span>
                     </div>
                     <div id="projectProgressCarousel" class="carousel slide progress-carousel" data-bs-ride="carousel" data-bs-interval="5000" data-bs-pause="hover">
@@ -415,7 +642,14 @@
         <section class="row g-3 mt-1">
             <div class="col-12 col-xl-8">
                 <div class="home-card p-3 h-100">
-                    <div class="section-title mb-2">매출 / 손익 현황 (예시)</div>
+                    <div class="sales-header">
+                        <div class="section-title">매출 / 손익 현황 (백만원)</div>
+                        <div class="sales-total-inline" id="salesTotalGrid">
+                            <div class="sales-total-chip">성과<b id="totalOutcomeValue">0백만원</b></div>
+                            <div class="sales-total-chip">투입<b id="totalInputValue">0백만원</b></div>
+                            <div class="sales-total-chip">손익<b id="totalProfitValue">0백만원</b></div>
+                        </div>
+                    </div>
                     <canvas id="salesProfitChart"></canvas>
                     <div class="small text-muted mt-2">* 현재는 화면 느낌 확인용 샘플 데이터입니다.</div>
                 </div>
@@ -485,7 +719,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/dashboard.auth.js?v=20260416"></script>
-    <script src="/home.js?v=20260416"></script>
+    <script src="/home.js?v=20260420"></script>
 </body>
 
 </html>

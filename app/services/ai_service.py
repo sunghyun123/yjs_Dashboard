@@ -17,11 +17,14 @@ class ScheduleSchema(BaseModel):
     person: str = Field(default="-", description="담당자 또는 작업자 이름")
     details: str = Field(default="", description="참여자, 장비, 특이사항 등 상세 내용")
     work_code: str = Field(default="", description="현장 내부 공사 코드")
-    shift_type: Literal["", "주간", "야간", "심야"] = Field(
-        default="",
-        description="근무 구분(야간·심야는 동일하게 야간으로 저장·표시됨)",
+    shift_type: Optional[Literal["주간", "야간"]] = Field(
+        default=None,
+        description="근무 구분(미지정 시 공사 카테고리는 주간으로 기본 처리)",
     )
-    category: str = Field(description="공사 일정, 이슈보고, 일반메모 중 하나")
+    category: Optional[Literal["공사 일정", "일정"]] = Field(
+        default=None,
+        description="상황판 카테고리(공사 일정 또는 일정)",
+    )
 
 
 # 2. [V2 신규] 대화형 의도 분석 구조
@@ -48,13 +51,22 @@ class GeminiService:
         self.client = genai.Client(api_key=api_key)
         self.model_name = "gemini-3-flash-preview"
 
-    async def process_command(self, text: str) -> Optional[Dict[str, Any]]:
+    async def process_command(self, text: str, input_category: str = "공사") -> Optional[Dict[str, Any]]:
         # 시스템 프롬프트에 동적으로 현재 날짜 주입 (YYYY-MM-DD)
         current_date = datetime.now().strftime("%Y-%m-%d")
+
+        normalized_input_category = "일정" if str(input_category or "").strip() == "일정" else "공사"
 
         system_instruction = f"""
         당신은 건설 현장 상황판의 스마트 AI 어시스턴트입니다. (오늘 날짜 기준: {current_date})
         사용자의 메시지를 분석하여 데이터베이스를 직접 조작하는 대신, '사용자의 의도'를 파악하고 DB 검색 조건이나 후보 데이터를 추출하세요.
+        사용자가 선택한 입력 카테고리는 "{normalized_input_category}" 입니다.
+
+        [카테고리/근무 기본 규칙]
+        - 입력 카테고리가 "공사"이면 schedule_data.category는 "공사 일정"으로 작성하세요.
+        - 입력 카테고리가 "일정"이면 schedule_data.category는 "일정"으로 작성하세요.
+        - 공사 일정인데 사용자가 주간/야간을 명시하지 않으면 shift_type은 "주간"으로 작성하세요.
+        - shift_type은 "주간" 또는 "야간"만 사용하세요. ("심야"는 사용 금지)
 
         [의도(intent) 분류 기준 및 지시사항]
         1. create (등록): 새로운 일정을 추가하려는 경우. 

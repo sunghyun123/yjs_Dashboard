@@ -1,10 +1,15 @@
 (function () {
-    const SAMPLE_PROJECT_PROGRESS = [
-        { name: '안양 소호타운 리모델링', percent: 91, manager: '현장소장 김대리', phase: '마감 공정' },
-        { name: '의왕 물류센터 전기증설', percent: 64, manager: '현장소장 이과장', phase: '중간 점검' },
-        { name: '수원 지식산업센터 증축', percent: 47, manager: '현장소장 박팀장', phase: '골조 진행' },
-        { name: '화성 공장 신축', percent: 28, manager: '현장소장 정차장', phase: '기초 공정' },
-        { name: '평택 사무동 인테리어', percent: 76, manager: '현장소장 송주임', phase: '마감 준비' },
+    const SAMPLE_MONTHLY_PROGRESS = [
+        { month: '1월', name: '안양 소호타운 리모델링', percent: 72, manager: '현장소장 김대리', phase: '골조 진행' },
+        { month: '2월', name: '의왕 물류센터 전기증설', percent: 56, manager: '현장소장 이과장', phase: '배관 공정' },
+        { month: '3월', name: '수원 지식산업센터 증축', percent: 68, manager: '현장소장 박팀장', phase: '중간 점검' },
+        { month: '4월', name: '화성 공장 신축', percent: 44, manager: '현장소장 정차장', phase: '기초 공정' },
+        { month: '5월', name: '평택 사무동 인테리어', percent: 81, manager: '현장소장 송주임', phase: '마감 준비' },
+        { month: '6월', name: '안산 스마트팩토리 개보수', percent: 38, manager: '현장소장 최대리', phase: '착공 준비' },
+        { month: '7월', name: '광명 물류동 증설', percent: 63, manager: '현장소장 윤과장', phase: '외부 공정' },
+        { month: '8월', name: '군포 복합동 리뉴얼', percent: 59, manager: '현장소장 조차장', phase: '내부 공정' },
+        { month: '9월', name: '용인 연구동 보수', percent: 74, manager: '현장소장 한주임', phase: '마감 공정' },
+        { month: '10월', name: '오산 전기실 정비', percent: 49, manager: '현장소장 임대리', phase: '자재 투입' },
     ];
 
     const SALES_PROFIT_SAMPLE = {
@@ -13,6 +18,7 @@
         input: [142000000, 306000000, 153000000, 28000000, 6000000, 9000000, 15000000, 11000000, 7000000, 4000000, 9000000, 12000000],
         outcome: [312000000, 578000000, 140000000, 46000000, 11000000, 16000000, 27000000, 20000000, 11000000, 7000000, 17000000, 26000000],
     };
+    const APRIL_TOTAL_PROGRESS = 68;
 
     let salesProfitChart = null;
     let projectProgressCarousel = null;
@@ -138,6 +144,19 @@
         return chunks;
     }
 
+    function toMillionUnit(value) {
+        return Math.round((Number(value) || 0) / 1000000);
+    }
+
+    function sumNumbers(values) {
+        return (Array.isArray(values) ? values : []).reduce((acc, cur) => acc + (Number(cur) || 0), 0);
+    }
+
+    function formatMillionLabel(rawWon) {
+        const million = toMillionUnit(rawWon);
+        return `${million.toLocaleString('ko-KR')}백만원`;
+    }
+
     function renderProjectProgressHome() {
         const inner = document.getElementById('projectProgressCarouselInner');
         const indicators = document.getElementById('projectProgressCarouselIndicators');
@@ -145,8 +164,8 @@
         const carouselRoot = document.getElementById('projectProgressCarousel');
         if (!carouselRoot) return;
 
-        const perSlide = 3;
-        const pages = chunkArray(SAMPLE_PROJECT_PROGRESS, perSlide);
+        const perSlide = 5;
+        const pages = chunkArray(SAMPLE_MONTHLY_PROGRESS, perSlide);
 
         inner.innerHTML = pages.map((group, pageIdx) => `
             <div class="carousel-item ${pageIdx === 0 ? 'active' : ''}">
@@ -166,7 +185,7 @@
                             <div class="progress mt-2" role="progressbar" aria-label="공정률 ${percent}%">
                                 <div class="progress-bar bg-success" style="width:${percent}%"></div>
                             </div>
-                            <div class="progress-meta mt-1" title="${escapeHtml(item.phase)} · ${escapeHtml(item.manager)}">${escapeHtml(item.phase)} · ${escapeHtml(item.manager)}</div>
+                            <div class="progress-meta mt-1" title="${escapeHtml(item.month)} · ${escapeHtml(item.phase)} · ${escapeHtml(item.manager)}">${escapeHtml(item.month)} · ${escapeHtml(item.phase)} · ${escapeHtml(item.manager)}</div>
                         </div>
                         `;
                     }).join('')}
@@ -209,21 +228,21 @@
                 datasets: [
                     {
                         label: '손익금액',
-                        data: SALES_PROFIT_SAMPLE.profit,
+                        data: SALES_PROFIT_SAMPLE.profit.map(toMillionUnit),
                         backgroundColor: 'rgba(222, 102, 43, 0.85)',
                         borderColor: 'rgba(191, 78, 25, 1)',
                         borderWidth: 1,
                     },
                     {
                         label: '투입금액',
-                        data: SALES_PROFIT_SAMPLE.input,
+                        data: SALES_PROFIT_SAMPLE.input.map(toMillionUnit),
                         backgroundColor: 'rgba(119, 177, 67, 0.85)',
                         borderColor: 'rgba(95, 149, 48, 1)',
                         borderWidth: 1,
                     },
                     {
                         label: '성과금액',
-                        data: SALES_PROFIT_SAMPLE.outcome,
+                        data: SALES_PROFIT_SAMPLE.outcome.map(toMillionUnit),
                         backgroundColor: 'rgba(233, 179, 52, 0.85)',
                         borderColor: 'rgba(197, 147, 29, 1)',
                         borderWidth: 1,
@@ -236,19 +255,53 @@
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: { position: 'right' },
+                    tooltip: {
+                        callbacks: {
+                            label(context) {
+                                const label = context.dataset.label || '';
+                                const value = Number(context.parsed.y || 0).toLocaleString('ko-KR');
+                                return `${label}: ${value}백만원`;
+                            },
+                        },
+                    },
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '백만원',
+                        },
                         ticks: {
                             callback(value) {
-                                return Number(value).toLocaleString('ko-KR');
+                                return `${Number(value).toLocaleString('ko-KR')}M`;
                             },
                         },
                     },
                 },
             },
         });
+
+        const totalOutcomeEl = document.getElementById('totalOutcomeValue');
+        const totalInputEl = document.getElementById('totalInputValue');
+        const totalProfitEl = document.getElementById('totalProfitValue');
+        if (totalOutcomeEl) totalOutcomeEl.textContent = formatMillionLabel(sumNumbers(SALES_PROFIT_SAMPLE.outcome));
+        if (totalInputEl) totalInputEl.textContent = formatMillionLabel(sumNumbers(SALES_PROFIT_SAMPLE.input));
+        if (totalProfitEl) totalProfitEl.textContent = formatMillionLabel(sumNumbers(SALES_PROFIT_SAMPLE.profit));
+    }
+
+    function renderTotalProgressChartHome() {
+        const progress = Math.max(0, Math.min(100, Number(APRIL_TOTAL_PROGRESS) || 0));
+        const remain = Math.max(0, 100 - progress);
+        const donutEl = document.getElementById('totalProgressDonut');
+        const valueEl = document.getElementById('totalProgressValue');
+        const doneEl = document.getElementById('totalProgressLegendDone');
+        const remainEl = document.getElementById('totalProgressLegendRemain');
+        if (!donutEl || !valueEl || !doneEl || !remainEl) return;
+        donutEl.style.setProperty('--progress', String(progress));
+        valueEl.textContent = `${progress}%`;
+        doneEl.textContent = `진행 ${progress}%`;
+        remainEl.textContent = `미달성 ${remain}%`;
     }
 
     function renderShortcutGridHome(rows) {
@@ -393,23 +446,26 @@
                 const isOuting = String(row.status || '') === '외출';
                 const outingMetaHtml = isOuting
                     ? `
-                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
-                                onclick="handleWorkerLocationClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${locationLabel}</button>
-                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
-                                onclick="handleWorkerUntilClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${returnLabel}</button>
+                            <span class="worker-outing-meta">
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                                    onclick="handleWorkerLocationClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${locationLabel}</button>
+                                <span>|</span>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                                    onclick="handleWorkerUntilClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${returnLabel}</button>
+                            </span>
                     `
                     : '';
                 return `
                     <div class="worker-row">
                         <div class="d-flex justify-content-between align-items-center gap-2">
-                            <b class="text-truncate">${escapeHtml(row.user_name)}</b>
+                            <div class="worker-main-line">
+                                <b class="worker-name">${escapeHtml(row.user_name)}</b>
+                                ${outingMetaHtml}
+                            </div>
                             <button type="button" class="btn btn-sm badge ${statusBadgeClass(row.status)}"
                                 onclick="handleWorkerStatusClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.status || '사무실')}')">
                                 ${statusLabelText(row.status)}
                             </button>
-                        </div>
-                        <div class="mt-1 small text-muted d-flex flex-wrap gap-2">
-                            ${outingMetaHtml}
                         </div>
                     </div>
                 `;
@@ -531,6 +587,7 @@
         updateNowLabel();
         await fetchMeAndPaint();
         renderProjectProgressHome();
+        renderTotalProgressChartHome();
         renderSalesProfitChartHome();
         await Promise.all([loadOverview(), loadWorkerStatusHome(), loadFrequentSitesHome()]);
         setInterval(() => {
