@@ -17,6 +17,62 @@ db = DBManager(db_path=settings.sqlite_db_path)
 BASE_STORAGE = Path("자동화_데이터")
 
 
+def _to_worklog_records(extracted: dict) -> list[dict]:
+    work_code = str(extracted.get("project_code") or "").strip()
+    input_date = str(extracted.get("work_date") or "").strip()
+    regular_count = int(extracted.get("regular_count") or 0)
+    daily_count = int(extracted.get("daily_count") or 0)
+    signalman_count = int(extracted.get("signalman_count") or 0)
+    excavator_6w = int(extracted.get("excavator_6w") or 0)
+    excavator_3w = int(extracted.get("excavator_3w") or 0)
+    dump_15t = int(extracted.get("dump_15t") or 0)
+    crane_count = int(extracted.get("crane_count") or 0)
+
+    is_night = bool(extracted.get("is_night"))
+
+    def make_row(item_name: str, value: int) -> dict:
+        value = int(value or 0)
+        return {
+            "work_code": work_code,
+            "input_date": input_date,
+            "item_name": item_name,
+            "day_value": 0 if is_night else value,
+            "night_value": value if is_night else 0,
+        }
+
+    return [
+        make_row("상용직", regular_count),
+        make_row("일용직", daily_count),
+        make_row("모범신호수", signalman_count),
+        make_row("6W", excavator_6w),
+        make_row("3W", excavator_3w),
+        make_row("덤프15T", dump_15t),
+        make_row("크레인", crane_count),
+    ]
+
+
+@router.post("/extract-worklog")
+async def extract_worklog(
+    file: UploadFile = File(...),
+    _user_session=Depends(require_session),
+):
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="이미지 파일이 비어 있습니다.")
+
+    data = await vision_svc.analyze_document(content, file.content_type or "image/jpeg")
+    if not data:
+        raise HTTPException(status_code=500, detail="AI 분석 실패")
+
+    records = _to_worklog_records(data)
+    return {
+        "message": "추출 완료",
+        "source": "ai",
+        "raw": data,
+        "records": records,
+    }
+
+
 @router.post("/upload")
 async def process_document(
     file: UploadFile = File(...),

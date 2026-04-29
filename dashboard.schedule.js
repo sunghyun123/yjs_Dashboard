@@ -68,15 +68,13 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                alert(data.detail || '처리에 실패했습니다.');
+                showSaveToast(data.detail || '처리에 실패했습니다.', 'error');
                 return;
             }
-            if (typeof showSaveToast === 'function') {
-                showSaveToast(data.message || '검토 완료로 표시했습니다.', 'success');
-            }
+            showSaveToast(data.message || '검토 완료로 표시했습니다.', 'success');
             await loadSchedules();
         } catch (_e) {
-            alert('요청 중 오류가 발생했습니다.');
+            showSaveToast('요청 중 오류가 발생했습니다.', 'error');
         }
     }
 
@@ -106,7 +104,15 @@
         el.textContent = `조회 모드: ${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 전체`;
     }
 
+    let _loadSchedulesInflight = false;
+    let _loadSchedulesPending = false;
     async function loadSchedules() {
+        // race condition 가드: 동시에 호출되면 직렬화 — 이미 진행 중이면 1회만 큐잉.
+        if (_loadSchedulesInflight) {
+            _loadSchedulesPending = true;
+            return;
+        }
+        _loadSchedulesInflight = true;
         const board = document.getElementById('scheduleBoard');
         const { todayOnly, selectedDate, keyword } = getScheduleFilters();
         const todayStr = formatLocalDateYYYYMMDD();
@@ -181,6 +187,12 @@
         } catch (error) {
             console.error('데이터 갱신 실패:', error);
             document.getElementById('lastUpdated').innerText = '동기화 지연 중...';
+        } finally {
+            _loadSchedulesInflight = false;
+            if (_loadSchedulesPending) {
+                _loadSchedulesPending = false;
+                window.setTimeout(loadSchedules, 0);
+            }
         }
     }
 
@@ -524,7 +536,7 @@
     function openEditRequestById(scheduleId) {
         const item = scheduleMap.get(String(scheduleId));
         if (!item) {
-            alert('일정 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.');
+            showSaveToast('일정 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.', 'error');
             return;
         }
         document.getElementById('editScheduleId').value = String(item.id || '');
@@ -584,7 +596,7 @@
         const shiftType = applyDefaultShiftType(category, document.getElementById('quickAddShiftType')?.value.trim() || '');
         const workCode = document.getElementById('quickAddWorkCode')?.value.trim() || '';
         if (!task) {
-            alert('작업/메모 제목을 입력하세요.');
+            showSaveToast('작업/메모 제목을 입력하세요.', 'info');
             return;
         }
         const payload = {
@@ -606,20 +618,18 @@
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-            alert(data.detail || '일정 등록에 실패했습니다.');
+            showSaveToast(data.detail || '일정 등록에 실패했습니다.', 'error');
             return;
         }
         if (window.quickAddScheduleModal) window.quickAddScheduleModal.hide();
-        if (typeof showSaveToast === 'function') {
-            showSaveToast(data.message || '일정을 등록했습니다.', 'success');
-        }
+        showSaveToast(data.message || '일정을 등록했습니다.', 'success');
         await loadSchedules();
     }
 
     async function submitDirectEdit() {
         const scheduleId = Number(document.getElementById('editScheduleId').value);
         if (!scheduleId) {
-            alert('수정 대상 일정 ID가 없습니다.');
+            showSaveToast('수정 대상 일정 ID가 없습니다.', 'error');
             return;
         }
 
@@ -641,7 +651,7 @@
         };
 
         if (!payload.schedule_data.task) {
-            alert('공사명·작업 내용(task)은 필수입니다.');
+            showSaveToast('공사명·작업 내용(task)은 필수입니다.', 'info');
             return;
         }
         const response = await fetch('/api/schedules/direct-update', {
@@ -655,18 +665,18 @@
         });
         const result = await response.json();
         if (!response.ok) {
-            alert(result.detail || result.message || '수정 실패');
+            showSaveToast(result.detail || result.message || '수정 실패', 'error');
             return;
         }
         window.editRequestModal.hide();
-        alert(result.message || '수정되었습니다.');
+        showSaveToast(result.message || '수정되었습니다.', 'success');
         await loadSchedules();
     }
 
     async function requestDeleteById(scheduleId) {
         const item = scheduleMap.get(String(scheduleId));
         if (!item) {
-            alert('일정 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.');
+            showSaveToast('일정 정보를 찾을 수 없습니다. 새로고침 후 다시 시도하세요.', 'error');
             return;
         }
         const confirmText = `해당 일정을 삭제하시겠습니까?\n[ID #${item.id}] ${item.task || ''}`;
@@ -682,10 +692,10 @@
         });
         const result = await response.json();
         if (!response.ok) {
-            alert(result.detail || result.message || '삭제 실패');
+            showSaveToast(result.detail || result.message || '삭제 실패', 'error');
             return;
         }
-        alert(result.message || '삭제되었습니다.');
+        showSaveToast(result.message || '삭제되었습니다.', 'success');
         await loadSchedules();
     }
 
@@ -722,7 +732,7 @@
         });
         const data = await response.json();
         if (!response.ok) {
-            alert(data.detail || '상태 저장 실패');
+            showSaveToast(data.detail || '상태 저장 실패', 'error');
             return false;
         }
         return true;
@@ -800,19 +810,37 @@
         }
         list.innerHTML = outingStaff.map((staff) => {
             const row = statusMap.get(String(staff.name)) || { user_name: staff.name, status: '사무실', location: '', until_time: '' };
+            const safeName = escapeHtml(row.user_name);
+            const safeStatus = escapeHtml(row.status || '사무실');
+            const safeLoc = escapeHtml(row.location || '행선 입력');
             const metaInner = workerExpanded && row.status === '외출'
-                ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted worker-location-btn" onclick="handleWorkerLocationClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${escapeHtml(row.location || '행선 입력')}</button>`
+                ? `<button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-muted worker-location-btn" data-action="worker-location" data-name="${safeName}" data-location="${escapeHtml(row.location || '')}">${safeLoc}</button>`
                 : '';
             return `
                 <li class="list-group-item d-flex justify-content-between align-items-center py-2 gap-1">
-                    <b class="worker-row-name text-truncate mb-0 min-w-0" style="max-width: 48%;">${escapeHtml(row.user_name)}</b>
+                    <b class="worker-row-name text-truncate mb-0 min-w-0" style="max-width: 48%;">${safeName}</b>
                     <div class="d-flex align-items-center justify-content-end gap-1 flex-shrink-0 flex-grow-1" style="min-width: 0;">
-                        <button type="button" class="btn btn-sm badge status-badge-sm ${statusBadgeClass(row.status)}" onclick="handleWorkerStatusClick('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.status || '사무실')}')">${statusLabelText(row.status)}</button>
+                        <button type="button" class="btn btn-sm badge status-badge-sm ${statusBadgeClass(row.status)}" data-action="worker-status" data-name="${safeName}" data-status="${safeStatus}">${statusLabelText(row.status)}</button>
                         <span class="text-muted small worker-outing-meta text-end">${metaInner}</span>
                     </div>
                 </li>
             `;
         }).join('');
+        // 이벤트 위임: data-action="worker-status"/"worker-location" 클릭 처리.
+        if (!list.dataset.workerDelegationBound) {
+            list.dataset.workerDelegationBound = '1';
+            list.addEventListener('click', (e) => {
+                const target = e.target.closest('[data-action]');
+                if (!target || !list.contains(target)) return;
+                const action = target.getAttribute('data-action');
+                const name = target.getAttribute('data-name') || '';
+                if (action === 'worker-status') {
+                    handleWorkerStatusClick(encodeURIComponent(name), encodeURIComponent(target.getAttribute('data-status') || '사무실'));
+                } else if (action === 'worker-location') {
+                    handleWorkerLocationClick(encodeURIComponent(name), encodeURIComponent(target.getAttribute('data-location') || ''));
+                }
+            });
+        }
         autoFitWorkerLocationText();
     }
 

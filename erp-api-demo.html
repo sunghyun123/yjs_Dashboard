@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP UI 흐름 시연 화면</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { margin: 0; background: #f4f7fb; font-family: "Malgun Gothic", sans-serif; color: #172230; }
+        .top { background: linear-gradient(110deg, #0b3a67, #1a5895); color: #fff; padding: 14px 0; box-shadow: 0 3px 14px rgba(8, 31, 58, 0.2); }
+        .title { margin: 0; font-size: 1.1rem; font-weight: 800; }
+        .subtitle { margin: 0; font-size: 0.82rem; color: rgba(255, 255, 255, 0.9); }
+        .section-card { border: 1px solid #dbe5f0; border-radius: 14px; background: #fff; box-shadow: 0 3px 10px rgba(13, 41, 69, 0.06); }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        .table-wrap { overflow-x: auto; }
+        table input, table select { min-width: 86px; }
+        .json-box {
+            border-radius: 10px; border: 1px solid #d7e3ef; background: #0d1725; color: #d6e6ff;
+            font-family: Consolas, "Courier New", monospace; font-size: 0.78rem; white-space: pre; overflow: auto;
+            min-height: 220px; max-height: 360px; padding: 10px;
+        }
+        .trace-item { border: 1px dashed #cad7e6; border-radius: 10px; background: #f9fbff; padding: 10px; font-size: 0.84rem; }
+        .kpi-box { border: 1px solid #dbe6f4; border-radius: 10px; background: #f8fbff; padding: 10px; }
+        .kpi-value { font-size: 1.2rem; font-weight: 800; color: #12407d; }
+        .badge-soft { background: #eef5ff; color: #2d5e9e; border: 1px solid #cfe0f6; }
+        .menu-btn { min-height: 90px; font-weight: 700; }
+        .menu-stack { max-width: 520px; margin: 0 auto; }
+        .code-help-overlay {
+            position: fixed; inset: 0; background: rgba(15, 30, 48, 0.45); z-index: 1050;
+            display: none; align-items: center; justify-content: center; padding: 16px;
+        }
+        .code-help-overlay.show { display: flex; }
+        .code-help-dialog {
+            width: min(640px, 100%); max-height: min(86vh, 720px); background: #fff; border-radius: 14px;
+            box-shadow: 0 12px 40px rgba(8, 31, 58, 0.25); display: flex; flex-direction: column; overflow: hidden;
+        }
+        .code-help-head { padding: 14px 16px; border-bottom: 1px solid #e3ecf5; background: #f8fbff; }
+        .code-help-body { padding: 12px 16px; overflow: auto; flex: 1; }
+        .code-help-table tbody tr { cursor: pointer; }
+        .code-help-table tbody tr:hover { background: #f0f6ff; }
+        .login-wrap { max-width: 430px; margin: 50px auto 0; }
+        .preview-image {
+            width: 100%;
+            max-height: 320px;
+            object-fit: contain;
+            border: 1px solid #d5e2ef;
+            border-radius: 10px;
+            background: #f9fbff;
+        }
+    </style>
+</head>
+<body>
+    <header class="top">
+        <div class="container-fluid px-3 px-md-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h1 class="title">ERP 연동 프론트엔드 흐름 시연</h1>
+                <p class="subtitle">로그인 → 메인 메뉴 → 전송 데이터 등록 / ERP 정보 조회(명시적 조회)</p>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span id="loginStatus" class="badge text-bg-light text-dark">로그아웃 상태</span>
+                <button id="logoutBtn" class="btn btn-sm btn-outline-light d-none">로그아웃</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container-fluid px-3 px-md-4 py-3">
+        <div id="screenLogin" class="screen active">
+            <div class="section-card p-3 login-wrap">
+                <h2 class="h5 mb-2">1차 인증 로그인 화면</h2>
+                <div class="small text-muted mb-3">실제 인증 연동 전 단계라서 데모용 로그인입니다. (UI 흐름 확인 목적)</div>
+                <div class="mb-2">
+                    <label class="form-label small">아이디</label>
+                    <input id="loginId" class="form-control" placeholder="ex) yjs_user">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small">비밀번호</label>
+                    <input id="loginPw" type="password" class="form-control" placeholder="비밀번호 입력">
+                </div>
+                <button id="loginBtn" class="btn btn-primary w-100">로그인</button>
+            </div>
+        </div>
+
+        <div id="screenMenu" class="screen">
+            <div class="alert alert-primary">
+                <b>메인 화면 구성</b>: 메뉴는 <b>전송 데이터 등록</b>, <b>ERP 정보 조회</b> 2개 버튼으로 구성했습니다.
+            </div>
+            <div class="vstack gap-3 menu-stack">
+                <button id="goSendScreenBtn" class="btn btn-outline-primary w-100 menu-btn">
+                    전송 데이터 등록<br>
+                    <span class="small text-muted fw-normal">투입실적 입력/엑셀 선택/전송 버튼</span>
+                </button>
+                <button id="goQueryScreenBtn" class="btn btn-outline-success w-100 menu-btn">
+                    ERP 정보 조회<br>
+                    <span class="small text-muted fw-normal">공사별 공정률 조회(조회 버튼으로 실행)</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="screenSend" class="screen">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 m-0">전송 데이터 등록 화면</h2>
+                <button class="btn btn-sm btn-outline-secondary js-back-menu">메뉴로 돌아가기</button>
+            </div>
+
+            <section class="section-card p-3 mb-3">
+                <div class="row g-2 mb-2">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small">전송 구분</label>
+                        <select id="transferType" class="form-select">
+                            <option value="input_record">투입 실적 등록</option>
+                            <option value="material_cost">자재비 등록</option>
+                            <option value="management_cost">관리비 등록</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-5">
+                        <label class="form-label small">엑셀 파일 선택</label>
+                        <input id="excelFile" type="file" class="form-control" accept=".xlsx,.xls">
+                    </div>
+                    <div class="col-12 col-md-3 d-flex align-items-end">
+                        <button id="sendExcelBtn" class="btn btn-warning w-100">엑셀 전송</button>
+                    </div>
+                </div>
+                <div class="small text-muted">
+                    - 요청사항 반영: 전송 구분 콤보박스 + 엑셀 선택 + 전송 버튼 배치 완료<br>
+                    - 실제 파싱/DB 인서트는 백엔드 담당이며, 현재는 UI 트리거/요청 구조 시연용입니다.
+                </div>
+            </section>
+
+            <section class="section-card p-3 mb-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <h3 class="h6 m-0">작업일지 사진 업로드 → AI 자동 추출</h3>
+                    <div class="d-flex gap-2">
+                        <button id="extractAiBtn" class="btn btn-sm btn-outline-primary">AI 추출 실행</button>
+                        <button id="applyExtractBtn" class="btn btn-sm btn-success">추출값 폼 반영</button>
+                    </div>
+                </div>
+                <div class="small text-muted mb-2">
+                    - 목표 파이프라인: 사진 업로드 → AI 숫자 추출 → 투입실적 폼 자동 채움 → ERP API 전송<br>
+                    - 실서버 연동 시도(`/api/vision/extract-worklog`) 후 실패하면 데모용 추출값으로 자동 폴백합니다.
+                </div>
+                <div class="row g-3">
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label small">시공팀 작업일지 이미지</label>
+                        <input id="worklogImageFile" type="file" class="form-control mb-2" accept="image/*">
+                        <img id="worklogPreviewImage" class="preview-image d-none" alt="작업일지 미리보기">
+                        <div id="worklogExtractStatus" class="alert alert-secondary mt-2 mb-0">아직 추출 전입니다.</div>
+                    </div>
+                    <div class="col-12 col-lg-8">
+                        <div class="small fw-bold mb-1">AI 추출 결과(JSON)</div>
+                        <div id="worklogExtractPreview" class="json-box"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="sendManualSection" class="section-card p-3">
+                <section class="section-card p-3 mb-3 border border-info bg-light">
+                    <h3 class="h6 mb-2">API 명세·투입실적 데이터 구조 (엑셀 명세 반영)</h3>
+                    <ul class="small mb-0 ps-3">
+                        <li class="mb-1"><b>전송 방식</b>: 기존 ERP 등록 방식대로 <code>POST + JSON</code>으로 보냅니다.</li>
+                        <li class="mb-1"><b>레코드 구조</b>: <code>work_code(지중 No)</code>, <code>input_date(투입일)</code> + 품목별 <code>주간/야간</code> 필드를 <b>한 레코드</b>로 전송합니다.</li>
+                        <li class="mb-1"><b>외주 항목</b>: <code>outsource_1</code>, <code>outsource_2</code>는 주야 분리 없이 수량 필드로 전송합니다.</li>
+                        <li><b>필수값</b>: 지중 No, 투입일은 필수이며 나머지 수량은 미입력 시 0으로 처리합니다.</li>
+                    </ul>
+                </section>
+
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <h3 class="h6 m-0">투입실적 직접 입력 (기존 ERP 단건 구조)</h3>
+                    <div class="d-flex gap-2">
+                        <button id="clearStructuredBtn" class="btn btn-sm btn-outline-secondary">값 초기화</button>
+                        <button id="loadSampleBtn" class="btn btn-sm btn-outline-secondary">샘플 채우기</button>
+                        <button id="saveRowsBtn" class="btn btn-sm btn-primary">전송 (POST)</button>
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small">지중 No (공사코드)</label>
+                        <input id="manualWorkCode" class="form-control form-control-sm" placeholder="예: SY26-005">
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label small">투입일</label>
+                        <input id="manualInputDate" type="date" class="form-control form-control-sm">
+                    </div>
+                </div>
+                <div class="table-wrap mb-3">
+                    <table class="table table-sm align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>항목</th>
+                                <th style="width:140px">주간</th>
+                                <th style="width:140px">야간</th>
+                                <th style="width:160px">수량 (외주 전용)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="structuredRows"></tbody>
+                    </table>
+                </div>
+                <div class="row g-3">
+                    <div class="col-12 col-xl-7">
+                        <div class="small fw-bold mb-1">POST 요청 본문(JSON Preview)</div>
+                        <div id="postPayloadPreview" class="json-box"></div>
+                    </div>
+                    <div class="col-12 col-xl-5">
+                        <div class="small fw-bold mb-1">전송 처리 로그</div>
+                        <div id="postTrace" class="vstack gap-2"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div id="screenQuery" class="screen">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 m-0">ERP 정보 조회 화면 (공정률)</h2>
+                <button class="btn btn-sm btn-outline-secondary js-back-menu">메뉴로 돌아가기</button>
+            </div>
+
+            <section class="section-card p-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <h3 class="h6 m-0">공사별 공정률 조회</h3>
+                </div>
+                <div class="row g-2 align-items-end mb-3">
+                    <div class="col-12 col-md-4 col-lg-3">
+                        <label class="form-label small mb-1">현장</label>
+                        <select id="querySiteSelect" class="form-select form-select-sm"></select>
+                    </div>
+                    <div class="col-12 col-md-5 col-lg-4" id="workPickerComboWrap">
+                        <label class="form-label small mb-1">공사 (지중 번호)</label>
+                        <select id="workCodeCombo" class="form-select form-select-sm"></select>
+                    </div>
+                    <div class="col-12 col-md-5 col-lg-5 d-none" id="workPickerCodeHelpWrap">
+                        <label class="form-label small mb-1">공사 (코드 헬프)</label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="selectedWorkDisplay" class="form-control" readonly placeholder="코드 헬프에서 선택">
+                            <button type="button" id="openCodeHelpBtn" class="btn btn-outline-primary">코드 헬프</button>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-3 col-lg-2">
+                        <button type="button" id="queryFetchBtn" class="btn btn-primary btn-sm w-100">조회</button>
+                    </div>
+                </div>
+                <div class="small text-muted mb-3">
+                    - 공사 목록이 <b>10건 미만</b>이면 콤보박스, <b>10건 이상</b>이면 <b>코드 헬프</b> 팝업으로 검색·선택합니다.<br>
+                    - 코드 헬프 검색은 <b>LIKE</b> 방식(부분 일치)으로 지중 번호·공사명을 함께 검색합니다.<br>
+                    - 데이터는 <b>「조회」 버튼</b>을 눌렀을 때만 불러옵니다. (화면 진입·현장 변경만으로는 GET 하지 않음)
+                </div>
+
+                <div class="row g-3 mb-2">
+                    <div class="col-12 col-md-4">
+                        <div class="kpi-box">
+                            <div class="small text-muted">지중 No</div>
+                            <div id="kpiCode" class="kpi-value">-</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="kpi-box">
+                            <div class="small text-muted">달성률 (%)</div>
+                            <div id="kpiRate" class="kpi-value">-</div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="kpi-box">
+                            <div class="small text-muted">누적기성 (합계)</div>
+                            <div id="kpiAmount" class="kpi-value">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="progress mb-2" role="progressbar" aria-label="공정률">
+                    <div id="progressBar" class="progress-bar bg-success" style="width:0%">0%</div>
+                </div>
+                <div class="small mb-2">
+                    <span class="badge badge-soft" id="lastTriggerLabel">조회 대기</span>
+                </div>
+                <div class="small fw-bold mb-1">GET 요청/응답(JSON Preview)</div>
+                <div id="getPayloadPreview" class="json-box"></div>
+            </section>
+        </div>
+    </main>
+
+    <div id="codeHelpOverlay" class="code-help-overlay" aria-hidden="true">
+        <div class="code-help-dialog" role="dialog" aria-modal="true" aria-labelledby="codeHelpTitle">
+            <div class="code-help-head d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                <div>
+                    <div id="codeHelpTitle" class="fw-bold">코드 헬프 — 공사 선택</div>
+                    <div class="small text-muted">지중 번호·공사명 부분 검색(LIKE) 후 행을 더블클릭하거나 선택 버튼을 누르세요.</div>
+                </div>
+                <button type="button" id="codeHelpCloseBtn" class="btn btn-sm btn-outline-secondary">닫기</button>
+            </div>
+            <div class="code-help-body">
+                <div class="mb-2">
+                    <label class="form-label small mb-1">검색어</label>
+                    <input id="codeHelpSearch" type="text" class="form-control form-control-sm" placeholder="예: SY26">
+                </div>
+                <div class="table-wrap border rounded">
+                    <table class="table table-sm table-hover align-middle mb-0 code-help-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:34%">지중 번호</th>
+                                <th>공사명</th>
+                                <th style="width:88px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="codeHelpTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="codeHelpEmpty" class="small text-muted mt-2 d-none">검색 결과가 없습니다.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const INPUT_ROW_SCHEMA = [
+            { label: "상용직", dayKey: "regular_day", nightKey: "regular_night" },
+            { label: "일용직", dayKey: "daily_day", nightKey: "daily_night" },
+            { label: "모범 신호수", dayKey: "signalman_day", nightKey: "signalman_night" },
+            { label: "6W", dayKey: "w6_day", nightKey: "w6_night" },
+            { label: "3W", dayKey: "w3_day", nightKey: "w3_night" },
+            { label: "덤프15T", dayKey: "dump15t_day", nightKey: "dump15t_night" },
+            { label: "크레인", dayKey: "crane_day", nightKey: "crane_night" },
+            { label: "물청소차", dayKey: "watertruck_day", nightKey: "watertruck_night" },
+            { label: "MCM", dayKey: "mcm_day", nightKey: "mcm_night" },
+            { label: "접속", dayKey: "connection_day", nightKey: "connection_night" },
+            { label: "외주1", singleKey: "outsource_1" },
+            { label: "외주2", singleKey: "outsource_2" }
+        ];
+        const ITEM_NAME_KEY_MAP = {
+            상용직: { dayKey: "regular_day", nightKey: "regular_night" },
+            일용직: { dayKey: "daily_day", nightKey: "daily_night" },
+            모범신호수: { dayKey: "signalman_day", nightKey: "signalman_night" },
+            "모범 신호수": { dayKey: "signalman_day", nightKey: "signalman_night" },
+            "6W": { dayKey: "w6_day", nightKey: "w6_night" },
+            "3W": { dayKey: "w3_day", nightKey: "w3_night" },
+            덤프15T: { dayKey: "dump15t_day", nightKey: "dump15t_night" },
+            크레인: { dayKey: "crane_day", nightKey: "crane_night" },
+            물청소차: { dayKey: "watertruck_day", nightKey: "watertruck_night" },
+            MCM: { dayKey: "mcm_day", nightKey: "mcm_night" },
+            접속: { dayKey: "connection_day", nightKey: "connection_night" },
+            외주1: { singleKey: "outsource_1" },
+            외주2: { singleKey: "outsource_2" }
+        };
+
+        const CODE_HELP_THRESHOLD = 10;
+
+        function buildManyWorks(prefix, count) {
+            const names = [
+                "소호타운 리모델링", "물류센터 전기증설", "지식산업센터 증축", "철도 부대 설비", "변전실 신설",
+                "주차장 조명", "통신망 정비", "태양광 설치", "배전반 교체", "케이블 트레이",
+                "소방 설비", "냉난방 개선", "엘리베이터 전원", "UPS 구축", "외곽 가로등"
+            ];
+            const list = [];
+            for (let i = 1; i <= count; i += 1) {
+                const num = String(i).padStart(3, "0");
+                const code = `${prefix}-${num}`;
+                const nm = names[(i - 1) % names.length];
+                list.push({ code, name: `${prefix}권역 ${nm} #${i}` });
+            }
+            return list;
+        }
+
+        const QUERY_SITES = [
+            {
+                id: "site-heavy",
+                label: "수도권 A현장 (공사 다수)",
+                works: buildManyWorks("SY26", 14)
+            },
+            {
+                id: "site-light",
+                label: "지방 B현장 (공사 소수)",
+                works: [
+                    { code: "DJ26-001", name: "대전 테크노밸리 증축" },
+                    { code: "DJ26-002", name: "대전 복합청사 전기" },
+                    { code: "DJ26-003", name: "대전 물류단지 조명" }
+                ]
+            }
+        ];
+
+        const SAMPLE_PROGRESS = {};
+        (function fillProgress() {
+            const rates = [68, 74, 51, 55, 60, 62, 58, 70, 66, 72, 64, 59, 61, 67, 73];
+            let idx = 0;
+            QUERY_SITES.forEach((site) => {
+                site.works.forEach((w) => {
+                    SAMPLE_PROGRESS[w.code] = {
+                        project_name: w.name,
+                        achievement_rate: rates[idx % rates.length],
+                        accumulated_amount: 900000000 + idx * 37000000
+                    };
+                    idx += 1;
+                });
+            });
+        })();
+
+        const screens = {
+            login: document.getElementById("screenLogin"),
+            menu: document.getElementById("screenMenu"),
+            send: document.getElementById("screenSend"),
+            query: document.getElementById("screenQuery")
+        };
+        const loginStatus = document.getElementById("loginStatus");
+        const logoutBtn = document.getElementById("logoutBtn");
+
+        const structuredRowsBody = document.getElementById("structuredRows");
+        const manualWorkCode = document.getElementById("manualWorkCode");
+        const manualInputDate = document.getElementById("manualInputDate");
+        const postPayloadPreview = document.getElementById("postPayloadPreview");
+        const postTrace = document.getElementById("postTrace");
+        const getPayloadPreview = document.getElementById("getPayloadPreview");
+        const worklogExtractPreview = document.getElementById("worklogExtractPreview");
+        const worklogExtractStatus = document.getElementById("worklogExtractStatus");
+        const worklogImageFile = document.getElementById("worklogImageFile");
+        const worklogPreviewImage = document.getElementById("worklogPreviewImage");
+        const querySiteSelect = document.getElementById("querySiteSelect");
+        const workCodeCombo = document.getElementById("workCodeCombo");
+        const workPickerComboWrap = document.getElementById("workPickerComboWrap");
+        const workPickerCodeHelpWrap = document.getElementById("workPickerCodeHelpWrap");
+        const selectedWorkDisplay = document.getElementById("selectedWorkDisplay");
+        const openCodeHelpBtn = document.getElementById("openCodeHelpBtn");
+        const queryFetchBtn = document.getElementById("queryFetchBtn");
+        const codeHelpOverlay = document.getElementById("codeHelpOverlay");
+        const codeHelpSearch = document.getElementById("codeHelpSearch");
+        const codeHelpTableBody = document.getElementById("codeHelpTableBody");
+        const codeHelpEmpty = document.getElementById("codeHelpEmpty");
+        const codeHelpCloseBtn = document.getElementById("codeHelpCloseBtn");
+        const kpiCode = document.getElementById("kpiCode");
+        const kpiRate = document.getElementById("kpiRate");
+        const kpiAmount = document.getElementById("kpiAmount");
+        const progressBar = document.getElementById("progressBar");
+        const lastTriggerLabel = document.getElementById("lastTriggerLabel");
+        let sendResultBox = null;
+        let currentUserId = "";
+        let latestExtractedRecord = null;
+        let selectedWorkCodeFromHelp = "";
+
+        const FALLBACK_EXTRACT_RESULT = {
+            message: "데모 추출 완료",
+            source: "mock",
+            raw: {
+                doc_type: "작업일지",
+                project_name: "샘플 공사",
+                project_code: "SY26-001",
+                work_date: "2026-04-22",
+                is_night: false,
+                regular_count: 3,
+                daily_count: 2,
+                signalman_count: 2,
+                excavator_6w: 0,
+                excavator_3w: 1,
+                dump_15t: 1,
+                crane_count: 2
+            },
+            records: [
+                { work_code: "SY26-001", input_date: "2026-04-22", item_name: "상용직", day_value: 3, night_value: 0 },
+                { work_code: "SY26-001", input_date: "2026-04-22", item_name: "일용직", day_value: 2, night_value: 0 },
+                { work_code: "SY26-001", input_date: "2026-04-22", item_name: "모범신호수", day_value: 2, night_value: 0 },
+                { work_code: "SY26-001", input_date: "2026-04-22", item_name: "6W", day_value: 0, night_value: 0 },
+                { work_code: "SY26-001", input_date: "2026-04-22", item_name: "3W", day_value: 1, night_value: 0 },
+                { work_code: "SY26-001", input_date: "2026-04-22", item_name: "덤프15T", day_value: 1, night_value: 0 },
+                { work_code: "SY26-001", input_date: "2026-04-22", item_name: "크레인", day_value: 2, night_value: 0 },
+                { work_code: "SY26-001", input_date: "2026-04-22", item_name: "외주1", day_value: 4, night_value: 0 },
+                { work_code: "SY26-001", input_date: "2026-04-22", item_name: "외주2", day_value: 1, night_value: 0 }
+            ]
+        };
+
+        function showScreen(name) {
+            Object.keys(screens).forEach((key) => screens[key].classList.toggle("active", key === name));
+        }
+
+        function updateAuthUi() {
+            if (currentUserId) {
+                loginStatus.textContent = `로그인: ${currentUserId}`;
+                logoutBtn.classList.remove("d-none");
+            } else {
+                loginStatus.textContent = "로그아웃 상태";
+                logoutBtn.classList.add("d-none");
+            }
+        }
+
+        function createEmptyMetricValues() {
+            const values = {};
+            INPUT_ROW_SCHEMA.forEach((row) => {
+                if (row.dayKey) values[row.dayKey] = 0;
+                if (row.nightKey) values[row.nightKey] = 0;
+                if (row.singleKey) values[row.singleKey] = 0;
+            });
+            return values;
+        }
+
+        function renderStructuredRows() {
+            structuredRowsBody.innerHTML = "";
+            INPUT_ROW_SCHEMA.forEach((row) => {
+                const tr = document.createElement("tr");
+                const dayCell = row.dayKey
+                    ? `<input type="number" class="form-control form-control-sm js-metric" min="0" step="1" data-key="${row.dayKey}" value="0">`
+                    : '<input type="number" class="form-control form-control-sm" disabled value="-">';
+                const nightCell = row.nightKey
+                    ? `<input type="number" class="form-control form-control-sm js-metric" min="0" step="1" data-key="${row.nightKey}" value="0">`
+                    : '<input type="number" class="form-control form-control-sm" disabled value="-">';
+                const singleCell = row.singleKey
+                    ? `<input type="number" class="form-control form-control-sm js-metric" min="0" step="1" data-key="${row.singleKey}" value="0">`
+                    : '<input type="number" class="form-control form-control-sm" disabled value="-">';
+                tr.innerHTML = `
+                    <td>${row.label}</td>
+                    <td>${dayCell}</td>
+                    <td>${nightCell}</td>
+                    <td>${singleCell}</td>
+                `;
+                structuredRowsBody.appendChild(tr);
+            });
+            structuredRowsBody.querySelectorAll(".js-metric").forEach((el) => {
+                el.addEventListener("input", refreshPostPreview);
+                el.addEventListener("change", refreshPostPreview);
+            });
+        }
+
+        function readMetricValuesFromForm() {
+            const values = createEmptyMetricValues();
+            structuredRowsBody.querySelectorAll(".js-metric").forEach((el) => {
+                const key = el.dataset.key;
+                values[key] = Number(el.value || 0);
+            });
+            return values;
+        }
+
+        function applyMetricValuesToForm(values = {}) {
+            structuredRowsBody.querySelectorAll(".js-metric").forEach((el) => {
+                const key = el.dataset.key;
+                el.value = Number(values[key] || 0);
+            });
+        }
+
+        function buildRecordFromForm() {
+            return {
+                work_code: manualWorkCode.value.trim(),
+                input_date: manualInputDate.value.trim(),
+                ...readMetricValuesFromForm()
+            };
+        }
+
+        function validateRecord(record) {
+            if (!record.work_code) return "필수값(지중 No)을 입력해 주세요.";
+            if (!record.input_date) return "필수값(투입일)을 입력해 주세요.";
+            return "";
+        }
+
+        function buildPostPayload() {
+            return {
+                transfer_type: document.getElementById("transferType").value,
+                request_time: new Date().toISOString(),
+                record: buildRecordFromForm()
+            };
+        }
+
+        function refreshPostPreview() {
+            postPayloadPreview.textContent = JSON.stringify(buildPostPayload(), null, 2);
+        }
+
+        function addPostTrace(message, type) {
+            const div = document.createElement("div");
+            div.className = "trace-item";
+            const tone = type === "error" ? "text-danger" : "text-success";
+            div.innerHTML = `<div class="${tone} fw-bold">${new Date().toLocaleTimeString("ko-KR")}</div><div>${message}</div>`;
+            postTrace.prepend(div);
+        }
+
+        function parseExtractedRecord(source) {
+            const result = {
+                work_code: "",
+                input_date: "",
+                ...createEmptyMetricValues()
+            };
+            if (!source) return null;
+            if (Array.isArray(source.records)) {
+                source.records.forEach((row) => {
+                    const code = String(row.work_code || "").trim();
+                    const date = String(row.input_date || "").trim();
+                    const item = String(row.item_name || "").trim();
+                    const day = Number(row.day_value || 0);
+                    const night = Number(row.night_value || 0);
+                    if (code && !result.work_code) result.work_code = code;
+                    if (date && !result.input_date) result.input_date = date;
+                    const map = ITEM_NAME_KEY_MAP[item];
+                    if (!map) return;
+                    if (map.dayKey) result[map.dayKey] += day;
+                    if (map.nightKey) result[map.nightKey] += night;
+                    if (map.singleKey) result[map.singleKey] += day + night;
+                });
+            }
+            if (source.structured_record && typeof source.structured_record === "object") {
+                const structured = source.structured_record;
+                result.work_code = String(structured.work_code || result.work_code || "").trim();
+                result.input_date = String(structured.input_date || result.input_date || "").trim();
+                INPUT_ROW_SCHEMA.forEach((row) => {
+                    if (row.dayKey) result[row.dayKey] = Number(structured[row.dayKey] ?? result[row.dayKey] ?? 0);
+                    if (row.nightKey) result[row.nightKey] = Number(structured[row.nightKey] ?? result[row.nightKey] ?? 0);
+                    if (row.singleKey) result[row.singleKey] = Number(structured[row.singleKey] ?? result[row.singleKey] ?? 0);
+                });
+            }
+            return result.work_code && result.input_date ? result : null;
+        }
+
+        function countFilledMetrics(record) {
+            return Object.keys(createEmptyMetricValues()).filter((key) => Number(record[key] || 0) > 0).length;
+        }
+
+        function applyExtractedToForm() {
+            if (!latestExtractedRecord) {
+                worklogExtractStatus.className = "alert alert-warning mt-2 mb-0";
+                worklogExtractStatus.textContent = "적용할 추출 데이터가 없습니다. 먼저 AI 추출을 실행해 주세요.";
+                return;
+            }
+            manualWorkCode.value = latestExtractedRecord.work_code;
+            manualInputDate.value = latestExtractedRecord.input_date;
+            applyMetricValuesToForm(latestExtractedRecord);
+            refreshPostPreview();
+            const filled = countFilledMetrics(latestExtractedRecord);
+            addPostTrace(`[자동채움] AI 추출값을 기존 ERP 단건 구조로 반영 (값 입력 항목 ${filled}개)`);
+            worklogExtractStatus.className = "alert alert-success mt-2 mb-0";
+            worklogExtractStatus.textContent = `폼 자동 채움 완료: 입력 항목 ${filled}개 반영`;
+        }
+
+        async function runWorklogExtraction() {
+            const file = worklogImageFile.files && worklogImageFile.files[0];
+            if (!file) {
+                worklogExtractStatus.className = "alert alert-danger mt-2 mb-0";
+                worklogExtractStatus.textContent = "이미지 파일을 먼저 선택해 주세요.";
+                return;
+            }
+
+            worklogExtractStatus.className = "alert alert-info mt-2 mb-0";
+            worklogExtractStatus.textContent = "AI 추출 요청 중...";
+
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+                const response = await fetch("/api/vision/extract-worklog", {
+                    method: "POST",
+                    credentials: "include",
+                    body: formData
+                });
+                if (!response.ok) {
+                    const err = await response.text();
+                    throw new Error(err || "extract failed");
+                }
+                const json = await response.json();
+                latestExtractedRecord = parseExtractedRecord(json);
+                worklogExtractPreview.textContent = JSON.stringify(json, null, 2);
+                worklogExtractStatus.className = "alert alert-success mt-2 mb-0";
+                worklogExtractStatus.textContent = latestExtractedRecord
+                    ? "AI 추출 성공: 폼 반영 가능한 데이터 확인"
+                    : "AI 추출 성공: 반영 가능한 필드가 없어 원본 JSON만 표시";
+            } catch (_e) {
+                latestExtractedRecord = parseExtractedRecord(FALLBACK_EXTRACT_RESULT);
+                worklogExtractPreview.textContent = JSON.stringify({
+                    ...FALLBACK_EXTRACT_RESULT,
+                    fallback_reason: "실 API 호출 실패 또는 미로그인 상태여서 데모 추출값을 사용했습니다."
+                }, null, 2);
+                worklogExtractStatus.className = "alert alert-warning mt-2 mb-0";
+                worklogExtractStatus.textContent = latestExtractedRecord
+                    ? "실 API 추출 실패: 데모 추출값으로 대체"
+                    : "실 API 추출 실패: 데모 추출값 변환 실패";
+            }
+        }
+
+        function simulatePost(triggerLabel) {
+            const payload = buildPostPayload();
+            const errorMessage = validateRecord(payload.record);
+            if (errorMessage) {
+                addPostTrace(`[실패] ${errorMessage}`, "error");
+                if (sendResultBox) {
+                    sendResultBox.className = "alert alert-danger mt-3 mb-0";
+                    sendResultBox.textContent = `전송 실패: ${errorMessage}`;
+                }
+                return;
+            }
+            addPostTrace(`[${triggerLabel}] POST /erp/work-input-records (기존 ERP 단건 구조 전송)`);
+            addPostTrace(`[백엔드 응답] 전송 완료 메시지 수신 후 프론트에 상태 표시`);
+            if (sendResultBox) {
+                sendResultBox.className = "alert alert-success mt-3 mb-0";
+                sendResultBox.textContent = `전송 완료: ${payload.record.work_code} / ${payload.record.input_date}`;
+            }
+        }
+
+        function formatWon(value) { return `${Number(value || 0).toLocaleString("ko-KR")}원`; }
+
+        function getActiveSite() {
+            const id = querySiteSelect.value;
+            return QUERY_SITES.find((s) => s.id === id) || QUERY_SITES[0];
+        }
+
+        function getSelectedWorkCode() {
+            const site = getActiveSite();
+            if (site.works.length >= CODE_HELP_THRESHOLD) {
+                return String(selectedWorkCodeFromHelp || "").trim();
+            }
+            return String(workCodeCombo.value || "").trim();
+        }
+
+        function resetQueryResults() {
+            kpiCode.textContent = "-";
+            kpiRate.textContent = "-";
+            kpiAmount.textContent = "-";
+            progressBar.style.width = "0%";
+            progressBar.textContent = "0%";
+            lastTriggerLabel.textContent = "조회 전";
+            getPayloadPreview.textContent = JSON.stringify({
+                message: "조건을 선택한 뒤 「조회」 버튼을 눌러 주세요.",
+                hint: "화면 진입·현장 변경만으로는 서버 조회를 하지 않습니다."
+            }, null, 2);
+        }
+
+        function renderWorkPicker() {
+            const site = getActiveSite();
+            const works = site.works || [];
+            const useHelp = works.length >= CODE_HELP_THRESHOLD;
+            workPickerComboWrap.classList.toggle("d-none", useHelp);
+            workPickerCodeHelpWrap.classList.toggle("d-none", !useHelp);
+            if (useHelp) {
+                selectedWorkCodeFromHelp = "";
+                selectedWorkDisplay.value = "";
+                selectedWorkDisplay.placeholder = "코드 헬프에서 공사를 선택하세요.";
+                return;
+            }
+            workCodeCombo.innerHTML = works.map((w) =>
+                `<option value="${w.code}">${w.code} — ${w.name}</option>`
+            ).join("");
+        }
+
+        function filterWorksLike(works, q) {
+            const needle = String(q || "").trim().toLowerCase();
+            if (!needle) return works.slice();
+            return works.filter((w) => {
+                const c = String(w.code || "").toLowerCase();
+                const n = String(w.name || "").toLowerCase();
+                return c.includes(needle) || n.includes(needle);
+            });
+        }
+
+        function renderCodeHelpRows() {
+            const site = getActiveSite();
+            const list = filterWorksLike(site.works, codeHelpSearch.value);
+            codeHelpTableBody.innerHTML = "";
+            if (!list.length) {
+                codeHelpEmpty.classList.remove("d-none");
+                return;
+            }
+            codeHelpEmpty.classList.add("d-none");
+            list.forEach((w) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td class="font-monospace">${w.code}</td>
+                    <td>${w.name}</td>
+                    <td><button type="button" class="btn btn-sm btn-primary js-pick">선택</button></td>
+                `;
+                const pick = () => confirmCodeHelpPick(w.code, w.name);
+                tr.addEventListener("dblclick", pick);
+                tr.querySelector(".js-pick").addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    pick();
+                });
+                codeHelpTableBody.appendChild(tr);
+            });
+        }
+
+        function openCodeHelp() {
+            const site = getActiveSite();
+            if (site.works.length < CODE_HELP_THRESHOLD) return;
+            codeHelpSearch.value = "";
+            renderCodeHelpRows();
+            codeHelpOverlay.classList.add("show");
+            codeHelpOverlay.setAttribute("aria-hidden", "false");
+            codeHelpSearch.focus();
+        }
+
+        function closeCodeHelp() {
+            codeHelpOverlay.classList.remove("show");
+            codeHelpOverlay.setAttribute("aria-hidden", "true");
+        }
+
+        function confirmCodeHelpPick(code, name) {
+            selectedWorkCodeFromHelp = code;
+            selectedWorkDisplay.value = `${code} — ${name}`;
+            resetQueryResults();
+            closeCodeHelp();
+        }
+
+        function fetchProgressByCode(triggerName) {
+            const code = getSelectedWorkCode();
+            if (!code) {
+                alert("공사(지중 번호)를 먼저 선택해 주세요.");
+                return;
+            }
+            const found = SAMPLE_PROGRESS[code] || { project_name: "-", achievement_rate: 0, accumulated_amount: 0 };
+            const response = {
+                work_code: code,
+                project_name: found.project_name,
+                achievement_rate: found.achievement_rate,
+                accumulated_amount: found.accumulated_amount,
+                result: true,
+                message: "성공"
+            };
+            kpiCode.textContent = response.work_code;
+            kpiRate.textContent = `${response.achievement_rate}%`;
+            kpiAmount.textContent = formatWon(response.accumulated_amount);
+            progressBar.style.width = `${response.achievement_rate}%`;
+            progressBar.textContent = `${response.achievement_rate}%`;
+            lastTriggerLabel.textContent = `조회 실행: ${triggerName}`;
+            getPayloadPreview.textContent = JSON.stringify({
+                request: { method: "GET", url: `/erp/project-progress?work_code=${encodeURIComponent(code)}` },
+                response
+            }, null, 2);
+        }
+
+        function initQueryScreen() {
+            querySiteSelect.innerHTML = QUERY_SITES.map((s) =>
+                `<option value="${s.id}">${s.label} (공사 ${s.works.length}건)</option>`
+            ).join("");
+            renderWorkPicker();
+            resetQueryResults();
+        }
+
+        document.getElementById("loginBtn").addEventListener("click", () => {
+            const id = document.getElementById("loginId").value.trim();
+            const pw = document.getElementById("loginPw").value.trim();
+            if (!id || !pw) {
+                alert("아이디/비밀번호를 입력해 주세요.");
+                return;
+            }
+            currentUserId = id;
+            updateAuthUi();
+            showScreen("menu");
+        });
+
+        logoutBtn.addEventListener("click", () => {
+            currentUserId = "";
+            updateAuthUi();
+            showScreen("login");
+        });
+
+        document.getElementById("goSendScreenBtn").addEventListener("click", () => showScreen("send"));
+        document.getElementById("goQueryScreenBtn").addEventListener("click", () => {
+            showScreen("query");
+            initQueryScreen();
+        });
+        document.querySelectorAll(".js-back-menu").forEach((btn) => btn.addEventListener("click", () => showScreen("menu")));
+
+        manualWorkCode.addEventListener("input", refreshPostPreview);
+        manualInputDate.addEventListener("change", refreshPostPreview);
+        document.getElementById("clearStructuredBtn").addEventListener("click", () => {
+            manualWorkCode.value = "";
+            manualInputDate.value = "";
+            applyMetricValuesToForm(createEmptyMetricValues());
+            refreshPostPreview();
+        });
+        document.getElementById("loadSampleBtn").addEventListener("click", () => {
+            manualWorkCode.value = "SY26-001";
+            manualInputDate.value = "2026-04-22";
+            applyMetricValuesToForm({
+                regular_day: 8,
+                regular_night: 2,
+                daily_day: 3,
+                daily_night: 1,
+                signalman_day: 2,
+                signalman_night: 0,
+                w6_day: 1,
+                w6_night: 0,
+                w3_day: 2,
+                w3_night: 0,
+                dump15t_day: 2,
+                dump15t_night: 1,
+                crane_day: 1,
+                crane_night: 0,
+                watertruck_day: 1,
+                watertruck_night: 0,
+                mcm_day: 4,
+                mcm_night: 0,
+                connection_day: 6,
+                connection_night: 2,
+                outsource_1: 5,
+                outsource_2: 2
+            });
+            refreshPostPreview();
+        });
+        document.getElementById("saveRowsBtn").addEventListener("click", () => simulatePost("직접입력 전송"));
+        document.getElementById("sendExcelBtn").addEventListener("click", () => {
+            const fileInput = document.getElementById("excelFile");
+            if (!fileInput.files || !fileInput.files[0]) {
+                addPostTrace("[실패] 엑셀 파일을 먼저 선택해 주세요.", "error");
+                if (sendResultBox) {
+                    sendResultBox.className = "alert alert-danger mt-3 mb-0";
+                    sendResultBox.textContent = "전송 실패: 엑셀 파일을 먼저 선택해 주세요.";
+                }
+                return;
+            }
+            addPostTrace(`[엑셀전송] 파일명: ${fileInput.files[0].name}`);
+            simulatePost("엑셀 업로드 후 전송");
+        });
+
+        querySiteSelect.addEventListener("change", () => {
+            renderWorkPicker();
+            resetQueryResults();
+        });
+        workCodeCombo.addEventListener("change", () => {
+            resetQueryResults();
+        });
+        queryFetchBtn.addEventListener("click", () => fetchProgressByCode("조회 버튼"));
+        openCodeHelpBtn.addEventListener("click", openCodeHelp);
+        codeHelpCloseBtn.addEventListener("click", closeCodeHelp);
+        codeHelpOverlay.addEventListener("click", (e) => {
+            if (e.target === codeHelpOverlay) closeCodeHelp();
+        });
+        codeHelpSearch.addEventListener("input", renderCodeHelpRows);
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && codeHelpOverlay.classList.contains("show")) closeCodeHelp();
+        });
+        document.getElementById("extractAiBtn").addEventListener("click", runWorklogExtraction);
+        document.getElementById("applyExtractBtn").addEventListener("click", applyExtractedToForm);
+        worklogImageFile.addEventListener("change", () => {
+            const file = worklogImageFile.files && worklogImageFile.files[0];
+            if (!file) {
+                worklogPreviewImage.classList.add("d-none");
+                worklogPreviewImage.removeAttribute("src");
+                return;
+            }
+            const url = URL.createObjectURL(file);
+            worklogPreviewImage.src = url;
+            worklogPreviewImage.classList.remove("d-none");
+            worklogExtractStatus.className = "alert alert-secondary mt-2 mb-0";
+            worklogExtractStatus.textContent = "파일 선택 완료. AI 추출 실행 버튼을 눌러 주세요.";
+        });
+
+        sendResultBox = document.createElement("div");
+        sendResultBox.className = "alert alert-secondary mt-3 mb-0";
+        sendResultBox.textContent = "전송 결과 메시지가 여기에 표시됩니다.";
+        document.getElementById("sendManualSection").appendChild(sendResultBox);
+
+        renderStructuredRows();
+        manualWorkCode.value = "SY26-001";
+        manualInputDate.value = "2026-04-22";
+        applyMetricValuesToForm(createEmptyMetricValues());
+        refreshPostPreview();
+        worklogExtractPreview.textContent = JSON.stringify({
+            message: "대기 상태",
+            hint: "작업일지 이미지를 선택하고 AI 추출을 실행하세요."
+        }, null, 2);
+        updateAuthUi();
+    </script>
+</body>
+</html>

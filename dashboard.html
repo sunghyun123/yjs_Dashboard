@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YJS 스마트 현장 상황판</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#003366">
     <style>
@@ -1463,16 +1464,11 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script>
         const days = ['일', '월', '화', '수', '목', '금', '토'];
-        /** 브라우저 로컬 날짜 기준 YYYY-MM-DD (toISOString은 UTC라 한국에서 하루 밀릴 수 있음) */
-        function formatLocalDateYYYYMMDD(d = new Date()) {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${y}-${m}-${day}`;
-        }
+        // formatLocalDateYYYYMMDD, escapeHtml, showSaveToast은 dashboard.common.js에서 제공
         const scheduleMap = new Map();
         let editRequestModal = null;
         let fieldStaffModal = null;
@@ -1829,7 +1825,7 @@
             });
             const result = await response.json();
             if (!response.ok) {
-                alert(result.detail || result.message || '저장 실패');
+                showSaveToast(result.detail || result.message || '저장 실패', 'error');
                 return;
             }
             fieldStaffModal.hide();
@@ -1960,30 +1956,7 @@
             document.getElementById('lastUpdated').innerText = `동기화 ${timeStr}`;
         }
 
-        function escapeHtml(value) {
-            return String(value ?? '')
-                .replaceAll('&', '&amp;')
-                .replaceAll('<', '&lt;')
-                .replaceAll('>', '&gt;')
-                .replaceAll('"', '&quot;')
-                .replaceAll("'", '&#39;');
-        }
-
-        function showSaveToast(message, type = 'info') {
-            const el = document.getElementById('saveToast');
-            el.textContent = message;
-            el.style.display = 'block';
-            if (type === 'success') {
-                el.style.background = '#1f6f43';
-            } else if (type === 'error') {
-                el.style.background = '#8b1e2b';
-            } else {
-                el.style.background = '#212529';
-            }
-            window.setTimeout(() => {
-                el.style.display = 'none';
-            }, 2200);
-        }
+        // escapeHtml/showSaveToast은 dashboard.common.js에서 제공
 
         function registerDashboardServiceWorker() {
             if (!('serviceWorker' in navigator)) return;
@@ -2037,8 +2010,15 @@
             document.getElementById('todayOnlyCheck').dispatchEvent(new Event('change'));
             loadSchedules();
 
-            // 60초마다 백그라운드에서 자동으로 데이터 갱신
-            setInterval(loadSchedules, 60000);
+            // 60초마다 자동 갱신. 탭이 백그라운드면 건너뛰어 불필요한 호출/충전 방지.
+            setInterval(() => {
+                if (document.visibilityState !== 'visible') return;
+                loadSchedules();
+            }, 60000);
+            // 사용자가 탭을 다시 보였을 때 즉시 갱신
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') loadSchedules();
+            });
 
             // 날짜가 자정을 넘기면 헤더의 날짜도 바뀌도록 1시간마다 날짜 체크
             setInterval(updateHeaderDate, 3600000);
@@ -2052,10 +2032,11 @@
             initializeDashboardPage();
         };
     </script>
-    <script src="/dashboard.auth.js?v=20260416"></script>
-    <script src="/dashboard.sidebar.js"></script>
-    <script src="/dashboard.schedule.js"></script>
-    <script src="/dashboard.document.js"></script>
+    <script src="/dashboard.common.js?v=20260429"></script>
+    <script src="/dashboard.auth.js?v=20260429"></script>
+    <script src="/dashboard.sidebar.js?v=20260429"></script>
+    <script src="/dashboard.schedule.js?v=20260429"></script>
+    <script src="/dashboard.document.js?v=20260429"></script>
 </body>
 
 </html>

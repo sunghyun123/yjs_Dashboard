@@ -147,6 +147,11 @@ async def serve_app_icon():
     return FileResponse("icon.svg", media_type="image/svg+xml")
 
 
+@app.get("/dashboard.common.js", summary="대시보드 공통 유틸 스크립트", tags=["Pages"])
+async def serve_dashboard_common_js():
+    return FileResponse("dashboard.common.js", media_type="application/javascript")
+
+
 @app.get("/dashboard.auth.js", summary="대시보드 인증 스크립트", tags=["Pages"])
 async def serve_dashboard_auth_js():
     return FileResponse("dashboard.auth.js", media_type="application/javascript")
