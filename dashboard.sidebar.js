@@ -62,7 +62,7 @@
         const cat = (catRaw === '일정' || catRaw === '일반 작업') ? '일정' : '공사 일정';
         const task = document.getElementById('boardTask').value.trim();
         if (!task) {
-            alert('공사명·작업명을 입력하세요.');
+            showSaveToast('공사명·작업명을 입력하세요.', 'info');
             return;
         }
         const rawShift = document.getElementById('boardShiftType').value.trim();
@@ -87,10 +87,10 @@
         });
         const data = await response.json();
         if (!response.ok) {
-            alert(data.detail || '상황판 등록 전송 실패');
+            showSaveToast(data.detail || '상황판 등록 전송 실패', 'error');
             return;
         }
-        alert(data.message || '처리 완료');
+        showSaveToast(data.message || '처리 완료', 'success');
         loadSchedules();
     }
 

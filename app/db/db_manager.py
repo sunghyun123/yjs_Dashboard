@@ -90,7 +90,6 @@ class DBManager:
                                  user_id TEXT PRIMARY KEY,
                                  user_name TEXT,
                                  password_hash TEXT NOT NULL,
-                                 password_plain TEXT,
                                  register_code TEXT NOT NULL,
                                  role TEXT NOT NULL DEFAULT 'worker',
                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -99,9 +98,7 @@ class DBManager:
                 user_columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
                 if "user_name" not in user_columns:
                     conn.execute("ALTER TABLE users ADD COLUMN user_name TEXT")
-                if "password_plain" not in user_columns:
-                    conn.execute("ALTER TABLE users ADD COLUMN password_plain TEXT")
-                # 보안 강화: 레거시 평문 비밀번호는 더 이상 사용하지 않으므로 초기화
+                # 레거시 평문 비밀번호 컬럼이 존재하면 데이터를 비워 보안 위험을 차단한다.
                 if "password_plain" in user_columns:
                     conn.execute("UPDATE users SET password_plain = NULL WHERE password_plain IS NOT NULL AND password_plain != ''")
                 conn.execute("""
@@ -508,16 +505,21 @@ class DBManager:
             return []
 
     def delete_schedule_by_id(self, schedule_id: int) -> bool:
-        """
-        [V2 신규] ID를 기반으로 정확하게 일정을 삭제합니다.
-        사용자가 AI가 제시한 후보 중 특정 항목의 삭제 버튼을 클릭했을 때 호출됩니다.
-        """
+        """ID를 기반으로 일정을 소프트 삭제합니다 (deleted_at 설정)."""
+        deleted_at = datetime.utcnow().isoformat()
         try:
             with closing(sqlite3.connect(self.db_path)) as conn:
                 with conn:
-                    cursor = conn.execute("DELETE FROM field_schedules WHERE id = ?", (schedule_id,))
+                    cursor = conn.execute(
+                        """
+                        UPDATE field_schedules
+                        SET deleted_at = ?, deleted_by = 'system', last_actor_user = 'system', last_actor_at = ?
+                        WHERE id = ? AND deleted_at IS NULL
+                        """,
+                        (deleted_at, deleted_at, schedule_id),
+                    )
                     if cursor.rowcount > 0:
-                        logger.info(f"일정 삭제 완료: ID {schedule_id}")
+                        logger.info(f"일정 소프트 삭제 완료: ID {schedule_id}")
                         return True
                     else:
                         logger.warning(f"삭제할 일정을 찾을 수 없음: ID {schedule_id}")
@@ -525,28 +527,6 @@ class DBManager:
         except sqlite3.Error as e:
             logger.error(f"[DB 에러] 일정 삭제 중 오류 발생: {e}")
             return False
-
-    def delete_schedule_by_data(self, date: str, location: str) -> Optional[int]:
-        """
-        (V1 레거시) 날짜와 장소를 기준으로 일정을 찾아 삭제합니다.
-        V2 구조에서는 AI의 오작동 방지를 위해 가급적 delete_schedule_by_id 사용을 권장합니다.
-        """
-        if not date or not location:
-            return None
-
-        with closing(sqlite3.connect(self.db_path)) as conn:
-            with conn:
-                select_sql = "SELECT id FROM field_schedules WHERE date = ? AND location = ?"
-                existing = conn.execute(select_sql, (date, location)).fetchone()
-
-                if existing:
-                    target_id = existing[0]
-                    delete_sql = "DELETE FROM field_schedules WHERE id = ?"
-                    conn.execute(delete_sql, (target_id,))
-                    logger.info(f"일정 삭제 완료: ID {target_id} ({date}, {location})")
-                    return target_id
-                else:
-                    return None
 
     def get_all_schedules_desc(self, target_date: str = None) -> List[Dict[str, Any]]:
         """
@@ -694,7 +674,7 @@ class DBManager:
                 row = conn.execute("SELECT user_id FROM users WHERE user_id = ?", (u_id,)).fetchone()
                 if row:
                     conn.execute(
-                        "UPDATE users SET user_name = ?, role = ?, password_plain = NULL WHERE user_id = ?",
+                        "UPDATE users SET user_name = ?, role = ? WHERE user_id = ?",
                         (u_name, r_db, u_id),
                     )
                 else:
@@ -857,7 +837,7 @@ class DBManager:
                 cursor = conn.execute(
                     """
                     UPDATE users
-                    SET password_hash = ?, password_plain = NULL
+                    SET password_hash = ?
                     WHERE user_id = ? AND user_name = ?
                     """,
                     (pw_hash, u_id, u_name),

@@ -49,13 +49,13 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                alert(data.detail || '실행에 실패했습니다. 서버 PC의 .env에 LOCAL_APPS_ROOT와 exe 파일명을 확인하세요.');
+                showSaveToast(data.detail || '실행에 실패했습니다. 서버 PC의 .env에 LOCAL_APPS_ROOT와 exe 파일명을 확인하세요.', 'error');
                 return;
             }
             showSaveToast(data.message || '실행 요청 완료', 'success');
             toggleAppDrawer(false);
         } catch (e) {
-            alert('실행 요청 중 오류가 발생했습니다.');
+            showSaveToast('실행 요청 중 오류가 발생했습니다.', 'error');
         }
     }
 
@@ -112,7 +112,7 @@
         for (const key of req) {
             const el = document.querySelector(`#docGenFields [data-doc-field="${key}"]`);
             if (!el || !String(el.value || '').trim()) {
-                alert(`다음 필수 항목을 선택하거나 입력해 주세요: ${key}`);
+                showSaveToast(`다음 필수 항목을 선택하거나 입력해 주세요: ${key}`, 'info');
                 return false;
             }
         }
@@ -123,7 +123,7 @@
         const state = getDocState();
         const t = getTemplateById(templateId);
         if (!t) {
-            alert('템플릿을 찾을 수 없습니다.');
+            showSaveToast('템플릿을 찾을 수 없습니다.', 'error');
             return;
         }
         state.genTemplateId = String(templateId);
@@ -172,7 +172,7 @@
             });
             const data = await res.json();
             if (!res.ok) {
-                alert(data.detail || 'AI 추천에 실패했습니다.');
+                showSaveToast(data.detail || 'AI 추천에 실패했습니다.', 'error');
                 return;
             }
             const vals = data.values || {};
@@ -182,7 +182,7 @@
             });
             showSaveToast('추천 값을 반영했습니다. 필요하면 수정하세요.', 'info');
         } catch (e) {
-            alert('AI 추천 요청 중 오류가 발생했습니다.');
+            showSaveToast('AI 추천 요청 중 오류가 발생했습니다.', 'error');
         }
     }
 
@@ -206,14 +206,14 @@
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || '파일 생성에 실패했습니다.');
+                showSaveToast(err.detail || '파일 생성에 실패했습니다.', 'error');
                 return;
             }
             await downloadResponseBlob(res);
             showSaveToast('다운로드를 시작했습니다.', 'success');
             window.documentGenerateModal.hide();
         } catch (e) {
-            alert('다운로드 중 오류가 발생했습니다.');
+            showSaveToast('다운로드 중 오류가 발생했습니다.', 'error');
         }
     }
 
@@ -269,7 +269,7 @@
         const state = getDocState();
         const f = document.getElementById('docExtractFile').files[0];
         if (!f) {
-            alert('이미지를 선택해 주세요.');
+            showSaveToast('이미지를 선택해 주세요.', 'info');
             return;
         }
         if (!state.extractTemplateId) return;
@@ -294,7 +294,7 @@
             });
             const data = await res.json();
             if (!res.ok) {
-                alert(data.detail || '추출에 실패했습니다.');
+                showSaveToast(data.detail || '추출에 실패했습니다.', 'error');
                 return;
             }
             state.extractIsTable = data.extract_mode === 'table';
@@ -333,9 +333,9 @@
             document.getElementById('docExtractReviewSection').style.display = 'block';
         } catch (e) {
             if (e && e.name === 'AbortError') {
-                alert('AI 추출이 지연되어 요청을 중단했습니다. 이미지 해상도를 줄이거나 다시 시도해 주세요.');
+                showSaveToast('AI 추출이 지연되어 요청을 중단했습니다. 이미지 해상도를 줄이거나 다시 시도해 주세요.', 'error');
             } else {
-                alert('추출 요청 중 오류가 발생했습니다.');
+                showSaveToast('추출 요청 중 오류가 발생했습니다.', 'error');
             }
         } finally {
             clearTimeout(timeoutId);
@@ -388,14 +388,15 @@
         const dateRaw = (values.constuction_time || '').trim();
         const date = normalizePlanDateInput(dateRaw);
         if (!date) {
-            alert(
-                '작업일자를 입력해 주세요. (예: 2026-04-16 또는 2026년 4월 16일)\n상단 "작업일자" 칸을 확인하세요.'
+            showSaveToast(
+                '작업일자를 입력해 주세요. (예: 2026-04-16 또는 2026년 4월 16일) — 상단 "작업일자" 칸을 확인하세요.',
+                'info'
             );
             return;
         }
         const rows = collectDocExtractTableRows().filter((r) => String(r.task || '').trim());
         if (!rows.length) {
-            alert('반영할 공사 일정(추출 행)이 없습니다. task 열이 비어 있지 않은지 확인하세요.');
+            showSaveToast('반영할 공사 일정(추출 행)이 없습니다. task 열이 비어 있지 않은지 확인하세요.', 'info');
             return;
         }
         try {
@@ -406,7 +407,7 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                alert(data.detail || '상황판 반영에 실패했습니다.');
+                showSaveToast(data.detail || '상황판 반영에 실패했습니다.', 'error');
                 return;
             }
             if (Array.isArray(data.overlap_warnings) && data.overlap_warnings.length) {
@@ -422,7 +423,7 @@
             }
             window.documentExtractModal.hide();
         } catch (_e) {
-            alert('상황판 반영 중 오류가 발생했습니다.');
+            showSaveToast('상황판 반영 중 오류가 발생했습니다.', 'error');
         }
     }
 
@@ -549,14 +550,14 @@
             }
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || '문서 생성에 실패했습니다.');
+                showSaveToast(err.detail || '문서 생성에 실패했습니다.', 'error');
                 return;
             }
             await downloadResponseBlob(res);
             showSaveToast('다운로드를 시작했습니다.', 'success');
             window.documentExtractModal.hide();
         } catch (e) {
-            alert('다운로드 중 오류가 발생했습니다.');
+            showSaveToast('다운로드 중 오류가 발생했습니다.', 'error');
         }
     }
 

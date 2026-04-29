@@ -409,7 +409,7 @@
         });
         const data = await response.json();
         if (!response.ok) {
-            alert(data.detail || '상태 저장 실패');
+            showSaveToast(data.detail || '상태 저장 실패', 'error');
             return false;
         }
         return true;
