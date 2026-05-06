@@ -397,6 +397,13 @@
                     <div class="schedule-action-panel">
                         ${detailLine && detailLines <= 2 ? `<div class="detail-text">📝 ${detailInlineHtml(detailLine)}</div>` : ''}
                         ${detailModalBtn}
+                        <div class="schedule-attachment-feed" data-schedule-id="${item.id}">
+                            <div class="attachment-feed-list"></div>
+                            <label class="attachment-upload-label btn btn-sm btn-outline-secondary mt-1">
+                                사진/파일 추가
+                                <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="event.stopPropagation(); handleAttachmentUpload(event, '${item.id}')">
+                            </label>
+                        </div>
                         <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
                             ${isPhotoPlanPendingReview(item) ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); acknowledgePhotoPlanImport(${item.id})">추출 검토 완료</button>` : ''}
                             <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openEditRequestById('${item.id}')">수정</button>
@@ -508,11 +515,16 @@
             }
             const card = e.target.closest('.schedule-compact-item');
             if (!card) return;
-            if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea')) return;
+            if (e.target.closest('button') || e.target.closest('input') || e.target.closest('textarea') || e.target.closest('label')) return;
             document.querySelectorAll('.schedule-compact-item.active').forEach((el) => {
                 if (el !== card) el.classList.remove('active');
             });
+            const wasActive = card.classList.contains('active');
             card.classList.toggle('active');
+            if (!wasActive) {
+                const scheduleId = card.getAttribute('data-id');
+                if (scheduleId) loadAttachmentFeed(scheduleId);
+            }
         });
         window.addEventListener('resize', () => {
             if (!isMobileViewport()) return;
@@ -530,7 +542,10 @@
     function restoreActiveScheduleCard(activeId) {
         if (!activeId) return;
         const target = document.querySelector(`.schedule-compact-item[data-id="${activeId}"]`);
-        if (target) target.classList.add('active');
+        if (target) {
+            target.classList.add('active');
+            loadAttachmentFeed(activeId);
+        }
     }
 
     function openEditRequestById(scheduleId) {
@@ -880,4 +895,98 @@
     window.openScheduleDetailModal = openScheduleDetailModal;
     window.openDetailPreviewModal = openDetailPreviewModal;
     window.loadWorkerStatus = loadWorkerStatus;
+    window.loadAttachmentFeed = loadAttachmentFeed;
+    window.handleAttachmentUpload = handleAttachmentUpload;
+    window.deleteAttachment = deleteAttachment;
 })();
+
+async function loadAttachmentFeed(scheduleId) {
+    const feedEl = document.querySelector(`.schedule-attachment-feed[data-schedule-id="${scheduleId}"]`);
+    if (!feedEl) return;
+    const listEl = feedEl.querySelector('.attachment-feed-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<span class="text-muted small">로딩 중...</span>';
+    try {
+        const res = await fetch(`/api/schedules/${scheduleId}/attachments`);
+        if (!res.ok) { listEl.innerHTML = ''; return; }
+        const data = await res.json();
+        renderAttachmentFeed(listEl, data.attachments || [], scheduleId);
+    } catch (_) {
+        listEl.innerHTML = '';
+    }
+}
+
+function renderAttachmentFeed(listEl, attachments, scheduleId) {
+    if (!attachments.length) {
+        listEl.innerHTML = '<span class="text-muted small" style="font-size:0.75rem">첨부된 파일이 없습니다.</span>';
+        return;
+    }
+    const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif']);
+    listEl.innerHTML = attachments.map((att) => {
+        const filePath = att.file_path || '';
+        const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+        const isImage = IMAGE_EXTS.has(ext);
+        // file_path는 자동화_데이터/... 형태이므로 자동화_데이터/ 이후 경로를 URL에 사용
+        const relPath = filePath.replace(/\\/g, '/').replace(/^자동화_데이터\//, '');
+        const imgUrl = `/uploads/photos/${relPath}`;
+        const timeStr = (att.created_at || '').substring(0, 16).replace('T', ' ');
+        const noteHtml = att.note ? `<div class="attachment-note">${escapeHtml(att.note)}</div>` : '';
+        const thumbHtml = isImage
+            ? `<a href="${imgUrl}" target="_blank" onclick="event.stopPropagation()"><img src="${imgUrl}" class="attachment-thumb" alt="첨부 이미지" loading="lazy"></a>`
+            : `<a href="${imgUrl}" target="_blank" class="attachment-file-link" onclick="event.stopPropagation()">📄 ${escapeHtml(filePath.split(/[/\\]/).pop())}</a>`;
+        return `<div class="attachment-item">
+            ${thumbHtml}
+            <div class="attachment-meta">
+                <span class="attachment-time">${escapeHtml(timeStr)}</span>
+                ${noteHtml}
+                <button class="btn btn-sm attachment-del-btn" title="삭제" onclick="event.stopPropagation(); deleteAttachment(${att.id}, ${scheduleId})">✕</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function handleAttachmentUpload(event, scheduleId) {
+    const input = event.target;
+    const files = input.files ? Array.from(input.files) : [];
+    if (!files.length) return;
+    const feedEl = document.querySelector(`.schedule-attachment-feed[data-schedule-id="${scheduleId}"]`);
+    const label = feedEl ? feedEl.querySelector('.attachment-upload-label') : null;
+    const resetLabel = () => {
+        if (label) label.innerHTML = `사진/파일 추가<input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="event.stopPropagation(); handleAttachmentUpload(event, '${scheduleId}')">`;
+    };
+    if (label) label.textContent = `업로드 중... (0/${files.length})`;
+    let failed = 0;
+    for (let i = 0; i < files.length; i++) {
+        if (label) label.textContent = `업로드 중... (${i + 1}/${files.length})`;
+        const formData = new FormData();
+        formData.append('file', files[i]);
+        formData.append('upload_category', '첨부자료');
+        formData.append('linked_schedule_id', String(scheduleId));
+        try {
+            const res = await fetch('/api/vision/upload', { method: 'POST', body: formData });
+            if (!res.ok) failed++;
+        } catch (_) {
+            failed++;
+        }
+    }
+    input.value = '';
+    resetLabel();
+    if (failed > 0 && typeof showSaveToast === 'function') {
+        showSaveToast(`${failed}개 업로드 실패`, 'error');
+    }
+    await loadAttachmentFeed(scheduleId);
+}
+
+async function deleteAttachment(attachmentId, scheduleId) {
+    if (!confirm('이 첨부 파일을 삭제하시겠습니까?')) return;
+    try {
+        const res = await fetch(`/api/schedules/${scheduleId}/attachments/${attachmentId}`, { method: 'DELETE' });
+        if (!res.ok) {
+            if (typeof showSaveToast === 'function') showSaveToast('삭제 실패', 'error');
+            return;
+        }
+        await loadAttachmentFeed(scheduleId);
+    } catch (_) {
+        if (typeof showSaveToast === 'function') showSaveToast('삭제 중 오류가 발생했습니다.', 'error');
+    }
+}

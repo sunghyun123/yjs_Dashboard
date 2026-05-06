@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import hashlib
+from typing import Optional
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Depends
 from app.services.vision_ai_service import VisionService
 from app.core.config import settings
@@ -77,6 +78,8 @@ async def extract_worklog(
 async def process_document(
     file: UploadFile = File(...),
     upload_category: str = Form(default=""),
+    linked_schedule_id: Optional[int] = Form(default=None),
+    note: str = Form(default=""),
     user_session=Depends(require_session),
 ):
     content = await file.read()
@@ -92,7 +95,7 @@ async def process_document(
         save_path = folder / f"{safe_name}{Path(file.filename).suffix}"
         with open(save_path, "wb") as f:
             f.write(content)
-        db.save_photo_upload(
+        upload_id = db.save_photo_upload(
             category=upload_category,
             file_path=str(save_path),
             uploaded_by=user_session["user_id"],
@@ -100,8 +103,10 @@ async def process_document(
             related_date=date_dir,
             file_size=file_size,
             file_sha256=file_hash,
+            linked_schedule_id=linked_schedule_id,
+            note=note,
         )
-        return {"message": "사진 저장 완료", "folder": str(folder), "filename": save_path.name}
+        return {"message": "사진 저장 완료", "id": upload_id, "folder": str(folder), "filename": save_path.name}
 
     data = await vision_svc.analyze_document(content, file.content_type)
 

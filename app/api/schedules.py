@@ -602,3 +602,25 @@ def acknowledge_photo_plan(request: AcknowledgePhotoPlanRequest, user_session=De
     if not ok:
         raise HTTPException(status_code=404, detail="대상 일정이 없거나 사진 추출 일정이 아닙니다.")
     return {"status": "success", "message": "검토 완료로 표시했습니다."}
+
+
+class DeleteAttachmentRequest(BaseModel):
+    attachment_id: int = Field(..., description="삭제할 첨부 ID")
+
+
+@router.get("/{schedule_id}/attachments", summary="일정 첨부 사진 피드 조회")
+def get_schedule_attachments(schedule_id: int, _user_session=Depends(require_session)):
+    schedule = db.get_schedule_by_id(schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+    items = db.get_schedule_attachments(schedule_id)
+    return {"schedule_id": schedule_id, "attachments": items}
+
+
+@router.delete("/{schedule_id}/attachments/{attachment_id}", summary="일정 첨부 사진 삭제")
+def delete_schedule_attachment(schedule_id: int, attachment_id: int, _user_session=Depends(require_session)):
+    import os
+    ok = db.delete_schedule_attachment(attachment_id, schedule_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="첨부를 찾을 수 없습니다.")
+    return {"status": "success", "message": "첨부가 삭제되었습니다."}
