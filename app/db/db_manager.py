@@ -152,6 +152,8 @@ class DBManager:
                                  related_date TEXT,
                                  file_size INTEGER DEFAULT 0,
                                  file_sha256 TEXT DEFAULT '',
+                                 linked_schedule_id INTEGER,
+                                 note TEXT DEFAULT '',
                                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                              )
                              """)
@@ -160,6 +162,10 @@ class DBManager:
                     conn.execute("ALTER TABLE photo_uploads ADD COLUMN file_size INTEGER DEFAULT 0")
                 if "file_sha256" not in photo_columns:
                     conn.execute("ALTER TABLE photo_uploads ADD COLUMN file_sha256 TEXT DEFAULT ''")
+                if "linked_schedule_id" not in photo_columns:
+                    conn.execute("ALTER TABLE photo_uploads ADD COLUMN linked_schedule_id INTEGER")
+                if "note" not in photo_columns:
+                    conn.execute("ALTER TABLE photo_uploads ADD COLUMN note TEXT DEFAULT ''")
                 # 메모 기능 제거: 기존 테이블이 있어도 정리한다.
                 conn.execute("DROP TABLE IF EXISTS memo_items")
                 conn.execute("""
@@ -1153,17 +1159,48 @@ class DBManager:
         related_date: str,
         file_size: int = 0,
         file_sha256: str = "",
+        linked_schedule_id: Optional[int] = None,
+        note: str = "",
     ) -> int:
         with closing(sqlite3.connect(self.db_path)) as conn:
             with conn:
                 cursor = conn.execute(
                     """
-                    INSERT INTO photo_uploads (category, file_path, uploaded_by, uploaded_device, related_date, file_size, file_sha256)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO photo_uploads (category, file_path, uploaded_by, uploaded_device, related_date, file_size, file_sha256, linked_schedule_id, note)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (category, file_path, uploaded_by, uploaded_device, related_date, int(file_size or 0), str(file_sha256 or "")),
+                    (category, file_path, uploaded_by, uploaded_device, related_date, int(file_size or 0), str(file_sha256 or ""), linked_schedule_id, str(note or "")),
                 )
                 return int(cursor.lastrowid)
+
+    def get_schedule_attachments(self, schedule_id: int) -> List[Dict[str, Any]]:
+        """특정 일정에 연결된 첨부 사진 목록을 시간순으로 반환."""
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT id, category, file_path, uploaded_by, related_date, note,
+                       datetime(created_at, 'localtime') as created_at
+                FROM photo_uploads
+                WHERE linked_schedule_id = ?
+                ORDER BY created_at ASC
+                """,
+                (schedule_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def delete_schedule_attachment(self, attachment_id: int, schedule_id: int) -> bool:
+        """첨부 사진을 DB에서 삭제하고 해당 일정 소속인지 확인한다."""
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            with conn:
+                row = conn.execute(
+                    "SELECT file_path FROM photo_uploads WHERE id = ? AND linked_schedule_id = ?",
+                    (attachment_id, schedule_id),
+                ).fetchone()
+                if not row:
+                    return False
+                conn.execute("DELETE FROM photo_uploads WHERE id = ?", (attachment_id,))
+                return True
 
     def upsert_worker_status(
         self,

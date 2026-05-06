@@ -1,24 +1,35 @@
 (function () {
-    const SAMPLE_MONTHLY_PROGRESS = [
-        { month: '1월', name: '안양 소호타운 리모델링', percent: 72, manager: '현장소장 김대리', phase: '골조 진행' },
-        { month: '2월', name: '의왕 물류센터 전기증설', percent: 56, manager: '현장소장 이과장', phase: '배관 공정' },
-        { month: '3월', name: '수원 지식산업센터 증축', percent: 68, manager: '현장소장 박팀장', phase: '중간 점검' },
-        { month: '4월', name: '화성 공장 신축', percent: 44, manager: '현장소장 정차장', phase: '기초 공정' },
-        { month: '5월', name: '평택 사무동 인테리어', percent: 81, manager: '현장소장 송주임', phase: '마감 준비' },
-        { month: '6월', name: '안산 스마트팩토리 개보수', percent: 38, manager: '현장소장 최대리', phase: '착공 준비' },
-        { month: '7월', name: '광명 물류동 증설', percent: 63, manager: '현장소장 윤과장', phase: '외부 공정' },
-        { month: '8월', name: '군포 복합동 리뉴얼', percent: 59, manager: '현장소장 조차장', phase: '내부 공정' },
-        { month: '9월', name: '용인 연구동 보수', percent: 74, manager: '현장소장 한주임', phase: '마감 공정' },
-        { month: '10월', name: '오산 전기실 정비', percent: 49, manager: '현장소장 임대리', phase: '자재 투입' },
+    // 5월 진행 공사 목록 (수주대장조회.xlsx 기준) — 변경 시 이 배열만 교체
+    const MONTHLY_PROGRESS_DATA = [
+        { no: 'TY25-004', name: '군포로 군포중 지중화공사', manager: '김무선', percent: 59 },
+        { no: 'TY25-003', name: '안양 샘모루초교 지중화공사', manager: '김무선', percent: 71 },
+        { no: 'TY25-006', name: '과천동 부림동 지중화공사', manager: '김무선', percent: 81 },
+        { no: 'TY25-005', name: '초평동 한국토지주택공사 지장전주공사', manager: '김무선', percent: 92 },
+        { no: 'CG26-113', name: "'26년도 지상개폐기 정기검사(광명역세권지구)", manager: '김무선', percent: 50 },
+        { no: 'SY26-002', name: '부림SW53외 26년경과 노후변압기선로 교체공사', manager: '김상훈', percent: 0 },
+        { no: 'SY26-009', name: '석수동585-38 박도경 지장전주 이설공사(일직지35)', manager: '김상훈', percent: 0 },
+        { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)', manager: '김상훈', percent: 0 },
+        { no: 'SY26-016', name: '부림SW5 외 수명만료 노후 지중케이블 교체공사', manager: '김상훈', percent: 0 },
+        { no: 'SY26-015', name: '동편MH22~동편T6-1 저압 노후케이블 교체공사', manager: '김상훈', percent: 0 },
+        { no: 'SY26-017', name: '평촌간28R2순시 적출분 해소공사', manager: '김상훈', percent: 0 },
+        { no: 'SY25-011', name: '대농2 맨홀 내 저압접속 불량개소 보수공사', manager: '김상훈', percent: 60 },
+        { no: 'JY25-256', name: '호계동553-1 평촌어반밸리 10750kW 신설', manager: '이재규', percent: 0 },
+        { no: 'JY25-260', name: '안양동 413-1 (주)대영플러스 일반용(갑)저압 120Kw 신설 외 1', manager: '이재규', percent: 0 },
+        { no: 'JY26-010', name: '고천동304-2 최가영 14+4kw 증설', manager: '이재규', percent: 0 },
+        { no: 'JY26-011', name: '관양동 1020-1 현대드림모터스 89kw 증설', manager: '이재규', percent: 0 },
+        { no: 'JY26-022', name: '호계동1020-3 무인교통단속장비 가로등(을) 1kw 신설', manager: '이재규', percent: 100 },
+        { no: 'JY26-033', name: '내손동693-8 정은종합건설 임시 70kw 신설', manager: '이재규', percent: 100 },
+        { no: 'JY26-040', name: '안양동 441-9 백지현 일반용(갑)저압 15kw 공급방식변경증설', manager: '이재규', percent: 100 },
+        { no: 'JY26-041', name: '비산동1111 안양시동안구청 1650kw 공급지점변경', manager: '이재규', percent: 100 },
     ];
 
+    // 매출손익현황.xlsx 합계행(성과금액) 기준 — 투입/손익은 미입력, 변경 시 이 객체만 교체
     const SALES_PROFIT_SAMPLE = {
         labels: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
-        profit: [175000000, 271000000, -24000000, 18000000, 5000000, 7000000, 12000000, 9000000, 4000000, 3000000, 8000000, 14000000],
-        input: [142000000, 306000000, 153000000, 28000000, 6000000, 9000000, 15000000, 11000000, 7000000, 4000000, 9000000, 12000000],
-        outcome: [312000000, 578000000, 140000000, 46000000, 11000000, 16000000, 27000000, 20000000, 11000000, 7000000, 17000000, 26000000],
+        profit:  [151263818, 266149856, 223096743, 157723564, -6827877, 0, 0, 0, 0, 0, 0, 0],
+        input:   [146579124, 329378889, 163532315, 139873160, 9336978, 0, 0, 0, 0, 0, 0, 0],
+        outcome: [297842942, 595528746, 386629057, 297596724, 2509101, 0, 0, 0, 0, 0, 0, 0],
     };
-    const APRIL_TOTAL_PROGRESS = 68;
 
     let salesProfitChart = null;
     let projectProgressCarousel = null;
@@ -165,7 +176,7 @@
         if (!carouselRoot) return;
 
         const perSlide = 5;
-        const pages = chunkArray(SAMPLE_MONTHLY_PROGRESS, perSlide);
+        const pages = chunkArray(MONTHLY_PROGRESS_DATA, perSlide);
 
         inner.innerHTML = pages.map((group, pageIdx) => `
             <div class="carousel-item ${pageIdx === 0 ? 'active' : ''}">
@@ -185,7 +196,7 @@
                             <div class="progress mt-2" role="progressbar" aria-label="공정률 ${percent}%">
                                 <div class="progress-bar bg-success" style="width:${percent}%"></div>
                             </div>
-                            <div class="progress-meta mt-1" title="${escapeHtml(item.month)} · ${escapeHtml(item.phase)} · ${escapeHtml(item.manager)}">${escapeHtml(item.month)} · ${escapeHtml(item.phase)} · ${escapeHtml(item.manager)}</div>
+                            <div class="progress-meta mt-1" title="${escapeHtml(item.no)}${item.manager ? ' · ' + escapeHtml(item.manager) : ''}">${escapeHtml(item.no)}${item.manager ? ' · ' + escapeHtml(item.manager) : ''}</div>
                         </div>
                         `;
                     }).join('')}
@@ -291,7 +302,10 @@
     }
 
     function renderTotalProgressChartHome() {
-        const progress = Math.max(0, Math.min(100, Number(APRIL_TOTAL_PROGRESS) || 0));
+        const avg = MONTHLY_PROGRESS_DATA.length
+            ? MONTHLY_PROGRESS_DATA.reduce((sum, item) => sum + (Number(item.percent) || 0), 0) / MONTHLY_PROGRESS_DATA.length
+            : 0;
+        const progress = Math.round(Math.max(0, Math.min(100, avg)));
         const remain = Math.max(0, 100 - progress);
         const donutEl = document.getElementById('totalProgressDonut');
         const valueEl = document.getElementById('totalProgressValue');

@@ -1,10 +1,11 @@
 # app/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
+from pathlib import Path
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
@@ -175,6 +176,19 @@ async def serve_dashboard_document_js():
 @app.get("/home.js", summary="홈 화면 스크립트", tags=["Pages"])
 async def serve_home_js():
     return FileResponse("home.js", media_type="application/javascript")
+
+
+@app.get("/uploads/photos/{file_path:path}", summary="첨부 사진 파일 서빙", tags=["Pages"])
+async def serve_upload_photo(file_path: str):
+    # 경로 탐색 방지: 자동화_데이터 하위만 허용
+    safe = Path("자동화_데이터") / Path(file_path)
+    resolved = safe.resolve()
+    base = Path("자동화_데이터").resolve()
+    if not str(resolved).startswith(str(base)):
+        raise HTTPException(status_code=403, detail="접근이 거부되었습니다.")
+    if not resolved.is_file():
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+    return FileResponse(str(resolved))
 
 
 if __name__ == "__main__":

@@ -394,6 +394,74 @@
             display: none;
         }
 
+        /* 첨부 피드 */
+        .schedule-attachment-feed {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px dashed #e0e4ea;
+        }
+        .attachment-feed-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 4px;
+            min-height: 4px;
+        }
+        .attachment-item {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            background: #f4f6fa;
+            border: 1px solid #dde1ea;
+            border-radius: 6px;
+            padding: 4px;
+            max-width: 120px;
+        }
+        .attachment-thumb {
+            width: 90px;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 4px;
+            display: block;
+            cursor: pointer;
+        }
+        .attachment-file-link {
+            font-size: 0.72rem;
+            word-break: break-all;
+            max-width: 110px;
+        }
+        .attachment-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            width: 100%;
+        }
+        .attachment-time {
+            font-size: 0.68rem;
+            color: #888;
+        }
+        .attachment-note {
+            font-size: 0.72rem;
+            color: #444;
+            word-break: break-all;
+        }
+        .attachment-del-btn {
+            padding: 0 4px;
+            font-size: 0.68rem;
+            color: #c00;
+            background: none;
+            border: none;
+            line-height: 1;
+            align-self: flex-end;
+        }
+        .attachment-upload-label {
+            font-size: 0.75rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+
         #workerStatusList .list-group-item {
             padding-top: 0.4rem;
             padding-bottom: 0.4rem;

@@ -48,6 +48,44 @@
             border-radius: 10px;
             background: #f9fbff;
         }
+        .num-cell { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .sales-table tbody tr.sales-group-a { background: #fff; }
+        .sales-table tbody tr.sales-group-b { background: #fffef0; }
+        .sales-table tfoot tr.grand-total-row { background: #e8f4fc; font-weight: 600; }
+        .sales-table tfoot td { border-color: #b8d4ea; }
+        .history-list-wrap { max-height: min(420px, 55vh); overflow: auto; }
+        /* home.html 매출/손익 차트와 동일 톤 */
+        .sales-header-demo {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+        .sales-total-chip-demo {
+            border: 1px solid #dce8f4;
+            background: #f8fbff;
+            border-radius: 999px;
+            padding: 3px 8px;
+            font-size: 0.72rem;
+            color: #4f6074;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+        .sales-total-chip-demo b {
+            color: #1f3045;
+            font-weight: 800;
+            margin-left: 3px;
+        }
+        .erp-sales-chart-box {
+            height: 290px;
+            position: relative;
+        }
+        #erpSalesProfitChart {
+            width: 100%;
+            max-height: 290px;
+        }
     </style>
 </head>
 <body>
@@ -55,7 +93,7 @@
         <div class="container-fluid px-3 px-md-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
                 <h1 class="title">ERP 연동 프론트엔드 흐름 시연</h1>
-                <p class="subtitle">로그인 → 메인 메뉴 → 전송 데이터 등록 / ERP 정보 조회(명시적 조회)</p>
+                <p class="subtitle">로그인 → 메인 메뉴 → 전송 등록 / ERP 조회 / 매출·손익 / 공사 이력</p>
             </div>
             <div class="d-flex align-items-center gap-2">
                 <span id="loginStatus" class="badge text-bg-light text-dark">로그아웃 상태</span>
@@ -83,7 +121,7 @@
 
         <div id="screenMenu" class="screen">
             <div class="alert alert-primary">
-                <b>메인 화면 구성</b>: 메뉴는 <b>전송 데이터 등록</b>, <b>ERP 정보 조회</b> 2개 버튼으로 구성했습니다.
+                <b>메인 화면 구성</b>: <b>전송 데이터 등록</b>, <b>ERP 정보 조회</b>, <b>매출/손익 현황</b>, <b>공사 이력 등록</b> 네 가지 메뉴입니다.
             </div>
             <div class="vstack gap-3 menu-stack">
                 <button id="goSendScreenBtn" class="btn btn-outline-primary w-100 menu-btn">
@@ -93,6 +131,14 @@
                 <button id="goQueryScreenBtn" class="btn btn-outline-success w-100 menu-btn">
                     ERP 정보 조회<br>
                     <span class="small text-muted fw-normal">공사별 공정률 조회(조회 버튼으로 실행)</span>
+                </button>
+                <button id="goSalesProfitScreenBtn" class="btn btn-outline-dark w-100 menu-btn">
+                    매출/손익 현황<br>
+                    <span class="small text-muted fw-normal">연도 조회 · 공사별 월별 성과·투입·손익 · 합계</span>
+                </button>
+                <button id="goConstructionHistoryScreenBtn" class="btn btn-outline-secondary w-100 menu-btn">
+                    공사 이력 등록<br>
+                    <span class="small text-muted fw-normal">지중번호·작업일자·누계달성률·추진사항 → 목록 반영</span>
                 </button>
             </div>
         </div>
@@ -275,7 +321,154 @@
                 <div id="getPayloadPreview" class="json-box"></div>
             </section>
         </div>
+
+        <div id="screenSalesProfit" class="screen">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 m-0">매출/손익 현황</h2>
+                <button class="btn btn-sm btn-outline-secondary js-back-menu">메뉴로 돌아가기</button>
+            </div>
+            <section class="section-card p-3 mb-3">
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-12 col-md-3 col-lg-2">
+                        <label class="form-label small mb-1">해당 연도</label>
+                        <input type="number" id="salesYearInput" class="form-control form-control-sm" min="2000" max="2100" step="1" placeholder="예: 2026">
+                    </div>
+                    <div class="col-12 col-md-3 col-lg-2">
+                        <button type="button" id="salesFetchBtn" class="btn btn-primary btn-sm w-100">조회</button>
+                    </div>
+                </div>
+                <div class="small text-muted mb-0">
+                    데모용 샘플 데이터입니다. ERP 연동 시 동일 구조로 API 응답을 채웁니다.
+                </div>
+            </section>
+
+            <section id="salesProfitChartSection" class="section-card p-3 mb-3">
+                <div class="sales-header-demo">
+                    <h3 class="h6 m-0">매출 / 손익 현황 (백만원)</h3>
+                    <div class="d-flex gap-2 flex-wrap justify-content-end">
+                        <span class="sales-total-chip-demo">성과<b id="erpTotalOutcome">—</b></span>
+                        <span class="sales-total-chip-demo">투입<b id="erpTotalInput">—</b></span>
+                        <span class="sales-total-chip-demo">손익<b id="erpTotalProfit">—</b></span>
+                    </div>
+                </div>
+                <div class="erp-sales-chart-box">
+                    <canvas id="erpSalesProfitChart" aria-label="월별 매출 손익 막대그래프"></canvas>
+                </div>
+                <div class="small text-muted mt-2 mb-0">
+                    막대 그래프는 아래 표의 「합계」 행(월별 전체 성과·투입·손익)과 동일한 숫자입니다.
+                </div>
+            </section>
+
+            <section class="section-card p-3 mb-3">
+                <h3 class="h6 mb-2">월별 매출·손익 표</h3>
+                <div class="table-wrap border rounded">
+                    <table class="table table-sm table-bordered align-middle mb-0 sales-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="min-width:96px">지중No</th>
+                                <th style="min-width:140px">공사명</th>
+                                <th style="min-width:88px">구분</th>
+                                <th class="num-cell" style="min-width:72px">1월</th>
+                                <th class="num-cell" style="min-width:72px">2월</th>
+                                <th class="num-cell" style="min-width:72px">3월</th>
+                                <th class="num-cell" style="min-width:72px">4월</th>
+                                <th class="num-cell" style="min-width:72px">5월</th>
+                                <th class="num-cell" style="min-width:72px">6월</th>
+                                <th class="num-cell" style="min-width:72px">7월</th>
+                                <th class="num-cell" style="min-width:72px">8월</th>
+                                <th class="num-cell" style="min-width:72px">9월</th>
+                                <th class="num-cell" style="min-width:72px">10월</th>
+                                <th class="num-cell" style="min-width:72px">11월</th>
+                                <th class="num-cell" style="min-width:72px">12월</th>
+                                <th class="num-cell" style="min-width:96px">합계</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salesTableBody"></tbody>
+                        <tfoot id="salesTableFoot"></tfoot>
+                    </table>
+                </div>
+                <div id="salesEmptyHint" class="small text-muted mt-2 d-none">해당 연도 샘플 데이터가 없습니다. 다른 연도를 선택해 보세요.</div>
+            </section>
+            <section class="section-card p-3">
+                <div class="small fw-bold mb-1">조회 요청/응답 예시 (JSON Preview)</div>
+                <div id="salesJsonPreview" class="json-box"></div>
+            </section>
+        </div>
+
+        <div id="screenConstructionHistory" class="screen">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 m-0">공사 이력 등록</h2>
+                <button class="btn btn-sm btn-outline-secondary js-back-menu">메뉴로 돌아가기</button>
+            </div>
+            <div class="row g-3">
+                <div class="col-12 col-lg-5">
+                    <section class="section-card p-3 h-100">
+                        <h3 class="h6 mb-2">공사 현황 검색</h3>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">지중No 검색</label>
+                            <input type="text" id="historyListFilter" class="form-control form-control-sm" placeholder="부분 일치 (코드·공사명)">
+                        </div>
+                        <div class="history-list-wrap border rounded">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>지중No</th>
+                                        <th>작업일자</th>
+                                        <th class="num-cell">달성률(%)</th>
+                                        <th>공사명</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyListBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="historyListEmpty" class="small text-muted mt-2 d-none">등록된 이력이 없습니다. 오른쪽에서 저장하면 목록에 표시됩니다.</div>
+                    </section>
+                </div>
+                <div class="col-12 col-lg-7">
+                    <section class="section-card p-3 mb-3">
+                        <h3 class="h6 mb-3">공사 이력 관리</h3>
+                        <div class="row g-2 mb-2">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small mb-1">지중번호</label>
+                                <select id="historyWorkSelect" class="form-select form-select-sm font-monospace" aria-describedby="historyWorkSelectHint"></select>
+                                <div id="historyWorkSelectHint" class="form-text">목록에는 <code>DJ26-001</code> 형식의 코드만 표시됩니다.</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label small mb-1">공사명(선택 시 자동)</label>
+                                <input type="text" id="historyProjectName" class="form-control form-control-sm" readonly placeholder="지중번호를 선택하면 여기에 공사명이 채워집니다">
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small mb-1">작업일자 <span class="text-danger">*</span></label>
+                                <input type="date" id="historyWorkDate" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small mb-1">누계 달성률(%) <span class="text-danger">*</span></label>
+                                <input type="number" id="historyAchieveRate" class="form-control form-control-sm" min="0" max="100" step="0.1" placeholder="0 ~ 100">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">추진사항 (선택)</label>
+                            <textarea id="historyMemo" class="form-control form-control-sm" rows="4" placeholder="예: 05/04 동진단지 연결"></textarea>
+                        </div>
+                        <button type="button" id="historySaveBtn" class="btn btn-primary btn-sm">저장 (전송)</button>
+                        <div class="small text-muted mt-2 mb-0">
+                            데모에서는 브라우저 메모리에만 쌓여 왼쪽 목록에 반영됩니다. 실제 연동 시 <code>POST /erp/construction-history</code> 등으로 교체합니다.
+                        </div>
+                    </section>
+                    <section class="section-card p-3">
+                        <div class="small fw-bold mb-1">POST 요청 본문(JSON Preview)</div>
+                        <div id="historyPayloadPreview" class="json-box mb-3"></div>
+                        <div class="small fw-bold mb-1">전송 처리 로그</div>
+                        <div id="historyTrace" class="vstack gap-2"></div>
+                    </section>
+                </div>
+            </div>
+        </div>
     </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <div id="codeHelpOverlay" class="code-help-overlay" aria-hidden="true">
         <div class="code-help-dialog" role="dialog" aria-modal="true" aria-labelledby="codeHelpTitle">
@@ -390,11 +583,84 @@
             });
         })();
 
+        const SALES_CATEGORY_ORDER = [
+            { key: "performance", label: "성과금액" },
+            { key: "input", label: "투입금액" },
+            { key: "profit", label: "손익금액" }
+        ];
+
+        const SALES_MONTH_LABELS = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
+
+        function zeros12() {
+            return Array.from({ length: 12 }, () => 0);
+        }
+
+
+        
+        const SAMPLE_SALES_BY_YEAR = {
+            2026: [
+                {
+                    code: "JG26-041",
+                    name: "진입도로 개량 및 배수로",
+                    performance: [0, 45000000, 32000000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    input: [0, 38000000, 28000000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    profit: [0, 7000000, 4000000, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                },
+                {
+                    code: "SY26-003",
+                    name: "수도권 A권역 변전실 신설 #3",
+                    performance: [120000000, 120000000, 0, 95000000, 0, 0, 0, 0, 0, 0, 0, 0],
+                    input: [90000000, 88000000, 0, 72000000, 0, 0, 0, 0, 0, 0, 0, 0],
+                    profit: [30000000, 32000000, 0, 23000000, 0, 0, 0, 0, 0, 0, 0, 0]
+                },
+                {
+                    code: "DJ26-001",
+                    name: "대전 테크노밸리 증축",
+                    performance: [0, 0, 0, 0, 210000000, 210000000, 180000000, 0, 0, 0, 0, 0],
+                    input: [0, 0, 0, 0, 175000000, 178000000, 160000000, 0, 0, 0, 0, 0],
+                    profit: [0, 0, 0, 0, 35000000, 32000000, 20000000, 0, 0, 0, 0, 0]
+                }
+            ],
+            2025: [
+                {
+                    code: "TY25-003",
+                    name: "택지 조성 전기 인입",
+                    performance: [80000000, 0, 0, 60000000, 0, 0, 0, 0, 0, 50000000, 0, 0],
+                    input: [65000000, 0, 0, 52000000, 0, 0, 0, 0, 0, 41000000, 0, 0],
+                    profit: [15000000, 0, 0, 8000000, 0, 0, 0, 0, 0, 9000000, 0, 0]
+                },
+                {
+                    code: "SY25-010",
+                    name: "물류센터 전기증설 #10",
+                    performance: [0, 55000000, 60000000, 0, 0, 0, 40000000, 0, 0, 0, 0, 33000000],
+                    input: [0, 48000000, 51000000, 0, 0, 0, 35000000, 0, 0, 0, 0, 29000000],
+                    profit: [0, 7000000, 9000000, 0, 0, 0, 5000000, 0, 0, 0, 0, 4000000]
+                }
+            ]
+        };
+
+        const EXTRA_HISTORY_WORKS = [
+            { code: "IY26-033", name: "동진단지 연결 증축 공사" }
+        ];
+
+        function getAllWorksMaster() {
+            const map = new Map();
+            EXTRA_HISTORY_WORKS.forEach((w) => map.set(w.code, w));
+            QUERY_SITES.forEach((site) => site.works.forEach((w) => map.set(w.code, w)));
+            return Array.from(map.values()).sort((a, b) => String(a.code).localeCompare(String(b.code)));
+        }
+
+        let constructionHistoryRows = [];
+        let constructionHistoryFormInitialized = false;
+        let salesProfitChartInstance = null;
+
         const screens = {
             login: document.getElementById("screenLogin"),
             menu: document.getElementById("screenMenu"),
             send: document.getElementById("screenSend"),
-            query: document.getElementById("screenQuery")
+            query: document.getElementById("screenQuery"),
+            salesProfit: document.getElementById("screenSalesProfit"),
+            constructionHistory: document.getElementById("screenConstructionHistory")
         };
         const loginStatus = document.getElementById("loginStatus");
         const logoutBtn = document.getElementById("logoutBtn");
@@ -426,6 +692,27 @@
         const kpiAmount = document.getElementById("kpiAmount");
         const progressBar = document.getElementById("progressBar");
         const lastTriggerLabel = document.getElementById("lastTriggerLabel");
+        const salesYearInput = document.getElementById("salesYearInput");
+        const salesFetchBtn = document.getElementById("salesFetchBtn");
+        const salesTableBody = document.getElementById("salesTableBody");
+        const salesTableFoot = document.getElementById("salesTableFoot");
+        const salesEmptyHint = document.getElementById("salesEmptyHint");
+        const salesJsonPreview = document.getElementById("salesJsonPreview");
+        const salesProfitChartSection = document.getElementById("salesProfitChartSection");
+        const erpTotalOutcome = document.getElementById("erpTotalOutcome");
+        const erpTotalInput = document.getElementById("erpTotalInput");
+        const erpTotalProfit = document.getElementById("erpTotalProfit");
+        const historyListFilter = document.getElementById("historyListFilter");
+        const historyListBody = document.getElementById("historyListBody");
+        const historyListEmpty = document.getElementById("historyListEmpty");
+        const historyWorkSelect = document.getElementById("historyWorkSelect");
+        const historyProjectName = document.getElementById("historyProjectName");
+        const historyWorkDate = document.getElementById("historyWorkDate");
+        const historyAchieveRate = document.getElementById("historyAchieveRate");
+        const historyMemo = document.getElementById("historyMemo");
+        const historySaveBtn = document.getElementById("historySaveBtn");
+        const historyPayloadPreview = document.getElementById("historyPayloadPreview");
+        const historyTrace = document.getElementById("historyTrace");
         let sendResultBox = null;
         let currentUserId = "";
         let latestExtractedRecord = null;
@@ -682,6 +969,350 @@
 
         function formatWon(value) { return `${Number(value || 0).toLocaleString("ko-KR")}원`; }
 
+        function sumArray(arr) {
+            return arr.reduce((s, v) => s + Number(v || 0), 0);
+        }
+
+        function formatSalesNum(n) {
+            const v = Number(n || 0);
+            if (v === 0) return "";
+            return v.toLocaleString("ko-KR");
+        }
+
+        function toMillionUnit(value) {
+            return Math.round((Number(value) || 0) / 1000000);
+        }
+
+        function formatMillionLabel(rawWon) {
+            return `${toMillionUnit(rawWon).toLocaleString("ko-KR")}백만원`;
+        }
+
+        function destroySalesProfitChart() {
+            if (salesProfitChartInstance) {
+                salesProfitChartInstance.destroy();
+                salesProfitChartInstance = null;
+            }
+        }
+
+        function renderSalesProfitChart(monthTotals) {
+            const sumYear = (arr) => arr.reduce((a, c) => a + (Number(c) || 0), 0);
+            if (erpTotalOutcome) erpTotalOutcome.textContent = formatMillionLabel(sumYear(monthTotals.performance));
+            if (erpTotalInput) erpTotalInput.textContent = formatMillionLabel(sumYear(monthTotals.input));
+            if (erpTotalProfit) erpTotalProfit.textContent = formatMillionLabel(sumYear(monthTotals.profit));
+
+            const chartEl = document.getElementById("erpSalesProfitChart");
+            if (!chartEl || typeof Chart === "undefined") return;
+            const ctx = chartEl.getContext("2d");
+            if (!ctx) return;
+            destroySalesProfitChart();
+
+            salesProfitChartInstance = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: SALES_MONTH_LABELS,
+                    datasets: [
+                        {
+                            label: "손익금액",
+                            data: monthTotals.profit.map(toMillionUnit),
+                            backgroundColor: "rgba(222, 102, 43, 0.85)",
+                            borderColor: "rgba(191, 78, 25, 1)",
+                            borderWidth: 1
+                        },
+                        {
+                            label: "투입금액",
+                            data: monthTotals.input.map(toMillionUnit),
+                            backgroundColor: "rgba(119, 177, 67, 0.85)",
+                            borderColor: "rgba(95, 149, 48, 1)",
+                            borderWidth: 1
+                        },
+                        {
+                            label: "성과금액",
+                            data: monthTotals.performance.map(toMillionUnit),
+                            backgroundColor: "rgba(233, 179, 52, 0.85)",
+                            borderColor: "rgba(197, 147, 29, 1)",
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: "index", intersect: false },
+                    plugins: {
+                        legend: { position: "right" },
+                        tooltip: {
+                            callbacks: {
+                                label(context) {
+                                    const label = context.dataset.label || "";
+                                    const value = Number(context.parsed.y || 0).toLocaleString("ko-KR");
+                                    return `${label}: ${value}백만원`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: "백만원"
+                            },
+                            ticks: {
+                                callback(value) {
+                                    return `${Number(value).toLocaleString("ko-KR")}M`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderSalesProfit() {
+            const yearRaw = salesYearInput.value.trim();
+            const year = parseInt(yearRaw, 10);
+            if (!yearRaw || String(year) !== yearRaw || year < 2000 || year > 2100) {
+                alert("연도를 2000~2100 사이 숫자(예: 2026)로 입력해 주세요.");
+                return;
+            }
+            const projects = SAMPLE_SALES_BY_YEAR[year];
+            salesTableBody.innerHTML = "";
+            salesTableFoot.innerHTML = "";
+            if (!projects || !projects.length) {
+                salesEmptyHint.classList.remove("d-none");
+                destroySalesProfitChart();
+                if (salesProfitChartSection) salesProfitChartSection.classList.add("d-none");
+                if (erpTotalOutcome) erpTotalOutcome.textContent = "—";
+                if (erpTotalInput) erpTotalInput.textContent = "—";
+                if (erpTotalProfit) erpTotalProfit.textContent = "—";
+                salesJsonPreview.textContent = JSON.stringify({
+                    request: { method: "GET", url: `/erp/sales-profit-status?year=${year}` },
+                    response: { result: false, message: "해당 연도 데이터 없음", year }
+                }, null, 2);
+                return;
+            }
+            salesEmptyHint.classList.add("d-none");
+            if (salesProfitChartSection) salesProfitChartSection.classList.remove("d-none");
+
+            const monthTotals = {
+                performance: zeros12(),
+                input: zeros12(),
+                profit: zeros12()
+            };
+            projects.forEach((proj) => {
+                SALES_CATEGORY_ORDER.forEach((cat) => {
+                    proj[cat.key].forEach((v, m) => {
+                        monthTotals[cat.key][m] += Number(v || 0);
+                    });
+                });
+            });
+
+            projects.forEach((proj, pi) => {
+                const grp = pi % 2 === 0 ? "sales-group-a" : "sales-group-b";
+                SALES_CATEGORY_ORDER.forEach((cat, ci) => {
+                    const months = proj[cat.key];
+                    const rowSum = sumArray(months);
+                    const cells = months.map((v) => `<td class="num-cell">${formatSalesNum(v)}</td>`).join("");
+                    const tr = document.createElement("tr");
+                    tr.className = grp;
+                    if (ci === 0) {
+                        tr.innerHTML = `
+                            <td rowspan="3" class="font-monospace small align-middle">${proj.code}</td>
+                            <td rowspan="3" class="small align-middle">${proj.name}</td>
+                            <td>${cat.label}</td>
+                            ${cells}
+                            <td class="num-cell fw-semibold">${rowSum.toLocaleString("ko-KR")}</td>`;
+                    } else {
+                        tr.innerHTML = `
+                            <td>${cat.label}</td>
+                            ${cells}
+                            <td class="num-cell fw-semibold">${rowSum.toLocaleString("ko-KR")}</td>`;
+                    }
+                    salesTableBody.appendChild(tr);
+                });
+            });
+
+            SALES_CATEGORY_ORDER.forEach((cat, ci) => {
+                const months = monthTotals[cat.key];
+                const yearSum = sumArray(months);
+                const tr = document.createElement("tr");
+                tr.className = "grand-total-row";
+                const cells = months.map((v) => `<td class="num-cell">${Number(v).toLocaleString("ko-KR")}</td>`).join("");
+                if (ci === 0) {
+                    tr.innerHTML = `
+                        <td colspan="2" rowspan="3" class="align-middle text-center">합계</td>
+                        <td>${cat.label}</td>
+                        ${cells}
+                        <td class="num-cell">${yearSum.toLocaleString("ko-KR")}</td>`;
+                } else {
+                    tr.innerHTML = `
+                        <td>${cat.label}</td>
+                        ${cells}
+                        <td class="num-cell">${yearSum.toLocaleString("ko-KR")}</td>`;
+                }
+                salesTableFoot.appendChild(tr);
+            });
+
+            renderSalesProfitChart(monthTotals);
+
+            salesJsonPreview.textContent = JSON.stringify({
+                request: { method: "GET", url: `/erp/sales-profit-status?year=${year}` },
+                response: {
+                    result: true,
+                    year,
+                    project_count: projects.length,
+                    monthly_totals_won: {
+                        performance: monthTotals.performance,
+                        input: monthTotals.input,
+                        profit: monthTotals.profit
+                    },
+                    chart_million_unit_note: "home.html과 동일: 원 단위 합계를 1e6으로 나눠 백만원 축에 표시",
+                    projects: projects.map((p) => ({
+                        work_code: p.code,
+                        project_name: p.name,
+                        performance_monthly: p.performance,
+                        input_monthly: p.input,
+                        profit_monthly: p.profit
+                    }))
+                }
+            }, null, 2);
+        }
+
+        function initSalesProfitScreen() {
+            if (!salesYearInput.value) salesYearInput.value = "2026";
+            renderSalesProfit();
+        }
+
+        /** 공사명(선택 시 자동): 마스터 데이터의 코드 접두(SY26 등)와 끝 #번호 제거 — home.html · ERP 연동 시 동일 규칙 적용 가능 */
+        function formatConstructionNameForHistory(work) {
+            if (!work || typeof work.name !== "string") return "";
+            const raw = work.name.trim();
+            if (!raw) return "";
+            const code = String(work.code || "").trim();
+            const hyphenIdx = code.indexOf("-");
+            const prefix = hyphenIdx > 0 ? code.slice(0, hyphenIdx) : "";
+            let s = raw;
+            if (prefix) {
+                const take = s.slice(0, prefix.length);
+                if (take.toUpperCase() === prefix.toUpperCase()) {
+                    s = s.slice(prefix.length).trimStart();
+                }
+            }
+            s = s.replace(/\s*#\d+\s*$/, "").trim();
+            return s;
+        }
+
+        function buildHistoryPayload() {
+            return {
+                transfer_type: "construction_history",
+                request_time: new Date().toISOString(),
+                record: {
+                    work_code: historyWorkSelect.value,
+                    project_name: historyProjectName.value.trim(),
+                    work_date: historyWorkDate.value,
+                    cumulative_achievement_rate: historyAchieveRate.value === "" ? null : Number(historyAchieveRate.value),
+                    progress_memo: historyMemo.value.trim()
+                }
+            };
+        }
+
+        function refreshHistoryPayloadPreview() {
+            historyPayloadPreview.textContent = JSON.stringify(buildHistoryPayload(), null, 2);
+        }
+
+        function validateHistoryRecord() {
+            if (!historyWorkDate.value) return "작업일자를 입력해 주세요.";
+            if (historyAchieveRate.value === "") return "누계 달성률을 입력해 주세요.";
+            const r = Number(historyAchieveRate.value);
+            if (Number.isNaN(r)) return "누계 달성률은 숫자로 입력해 주세요.";
+            return "";
+        }
+
+        function addHistoryTrace(message, type) {
+            const div = document.createElement("div");
+            div.className = "trace-item";
+            const tone = type === "error" ? "text-danger" : "text-success";
+            div.innerHTML = `<div class="${tone} fw-bold">${new Date().toLocaleTimeString("ko-KR")}</div><div>${message}</div>`;
+            historyTrace.prepend(div);
+        }
+
+        function renderHistoryList() {
+            const q = historyListFilter.value.trim().toLowerCase();
+            historyListBody.innerHTML = "";
+            if (!constructionHistoryRows.length) {
+                historyListEmpty.classList.remove("d-none");
+                return;
+            }
+            historyListEmpty.classList.add("d-none");
+            const rows = constructionHistoryRows.filter((r) => {
+                if (!q) return true;
+                const code = String(r.work_code || "").toLowerCase();
+                const name = String(r.project_name || "").toLowerCase();
+                return code.includes(q) || name.includes(q);
+            });
+            rows.forEach((r) => {
+                const tr = document.createElement("tr");
+                const displayName = formatConstructionNameForHistory({
+                    code: r.work_code,
+                    name: r.project_name
+                });
+                tr.innerHTML = `
+                    <td class="font-monospace small">${r.work_code}</td>
+                    <td>${r.work_date}</td>
+                    <td class="num-cell">${Number(r.achievement_rate).toLocaleString("ko-KR")}</td>
+                    <td class="small">${displayName}</td>`;
+                historyListBody.appendChild(tr);
+            });
+        }
+
+        function saveConstructionHistory() {
+            const err = validateHistoryRecord();
+            if (err) {
+                addHistoryTrace(`[실패] ${err}`, "error");
+                alert(err);
+                return;
+            }
+            const payload = buildHistoryPayload();
+            const rec = payload.record;
+            constructionHistoryRows.unshift({
+                work_code: rec.work_code,
+                work_date: rec.work_date,
+                achievement_rate: rec.cumulative_achievement_rate,
+                project_name: rec.project_name,
+                progress_memo: rec.progress_memo
+            });
+            addHistoryTrace(`[저장] POST /erp/construction-history (데모: 목록에 반영)`);
+            addHistoryTrace(`전송 완료: ${rec.work_code} / ${rec.work_date} / 달성률 ${rec.cumulative_achievement_rate}%`);
+            renderHistoryList();
+            historyMemo.value = "";
+            refreshHistoryPayloadPreview();
+        }
+
+        function initConstructionHistoryScreen() {
+            historyWorkSelect.innerHTML = getAllWorksMaster().map((w) =>
+                `<option value="${w.code}">${w.code}</option>`
+            ).join("");
+            if (historyWorkSelect.options.length) {
+                historyWorkSelect.selectedIndex = 0;
+                const first = getAllWorksMaster().find((w) => w.code === historyWorkSelect.value);
+                historyProjectName.value = first ? formatConstructionNameForHistory(first) : "";
+            }
+            if (!constructionHistoryFormInitialized) {
+                historyWorkDate.value = new Date().toISOString().slice(0, 10);
+                historyAchieveRate.value = "100";
+                constructionHistoryFormInitialized = true;
+            }
+            refreshHistoryPayloadPreview();
+            renderHistoryList();
+        }
+
+        function syncHistoryProjectName() {
+            const code = historyWorkSelect.value;
+            const w = getAllWorksMaster().find((x) => x.code === code);
+            historyProjectName.value = w ? formatConstructionNameForHistory(w) : "";
+            refreshHistoryPayloadPreview();
+        }
+
         function getActiveSite() {
             const id = querySiteSelect.value;
             return QUERY_SITES.find((s) => s.id === id) || QUERY_SITES[0];
@@ -841,6 +1472,14 @@
             showScreen("query");
             initQueryScreen();
         });
+        document.getElementById("goSalesProfitScreenBtn").addEventListener("click", () => {
+            showScreen("salesProfit");
+            initSalesProfitScreen();
+        });
+        document.getElementById("goConstructionHistoryScreenBtn").addEventListener("click", () => {
+            showScreen("constructionHistory");
+            initConstructionHistoryScreen();
+        });
         document.querySelectorAll(".js-back-menu").forEach((btn) => btn.addEventListener("click", () => showScreen("menu")));
 
         manualWorkCode.addEventListener("input", refreshPostPreview);
@@ -903,6 +1542,19 @@
             resetQueryResults();
         });
         queryFetchBtn.addEventListener("click", () => fetchProgressByCode("조회 버튼"));
+
+        salesFetchBtn.addEventListener("click", () => renderSalesProfit());
+        salesYearInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") renderSalesProfit();
+        });
+
+        historySaveBtn.addEventListener("click", saveConstructionHistory);
+        historyWorkSelect.addEventListener("change", syncHistoryProjectName);
+        [historyWorkDate, historyAchieveRate, historyMemo].forEach((el) => {
+            el.addEventListener("input", refreshHistoryPayloadPreview);
+            el.addEventListener("change", refreshHistoryPayloadPreview);
+        });
+        historyListFilter.addEventListener("input", renderHistoryList);
         openCodeHelpBtn.addEventListener("click", openCodeHelp);
         codeHelpCloseBtn.addEventListener("click", closeCodeHelp);
         codeHelpOverlay.addEventListener("click", (e) => {
