@@ -20,16 +20,14 @@ class Settings(BaseSettings):
     COOKIE_SECURE: bool = False
     # 운영 배포 시 true 권장. true면 http 요청을 https로 리다이렉트한다.
     FORCE_HTTPS_REDIRECT: bool = False
-    # 문서 생성/추출 템플릿 루트 (templates.json + 파일)
-    DOCUMENT_TEMPLATES_DIR: str = "document_templates"
-    # 로컬 exe 실행: FastAPI가 돌아가는 PC에서만 동작. 비우면 API 비활성(503).
-    LOCAL_APPS_ROOT: str = ""
-    LOCAL_APP_HANGUL: str = "HangulGenerator.exe"
-    LOCAL_APP_ERP: str = "ERP.exe"
+    # 사진/문서 업로드 저장 루트
+    UPLOADS_DIR: str = "uploads"
+    # 세션 만료 기간(일)
+    SESSION_TTL_DAYS: int = 30
     # 외출 복귀 시각(until_time) 비교에 사용. 브라우저는 로컬 날짜+시각으로 저장하므로 서버가 UTC여도 맞춤.
     APP_TIMEZONE: str = "Asia/Seoul"
 
-    # 예전 .env(SIGNUP_ENABLED, INITIAL_ADMIN_PASSWORD 등)가 남아 있어도 기동되게 무시
+    # 예전 .env 값이 남아 있어도 기동되게 무시
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

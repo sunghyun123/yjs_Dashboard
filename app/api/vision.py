@@ -8,15 +8,16 @@ from fastapi.responses import Response
 from openpyxl import Workbook
 from app.services.vision_ai_service import VisionService
 from app.core.config import settings
-from app.db.db_manager import DBManager
+from app.db.repos.export import ExportRepository
+from app.db.deps import get_export_repo
 from app.core.auth import require_session
 
 router = APIRouter(prefix="/api/vision", tags=["Vision"])
 vision_svc = VisionService(api_key=settings.GEMINI_API_KEY)
-db = DBManager(db_path=settings.sqlite_db_path)
 
-# 자동화 데이터가 저장될 루트 폴더
-BASE_STORAGE = Path("자동화_데이터")
+
+def _base_storage() -> Path:
+    return Path(settings.UPLOADS_DIR)
 
 
 def _to_worklog_records(extracted: dict) -> list[dict]:
@@ -74,28 +75,17 @@ def _to_worklog_structured_record(extracted: dict) -> dict:
     return {
         "work_code": str(extracted.get("project_code") or "").strip(),
         "input_date": str(extracted.get("work_date") or "").strip(),
-        "regular_day": regular_day,
-        "regular_night": regular_night,
-        "daily_day": daily_day,
-        "daily_night": daily_night,
-        "signalman_day": signalman_day,
-        "signalman_night": signalman_night,
-        "w6_day": w6_day,
-        "w6_night": w6_night,
-        "w3_day": w3_day,
-        "w3_night": w3_night,
-        "dump15t_day": dump15t_day,
-        "dump15t_night": dump15t_night,
-        "crane_day": crane_day,
-        "crane_night": crane_night,
-        "watertruck_day": 0.0,
-        "watertruck_night": 0.0,
-        "mcm_day": 0.0,
-        "mcm_night": 0.0,
-        "connection_day": connection_day,
-        "connection_night": connection_night,
-        "outsource_1": 0.0,
-        "outsource_2": 0.0,
+        "regular_day": regular_day, "regular_night": regular_night,
+        "daily_day": daily_day, "daily_night": daily_night,
+        "signalman_day": signalman_day, "signalman_night": signalman_night,
+        "w6_day": w6_day, "w6_night": w6_night,
+        "w3_day": w3_day, "w3_night": w3_night,
+        "dump15t_day": dump15t_day, "dump15t_night": dump15t_night,
+        "crane_day": crane_day, "crane_night": crane_night,
+        "watertruck_day": 0.0, "watertruck_night": 0.0,
+        "mcm_day": 0.0, "mcm_night": 0.0,
+        "connection_day": connection_day, "connection_night": connection_night,
+        "outsource_1": 0.0, "outsource_2": 0.0,
     }
 
 
@@ -207,21 +197,22 @@ async def process_document(
     linked_schedule_id: Optional[int] = Form(default=None),
     note: str = Form(default=""),
     user_session=Depends(require_session),
+    export_repo: ExportRepository = Depends(get_export_repo),
 ):
     content = await file.read()
     file_hash = hashlib.sha256(content).hexdigest()
     file_size = len(content)
+    base_storage = _base_storage()
 
-    # 사용자 지정 카테고리 업로드 (모바일/PC 사진 전송)
     if upload_category:
         date_dir = datetime.now().strftime("%Y-%m-%d")
-        folder = BASE_STORAGE / date_dir / upload_category
+        folder = base_storage / date_dir / upload_category
         folder.mkdir(parents=True, exist_ok=True)
         safe_name = datetime.now().strftime("%H%M%S")
         save_path = folder / f"{safe_name}{Path(file.filename).suffix}"
         with open(save_path, "wb") as f:
             f.write(content)
-        upload_id = db.save_photo_upload(
+        upload_id = export_repo.save_photo_upload(
             category=upload_category,
             file_path=str(save_path),
             uploaded_by=user_session["user_id"],
@@ -239,27 +230,23 @@ async def process_document(
     if not data:
         raise HTTPException(status_code=500, detail="AI 분석 실패")
 
-    # 1. 문서 종류별 폴더 생성
     date_dir = datetime.now().strftime("%Y-%m-%d")
-    folder = BASE_STORAGE / date_dir / data['doc_type']
+    folder = base_storage / date_dir / data["doc_type"]
     folder.mkdir(parents=True, exist_ok=True)
 
-    # 2. 파일명 조합 (YYYY-MM-DD_공사명_코드)
     safe_name = f"{data['work_date']}_{data['project_name']}_{data['project_code']}".replace("/", "-")
 
-    # 3. 엑셀 파일 저장 (ERP 양식)
-    if data['doc_type'] == "작업일지":
+    if data["doc_type"] == "작업일지":
         structured_record = _to_worklog_structured_record(data)
         excel_blob = _build_worklog_excel_bytes(structured_record)
         with open(folder / f"{safe_name}.xlsx", "wb") as xlsx_file:
             xlsx_file.write(excel_blob)
 
-    # 4. 원본 사진 저장 (검수용)
     with open(folder / f"{safe_name}{Path(file.filename).suffix}", "wb") as f:
         f.write(content)
 
-    db.save_photo_upload(
-        category=data['doc_type'],
+    export_repo.save_photo_upload(
+        category=data["doc_type"],
         file_path=str(folder / f"{safe_name}{Path(file.filename).suffix}"),
         uploaded_by=user_session["user_id"],
         uploaded_device=user_session.get("device_name", "unknown-device"),

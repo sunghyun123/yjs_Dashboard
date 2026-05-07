@@ -208,10 +208,8 @@
             <button type="button" class="list-group-item list-group-item-action text-start" onclick="logout()">로그아웃</button>
         </div>
         <hr class="my-3">
-        <div class="small text-muted mb-2">문서 생성·데이터 추출은 상황판(☰) 메뉴에서 이용하세요.</div>
         <div class="list-group list-group-flush">
             <button type="button" class="list-group-item list-group-item-action text-start" onclick="openHangulGeneratorDownload(); toggleIndexDrawer(false);">한글 생성기 다운로드</button>
-            <button type="button" class="list-group-item list-group-item-action text-start" onclick="launchLocalAppIndex('erp')">ERP 실행</button>
         </div>
     </div>
 </aside>
@@ -315,24 +313,6 @@
         window.open(HANGUL_GENERATOR_RELEASE_URL, '_blank', 'noopener,noreferrer');
     }
 
-    async function launchLocalAppIndex(appKey) {
-        try {
-            const res = await fetch('/api/local/launch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ app: appKey }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                alert(data.detail || '실행에 실패했습니다. 서버 PC의 LOCAL_APPS_ROOT 설정을 확인하세요.');
-                return;
-            }
-            alert(data.message || '실행 요청을 보냈습니다.');
-            toggleIndexDrawer(false);
-        } catch (e) {
-            alert('실행 요청 중 오류가 발생했습니다.');
-        }
-    }
 
     // 말풍선 추가 함수
     function appendBubble(sender, text) { 

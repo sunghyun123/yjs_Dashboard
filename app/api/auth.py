@@ -8,8 +8,9 @@ from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
 from app.core.config import settings
-from app.core.auth import SESSION_COOKIE_NAME, SESSION_TTL_DAYS, create_session, require_session
-from app.db.db_manager import DBManager
+from app.core.auth import SESSION_COOKIE_NAME, create_session, require_session
+from app.db.repos.user import UserRepository
+from app.db.deps import get_user_repo
 import app.services.kakao_oauth as kakao_oauth
 from app.services.kakao_oauth import KakaoOAuthError
 from app.services.kakao_whitelist import find_whitelisted_user
@@ -18,7 +19,6 @@ from app.services.kakao_whitelist import find_whitelisted_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
-db = DBManager(db_path=settings.sqlite_db_path)
 
 KAKAO_STATE_COOKIE = "yjs_kakao_oauth_state"
 KAKAO_NEXT_COOKIE = "yjs_kakao_oauth_next"
@@ -49,24 +49,10 @@ def kakao_login(next: str = "/dashboard.html"):
     dest = _sanitize_next(next)
     url = kakao_oauth.build_authorize_url(state)
     r = RedirectResponse(url=url, status_code=302)
-    r.set_cookie(
-        KAKAO_STATE_COOKIE,
-        state,
-        max_age=KAKAO_OAUTH_COOKIE_MAX_AGE,
-        path="/",
-        httponly=True,
-        samesite="lax",
-        secure=settings.COOKIE_SECURE,
-    )
-    r.set_cookie(
-        KAKAO_NEXT_COOKIE,
-        dest,
-        max_age=KAKAO_OAUTH_COOKIE_MAX_AGE,
-        path="/",
-        httponly=True,
-        samesite="lax",
-        secure=settings.COOKIE_SECURE,
-    )
+    r.set_cookie(KAKAO_STATE_COOKIE, state, max_age=KAKAO_OAUTH_COOKIE_MAX_AGE, path="/",
+                 httponly=True, samesite="lax", secure=settings.COOKIE_SECURE)
+    r.set_cookie(KAKAO_NEXT_COOKIE, dest, max_age=KAKAO_OAUTH_COOKIE_MAX_AGE, path="/",
+                 httponly=True, samesite="lax", secure=settings.COOKIE_SECURE)
     return r
 
 
@@ -77,6 +63,7 @@ def kakao_callback(
     state: str = "",
     error: str = "",
     error_description: str = "",
+    user_repo: UserRepository = Depends(get_user_repo),
 ):
     next_url = _sanitize_next(request.cookies.get(KAKAO_NEXT_COOKIE))
 
@@ -103,7 +90,7 @@ def kakao_callback(
 
     entry = find_whitelisted_user(kakao_id)
     if not entry:
-        access_row = db.get_login_access_by_kakao_id(kakao_id)
+        access_row = user_repo.get_login_access_by_kakao_id(kakao_id)
         if access_row and access_row.get("status") == "approved":
             entry = {
                 "user_id": str(access_row.get("user_id") or f"kakao_{kakao_id}"),
@@ -111,17 +98,17 @@ def kakao_callback(
                 "role": str(access_row.get("role") or "worker"),
             }
         else:
-            db.upsert_login_access_request(kakao_id, note="카카오 로그인 승인 대기")
+            user_repo.upsert_login_access_request(kakao_id, note="카카오 로그인 승인 대기")
             logger.info("카카오 로그인 승인 대기 등록: kakao_id=%s", kakao_id)
             return _fail_redirect("?kakao_denied=pending")
 
     try:
-        db.ensure_oauth_user(entry["user_id"], entry["user_name"], entry["role"])
+        user_repo.ensure_oauth_user(entry["user_id"], entry["user_name"], entry["role"])
     except ValueError:
         return _fail_redirect("?kakao_error=user")
 
     device = (request.headers.get("user-agent") or "kakao-oauth")[:500]
-    session_id = create_session(db, user_id=entry["user_id"], device_name=device)
+    session_id = create_session(user_repo, user_id=entry["user_id"], device_name=device)
 
     r = RedirectResponse(url=next_url, status_code=302)
     r.delete_cookie(KAKAO_STATE_COOKIE, path="/")
@@ -133,20 +120,19 @@ def kakao_callback(
         httponly=True,
         samesite="lax",
         secure=settings.COOKIE_SECURE,
-        max_age=SESSION_TTL_DAYS * 24 * 60 * 60,
+        max_age=settings.SESSION_TTL_DAYS * 24 * 60 * 60,
     )
     return r
 
 
 @router.post("/logout")
-def logout(response: Response, session=Depends(require_session)):
-    db.delete_session(session["session_id"])
-    response.delete_cookie(
-        SESSION_COOKIE_NAME,
-        path="/",
-        samesite="lax",
-        secure=settings.COOKIE_SECURE,
-    )
+def logout(
+    response: Response,
+    session=Depends(require_session),
+    user_repo: UserRepository = Depends(get_user_repo),
+):
+    user_repo.delete_session(session["session_id"])
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/", samesite="lax", secure=settings.COOKIE_SECURE)
     return {"message": "로그아웃되었습니다."}
 
 

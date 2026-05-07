@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.db.db_manager import DBManager
+from app.db.migrations import run_migrations
 
 
 # Ensure required settings exist before app modules import `settings`.
@@ -63,39 +63,28 @@ def _install_google_genai_stub():
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     _install_google_genai_stub()
-    # Use a dedicated temporary DB for each test.
-    db_path = str(tmp_path / "test_schedule.db")
-    test_db = DBManager(db_path=db_path)
 
-    # Delay imports so env vars above are already set.
+    db_path = str(tmp_path / "test_schedule.db")
+    run_migrations(db_path)
+
     import main
-    from app.api import admin, auth, schedules, vision
-    from app.core import auth as auth_core
+    from app.db import deps
     from app.core.config import settings as app_settings
 
-    # 로컬 .env에 COOKIE_SECURE=true여도 TestClient(http)에서 세션 쿠키가 붙지 않아 401 나는 것 방지
     monkeypatch.setattr(app_settings, "COOKIE_SECURE", False)
     monkeypatch.setattr(app_settings, "FORCE_HTTPS_REDIRECT", False)
 
-    # Replace module-level DB singletons to avoid touching real `schedule.db`.
-    schedules.db = test_db
-    auth.db = test_db
-    admin.db = test_db
-    admin.export_svc.db = test_db
-    vision.db = test_db
+    # Single override point: all repos resolve through get_db_path
+    main.app.dependency_overrides[deps.get_db_path] = lambda: db_path
 
-    # Force auth dependency to query the temporary DB.
-    monkeypatch.setattr(auth_core, "DBManager", lambda db_path="schedule.db": test_db)
-
-    # Avoid starting the infinite background export loop during tests.
     def _discard_task(coro):
         coro.close()
         return None
 
     monkeypatch.setattr(main.asyncio, "create_task", _discard_task)
-
-    # Ensure static files resolve from repository root.
     monkeypatch.chdir(Path(main.__file__).resolve().parent)
 
     with TestClient(main.app) as tc:
         yield tc
+
+    main.app.dependency_overrides.clear()
