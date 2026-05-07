@@ -269,11 +269,6 @@ async def extract_document_fields(
         )
         return {"extract_mode": "table", "rows": rows, "values": {}}
 
-    try:
-        resolve_template_file(base, template)
-    except Exception:
-        raise HTTPException(status_code=400, detail="템플릿 파일이 유효하지 않습니다.") from None
-
     fields = [f for f in (template.get("fields") or []) if isinstance(f, dict)]
     extracted = await _ai().extract_field_values_from_image(
         data,

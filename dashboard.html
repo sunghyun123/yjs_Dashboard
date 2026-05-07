@@ -1064,30 +1064,6 @@
             background: #f4f6f9;
         }
 
-        .doc-submenu {
-            display: none;
-            padding-left: 8px;
-            margin-top: 4px;
-            margin-bottom: 8px;
-        }
-
-        .doc-submenu.open {
-            display: block;
-        }
-
-        .doc-drop-zone {
-            border: 2px dashed #9cb6da;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            background: #f8f9fc;
-            cursor: pointer;
-        }
-
-        .doc-drop-zone.dragover {
-            background: #eaf1fb;
-            border-color: #1f6fe5;
-        }
 
         /* 스크롤바 숨기기 (전자 칠판용 깔끔한 UI) */
         ::-webkit-scrollbar {
@@ -1148,32 +1124,6 @@
                     관리자</a>
                 <button type="button" class="list-group-item list-group-item-action text-start"
                     onclick="logout(); toggleAppDrawer(false);">로그아웃</button>
-            </div>
-            <hr class="my-3">
-            <div class="small text-muted mb-2"></div>
-            <div class="list-group list-group-flush">
-                <button type="button" class="list-group-item list-group-item-action text-start"
-                    onclick="openHangulGeneratorDownload(); toggleAppDrawer(false);">한글 생성기 다운로드</button>
-                <button type="button" class="list-group-item list-group-item-action text-start"
-                    onclick="launchLocalApp('erp')">ERP 실행(비활성화)</button>
-                <button type="button"
-                    class="list-group-item list-group-item-action text-start d-flex justify-content-between align-items-center"
-                    onclick="toggleDocSubmenu('gen')">
-                    문서 생성 <span class="text-muted small">▾</span>
-                </button>
-                <div id="docSubmenuGen" class="doc-submenu">
-                    <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-1"
-                        onclick="openDocumentTemplatePicker('generate')">템플릿 선택…</button>
-                </div>
-                <button type="button"
-                    class="list-group-item list-group-item-action text-start d-flex justify-content-between align-items-center"
-                    onclick="toggleDocSubmenu('ext')">
-                    문서 추출 <span class="text-muted small">▾</span>
-                </button>
-                <div id="docSubmenuExt" class="doc-submenu">
-                    <button type="button" class="btn btn-sm btn-outline-primary w-100 mb-1"
-                        onclick="openDocumentTemplatePicker('extract')">템플릿 선택…</button>
-                </div>
             </div>
         </div>
     </aside>
@@ -1454,83 +1404,6 @@
         </div>
     </div>
 
-    <div class="modal fade" id="documentTemplateModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="documentTemplateModalTitle">템플릿 선택</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="documentTemplateList" class="list-group"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="documentGenerateModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">문서 생성</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="small text-muted">라벨에 (추천)이 있는 항목만 AI가 값을 제안합니다. (추천x)는 직접 입력하세요. 템플릿에 따라 <strong>필수
-                            항목</strong>을 먼저 선택해야 AI 추천·파일 받기가 됩니다.</p>
-                    <label class="form-label small mb-0">참고 문맥 (선택, AI 추천용)</label>
-                    <textarea id="docGenContext" class="form-control form-control-sm mb-2" rows="2"
-                        placeholder="관련 메모·문장을 붙여 넣으면 추천 품질이 좋아집니다."></textarea>
-                    <div id="docGenFields"></div>
-                </div>
-                <div class="modal-footer flex-wrap gap-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="runDocumentSuggest()">AI
-                        추천</button>
-                    <button type="button" class="btn btn-sm btn-primary" onclick="downloadFilledDocument()">파일
-                        받기</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="documentExtractModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">문서 데이터 추출</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="docExtractUploadSection">
-                        <p class="small text-muted">사진을 선택하거나 아래 영역에 끌어다 놓으세요.</p>
-                        <input type="file" id="docExtractFile" class="d-none" accept="image/*"
-                            onchange="markDocExtractFileSelected()">
-                        <div id="docExtractDropZone" class="doc-drop-zone mb-2"
-                            onclick="document.getElementById('docExtractFile').click()">
-                            📷 이미지 선택 / 드래그
-                        </div>
-                        <button type="button" id="docExtractRunBtn" class="btn btn-sm btn-primary w-100" onclick="submitDocumentExtract()">AI
-                            추출 실행</button>
-                    </div>
-                    <div id="docExtractReviewSection" style="display: none;">
-                        <p class="small fw-bold mb-1">추출한 내용이 맞는지 확인해 주세요.</p>
-                        <p id="docExtractReviewHint" class="small text-muted mb-2">틀린 부분을 고친 뒤 아래 버튼으로 파일을 받습니다. (표 추출은
-                            엑셀, 일반 템플릿은 등록된 형식으로 저장됩니다.)</p>
-                        <div id="docExtractReviewList" class="small border rounded p-3 bg-light mb-3"></div>
-                        <div class="d-grid gap-2">
-                            <button type="button" id="docExtractBoardBtn" class="btn btn-sm btn-success d-none"
-                                onclick="confirmExtractedPlanToBoard()">상황판에 반영</button>
-                            <button type="button" id="docExtractConfirmBtn" class="btn btn-sm btn-primary"
-                                onclick="confirmExtractedDocumentExport()">파일 받기</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                onclick="resetDocumentExtractFlow()">다시 추출</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
@@ -2048,10 +1921,6 @@
             window.detailPreviewModal = detailPreviewModal;
             quickAddScheduleModal = new bootstrap.Modal(document.getElementById('quickAddScheduleModal'));
             window.quickAddScheduleModal = quickAddScheduleModal;
-            window.documentTemplateModal = new bootstrap.Modal(document.getElementById('documentTemplateModal'));
-            window.documentGenerateModal = new bootstrap.Modal(document.getElementById('documentGenerateModal'));
-            window.documentExtractModal = new bootstrap.Modal(document.getElementById('documentExtractModal'));
-            setupDocumentExtractDropzone();
             updateHeaderDate();
             setCurrentBoardMonth(formatLocalDateYYYYMMDD());
             loadDashboardNotice();
@@ -2104,7 +1973,6 @@
     <script src="/dashboard.auth.js?v=20260429"></script>
     <script src="/dashboard.sidebar.js?v=20260429"></script>
     <script src="/dashboard.schedule.js?v=20260429"></script>
-    <script src="/dashboard.document.js?v=20260429"></script>
 </body>
 
 </html>

@@ -179,6 +179,7 @@
                     <div class="d-flex gap-2">
                         <button id="extractAiBtn" class="btn btn-sm btn-outline-primary">AI 추출 실행</button>
                         <button id="applyExtractBtn" class="btn btn-sm btn-success">추출값 폼 반영</button>
+                        <button id="exportExtractExcelBtn" class="btn btn-sm btn-outline-secondary">추출결과 엑셀 저장</button>
                     </div>
                 </div>
                 <div class="small text-muted mb-2">
@@ -948,6 +949,46 @@
             }
         }
 
+        async function exportWorklogExtractToExcel() {
+            const file = worklogImageFile.files && worklogImageFile.files[0];
+            if (!file) {
+                worklogExtractStatus.className = "alert alert-danger mt-2 mb-0";
+                worklogExtractStatus.textContent = "이미지 파일을 먼저 선택해 주세요.";
+                return;
+            }
+
+            worklogExtractStatus.className = "alert alert-info mt-2 mb-0";
+            worklogExtractStatus.textContent = "엑셀 생성 요청 중...";
+
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+                const response = await fetch("/api/vision/extract-worklog-xlsx", {
+                    method: "POST",
+                    credentials: "include",
+                    body: formData
+                });
+                if (!response.ok) {
+                    const err = await response.text();
+                    throw new Error(err || "xlsx export failed");
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "worklog_extract.xlsx";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                worklogExtractStatus.className = "alert alert-success mt-2 mb-0";
+                worklogExtractStatus.textContent = "엑셀 다운로드를 시작했습니다.";
+            } catch (_e) {
+                worklogExtractStatus.className = "alert alert-danger mt-2 mb-0";
+                worklogExtractStatus.textContent = "엑셀 생성에 실패했습니다. 로그인/AI 키/서버 상태를 확인해 주세요.";
+            }
+        }
+
         function simulatePost(triggerLabel) {
             const payload = buildPostPayload();
             const errorMessage = validateRecord(payload.record);
@@ -1566,6 +1607,7 @@
         });
         document.getElementById("extractAiBtn").addEventListener("click", runWorklogExtraction);
         document.getElementById("applyExtractBtn").addEventListener("click", applyExtractedToForm);
+        document.getElementById("exportExtractExcelBtn").addEventListener("click", exportWorklogExtractToExcel);
         worklogImageFile.addEventListener("change", () => {
             const file = worklogImageFile.files && worklogImageFile.files[0];
             if (!file) {
