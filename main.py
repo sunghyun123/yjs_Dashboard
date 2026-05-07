@@ -10,14 +10,11 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 
-# 분리해둔 API 라우터들을 불러옵니다.
 from app.api import schedules
 from app.api import vision
 from app.api import auth
 from app.api import admin
-from app.api import documents
-from app.api import local_apps
-from app.db.db_manager import DBManager
+from app.db.migrations import run_migrations
 from app.services.export_service import DailyExportService
 from app.core.config import settings
 
@@ -27,7 +24,6 @@ logger = logging.getLogger(__name__)
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
-        # 최소 보안 헤더. 기존 기능에 영향 없는 범위로만 설정.
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -38,8 +34,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 async def daily_export_loop():
     """주기적으로 전일 백업을 점검/실행한다."""
-    db = DBManager(db_path=settings.sqlite_db_path) # DB 초기화
-    svc = DailyExportService(db=db) # 내보내기 서비스 초기화
+    svc = DailyExportService(db_path=settings.sqlite_db_path)
     while True:
         try:
             result = svc.export_yesterday_if_needed()
@@ -50,12 +45,12 @@ async def daily_export_loop():
                 logger.info(f"백업 아카이브 정리 완료: {archive_result}")
         except Exception as e:
             logger.error(f"전일 백업데이터 자동 점검 실패: {e}")
-        # 1시간마다 점검
         await asyncio.sleep(3600)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    run_migrations(settings.sqlite_db_path)
     task = asyncio.create_task(daily_export_loop())
     try:
         yield
@@ -69,14 +64,14 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="현장 작업자의 비정형 텍스트 및 이미지를 분석하여 상황판에 연동합니다.",
-    version="1.1.0",
-    lifespan=lifespan
+    version="1.2.0",
+    lifespan=lifespan,
 )
 
 allow_origins = settings.cors_origin_list
 allow_credentials = "*" not in allow_origins
 
-app.add_middleware( # 모든 경로에 대해 CORS 허용
+app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
     allow_credentials=allow_credentials,
@@ -95,15 +90,12 @@ if "*" in settings.trusted_host_list:
 if "*" in settings.cors_origin_list:
     logger.warning("ALLOWED_ORIGINS='*': 운영 배포에서는 프런트 도메인으로 제한하세요.")
 
-# --- 라우터 등록 (여기서 분리된 방들을 메인 앱에 연결해 줍니다) ---
 app.include_router(schedules.router)
 app.include_router(vision.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
-app.include_router(documents.router)
-app.include_router(local_apps.router)
 
-# --- 프론트엔드 화면 서빙 ---
+
 @app.get("/", summary="기본 운영 홈 화면", tags=["Pages"])
 async def serve_home():
     return FileResponse("home.html")
@@ -112,78 +104,59 @@ async def serve_home():
 async def serve_dashboard():
     return FileResponse("dashboard.html")
 
-
 @app.get("/home.html", summary="운영 홈 화면", tags=["Pages"])
 async def serve_home_page():
     return FileResponse("home.html")
-
 
 @app.get("/index.html", summary="채팅 입력 화면", tags=["Pages"])
 async def serve_index():
     return FileResponse("index.html")
 
-
 @app.get("/admin.html", summary="관리자 화면", tags=["Pages"])
 async def serve_admin():
     return FileResponse("admin.html")
-
 
 @app.get("/board.html", summary="레거시 경로 → 상황판 리다이렉트", tags=["Pages"])
 async def serve_board():
     return RedirectResponse(url="/dashboard.html", status_code=307)
 
-
 @app.get("/site.webmanifest", summary="PWA 매니페스트", tags=["Pages"])
 async def serve_web_manifest():
     return FileResponse("site.webmanifest", media_type="application/manifest+json")
-
 
 @app.get("/sw.js", summary="서비스 워커(설치용)", tags=["Pages"])
 async def serve_service_worker():
     return FileResponse("sw.js", media_type="application/javascript")
 
-
 @app.get("/icon.svg", summary="PWA 아이콘", tags=["Pages"])
 async def serve_app_icon():
     return FileResponse("icon.svg", media_type="image/svg+xml")
-
 
 @app.get("/dashboard.common.js", summary="대시보드 공통 유틸 스크립트", tags=["Pages"])
 async def serve_dashboard_common_js():
     return FileResponse("dashboard.common.js", media_type="application/javascript")
 
-
 @app.get("/dashboard.auth.js", summary="대시보드 인증 스크립트", tags=["Pages"])
 async def serve_dashboard_auth_js():
     return FileResponse("dashboard.auth.js", media_type="application/javascript")
-
 
 @app.get("/dashboard.sidebar.js", summary="대시보드 사이드바 스크립트", tags=["Pages"])
 async def serve_dashboard_sidebar_js():
     return FileResponse("dashboard.sidebar.js", media_type="application/javascript")
 
-
 @app.get("/dashboard.schedule.js", summary="대시보드 일정 스크립트", tags=["Pages"])
 async def serve_dashboard_schedule_js():
     return FileResponse("dashboard.schedule.js", media_type="application/javascript")
-
-
-@app.get("/dashboard.document.js", summary="대시보드 문서 스크립트", tags=["Pages"])
-async def serve_dashboard_document_js():
-    return FileResponse("dashboard.document.js", media_type="application/javascript")
-
 
 @app.get("/home.js", summary="홈 화면 스크립트", tags=["Pages"])
 async def serve_home_js():
     return FileResponse("home.js", media_type="application/javascript")
 
-
 @app.get("/uploads/photos/{file_path:path}", summary="첨부 사진 파일 서빙", tags=["Pages"])
 async def serve_upload_photo(file_path: str):
-    # 경로 탐색 방지: 자동화_데이터 하위만 허용
-    safe = Path("자동화_데이터") / Path(file_path)
+    safe = Path(settings.UPLOADS_DIR) / Path(file_path)
     resolved = safe.resolve()
-    base = Path("자동화_데이터").resolve()
+    base = Path(settings.UPLOADS_DIR).resolve()
     if not str(resolved).startswith(str(base)):
         raise HTTPException(status_code=403, detail="접근이 거부되었습니다.")
     if not resolved.is_file():
