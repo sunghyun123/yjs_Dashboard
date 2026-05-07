@@ -103,23 +103,10 @@
         drawer.setAttribute('aria-hidden', on ? 'false' : 'true');
     }
 
-    function toggleDocSubmenu(which) {
-        const gen = document.getElementById('docSubmenuGen');
-        const ext = document.getElementById('docSubmenuExt');
-        if (which === 'gen') {
-            gen.classList.toggle('open');
-            ext.classList.remove('open');
-        } else {
-            ext.classList.toggle('open');
-            gen.classList.remove('open');
-        }
-    }
-
     window.loadDashboardNotice = loadDashboardNotice;
     window.renderDashboardNotice = renderDashboardNotice;
     window.beginEditDashboardNotice = beginEditDashboardNotice;
     window.bindDashboardNoticeEditor = bindDashboardNoticeEditor;
     window.submitBoardTemplate = submitBoardTemplate;
     window.toggleAppDrawer = toggleAppDrawer;
-    window.toggleDocSubmenu = toggleDocSubmenu;
 })();
