@@ -28,3 +28,6 @@ __pycache__/
 
 # Generated automation outputs and backups
 자동화_데이터/
+
+# User uploaded files (server-local, never track)
+uploads/
