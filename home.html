@@ -254,6 +254,14 @@
             font-size: 0.9rem;
         }
 
+        .progress-meta-amt {
+            font-size: 0.72rem;
+            color: #2e6e4a;
+            font-weight: 600;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
         .progress-meta {
             font-size: 0.76rem;
             color: #5c6f84;
@@ -621,7 +629,8 @@
                                 <span><i class="dot-chip progress"></i><span id="totalProgressLegendDone">진행 13%</span></span>
                                 <span><i class="dot-chip remain"></i><span id="totalProgressLegendRemain">미달성 87%</span></span>
                             </div>
-                            <div class="total-progress-caption">진행 공정률 / 미달성 공정률</div>
+                            <div id="totalProgressAmount" class="total-progress-caption" style="margin-top:4px;font-weight:700;color:#1f3045;font-size:0.9rem;"></div>
+                            <div class="total-progress-caption"></div>
                         </div>
                     </div>
                 </div>
