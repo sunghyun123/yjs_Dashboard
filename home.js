@@ -3,32 +3,35 @@
     // API 연동 시 MONTHLY_PROGRESS_DATA 배열과 MAY_TOTAL_PROGRESS 상수만 삭제하면 됩니다.
 
     // 현장별 5월 공정률 — 출처: 매출손익현황.xlsx "5월 공정률" 열 (소수→반올림 정수%)
+    // planAmt / actualAmt 단위: 천원
     const MONTHLY_PROGRESS_DATA = [
-        { no: 'TY25-004', name: '군포로 군포중 지중화공사',                                   manager: '김무선',  percent: 0   },
-        { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                 manager: '김무선',  percent: 0   },
-        { no: 'TY25-006', name: '과천동 부림동 지중화공사',                                   manager: '김무선',  percent: 0   },
-        { no: 'TY25-005', name: '초평동 한국토지주택공사 지장전주공사',                       manager: '김무선',  percent: 0   },
-        { no: 'CG26-113', name: "'26년도 지상개폐기 정기검사(광명역세권지구)",               manager: '김무선',  percent: 0   },
-        { no: 'SY26-002', name: '부림SW53외 26년경과 노후변압기선로 교체공사',               manager: '김상훈',  percent: 6   },
-        { no: 'SY26-009', name: '석수동585-38 박도경 지장전주 이설공사(일직지35)',           manager: '김상훈',  percent: 0   },
-        { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)',   manager: '김상훈',  percent: 0   },
-        { no: 'SY26-016', name: '부림SW5 외 수명만료 노후 지중케이블 교체공사',             manager: '김상훈',  percent: 28  },
-        { no: 'SY26-015', name: '동편MH22~동편T6-1 저압 노후케이블 교체공사',              manager: '김상훈',  percent: 0   },
-        { no: 'SY26-017', name: '평촌간28R2순시 적출분 해소공사',                            manager: '김상훈',  percent: 0   },
-        { no: 'SY25-011', name: '대농2 맨홀 내 저압접속 불량개소 보수공사',                 manager: '김상훈',  percent: 0   },
-        { no: 'JY25-256', name: '호계동553-1 평촌어반밸리 10750kW 신설',                    manager: '이재규',  percent: 70  },
-        { no: 'JY25-260', name: '안양동 413-1 (주)대영플러스 일반용(갑)저압 120Kw 신설 외 1', manager: '이재규', percent: 0 },
-        { no: 'JY26-010', name: '고천동304-2 최가영 14+4kw 증설',                           manager: '이재규',  percent: 0   },
-        { no: 'JY26-011', name: '관양동 1020-1 현대드림모터스 89kw 증설',                   manager: '이재규',  percent: 0   },
-        { no: 'JY26-022', name: '호계동1020-3 무인교통단속장비 가로등(을) 1kw 신설',        manager: '이재규',  percent: 100 },
-        { no: 'JY26-033', name: '내손동693-8 정은종합건설 임시 70kw 신설',                  manager: '이재규',  percent: 100 },
-        { no: 'JY26-040', name: '안양동 441-9 백지현 일반용(갑)저압 15kw 공급방식변경증설', manager: '이재규', percent: 100 },
-        { no: 'JY26-041', name: '비산동1111 안양시동안구청 1650kw 공급지점변경',            manager: '이재규',  percent: 100 },
+        { no: 'TY25-004', name: '군포로 군포중 지중화공사',                                   manager: '김무선',  percent: 0,   planAmt: 40000,  actualAmt: 0     },
+        { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                 manager: '김무선',  percent: 0,   planAmt: 30000,  actualAmt: 0     },
+        { no: 'TY25-006', name: '과천동 부림동 지중화공사',                                   manager: '김무선',  percent: 0,   planAmt: 8000,   actualAmt: 0     },
+        { no: 'TY25-005', name: '초평동 한국토지주택공사 지장전주공사',                       manager: '김무선',  percent: 0,   planAmt: null,   actualAmt: null  },
+        { no: 'CG26-113', name: "'26년도 지상개폐기 정기검사(광명역세권지구)",               manager: '김무선',  percent: 0,   planAmt: null,   actualAmt: null  },
+        { no: 'SY26-002', name: '부림SW53외 26년경과 노후변압기선로 교체공사',               manager: '김상훈',  percent: 6,   planAmt: 39355,  actualAmt: 2361  },
+        { no: 'SY26-009', name: '석수동585-38 박도경 지장전주 이설공사(일직지35)',           manager: '김상훈',  percent: 0,   planAmt: 899,    actualAmt: 0     },
+        { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)',   manager: '김상훈',  percent: 30,  planAmt: 14229,  actualAmt: 4269  },
+        { no: 'SY26-016', name: '부림SW5 외 수명만료 노후 지중케이블 교체공사',             manager: '김상훈',  percent: 28,  planAmt: 63316,  actualAmt: 17729 },
+        { no: 'SY26-015', name: '동편MH22~동편T6-1 저압 노후케이블 교체공사',              manager: '김상훈',  percent: 0,   planAmt: 20771,  actualAmt: 0     },
+        { no: 'SY26-017', name: '평촌간28R2순시 적출분 해소공사',                            manager: '김상훈',  percent: 0,   planAmt: 4730,   actualAmt: 0     },
+        { no: 'SY25-011', name: '대농2 맨홀 내 저압접속 불량개소 보수공사',                 manager: '김상훈',  percent: 0,   planAmt: 4264,   actualAmt: 0     },
+        { no: 'JY25-256', name: '호계동553-1 평촌어반밸리 10750kW 신설',                    manager: '이재규',  percent: 90,  planAmt: 26766,  actualAmt: 24090 },
+        { no: 'JY25-260', name: '안양동 413-1 (주)대영플러스 일반용(갑)저압 120Kw 신설 외 1', manager: '이재규', percent: 0,  planAmt: 7472,   actualAmt: 0     },
+        { no: 'JY26-010', name: '고천동304-2 최가영 14+4kw 증설',                           manager: '이재규',  percent: 0,   planAmt: 1473,   actualAmt: 0     },
+        { no: 'JY26-011', name: '관양동 1020-1 현대드림모터스 89kw 증설',                   manager: '이재규',  percent: 0,   planAmt: 14296,  actualAmt: 0     },
+        { no: 'JY26-022', name: '호계동1020-3 무인교통단속장비 가로등(을) 1kw 신설',        manager: '이재규',  percent: 100, planAmt: 218,    actualAmt: 218   },
+        { no: 'JY26-033', name: '내손동693-8 정은종합건설 임시 70kw 신설',                  manager: '이재규',  percent: 100, planAmt: 137,    actualAmt: 137   },
+        { no: 'JY26-040', name: '안양동 441-9 백지현 일반용(갑)저압 15kw 공급방식변경증설', manager: '이재규',  percent: 100, planAmt: 203,    actualAmt: 204   },
+        { no: 'JY26-041', name: '비산동1111 안양시동안구청 1650kw 공급지점변경',            manager: '이재규',  percent: 100, planAmt: 567,    actualAmt: 567   },
     ];
 
-    // 5월 총 공정률 — 출처: 매출손익현황.xlsx 합계행에서 TY25-003/004 실적 제외
-    // (61,742,057 - 19,069,174 - 2,719,636) / 301,696,000 ≈ 13.24%
-    const MAY_TOTAL_PROGRESS = 13;
+    // 5월 총 공정률 — 출처: 매출손익현황.xlsx 합계행 (계획 + 계획 외 실적 포함) / 계획 목표금액
+    // (49,575,362 + 27,518,852) / 301,696,000 ≈ 25.6%
+    const MAY_TOTAL_PROGRESS = 25.6;
+    const MAY_TOTAL_ACTUAL_AMT = 77094;  // 천원 (계획 49,575 + 계획외 27,519)
+    const MAY_TOTAL_PLAN_AMT   = 301696; // 천원
     // ─────────────────────────────────────────────────────────────────────────
 
     // 매출손익현황.xlsx 합계행(성과금액) 기준 — 투입/손익은 미입력, 변경 시 이 객체만 교체
@@ -195,6 +198,10 @@
                             return '<div class="progress-slide-card is-placeholder" aria-hidden="true"></div>';
                         }
                         const percent = Math.max(0, Math.min(100, Number(item.percent) || 0));
+                        const amtLabel = item.planAmt != null
+                            ? `<span class="progress-meta-amt">${(item.actualAmt || 0).toLocaleString('ko-KR')} / ${item.planAmt.toLocaleString('ko-KR')}천원</span>`
+                            : '';
+                        const metaText = `${escapeHtml(item.no)}${item.manager ? ' · ' + escapeHtml(item.manager) : ''}`;
                         return `
                         <div class="progress-slide-card">
                             <div class="d-flex justify-content-between align-items-center gap-2">
@@ -204,7 +211,10 @@
                             <div class="progress mt-2" role="progressbar" aria-label="공정률 ${percent}%">
                                 <div class="progress-bar bg-success" style="width:${percent}%"></div>
                             </div>
-                            <div class="progress-meta mt-1" title="${escapeHtml(item.no)}${item.manager ? ' · ' + escapeHtml(item.manager) : ''}">${escapeHtml(item.no)}${item.manager ? ' · ' + escapeHtml(item.manager) : ''}</div>
+                            <div class="d-flex justify-content-between align-items-center mt-1 gap-2">
+                                <div class="progress-meta text-truncate" title="${metaText}">${metaText}</div>
+                                ${amtLabel}
+                            </div>
                         </div>
                         `;
                     }).join('')}
@@ -310,18 +320,20 @@
     }
 
     function renderTotalProgressChartHome() {
-        // API 연동 시 아래 한 줄을 API 응답값으로 교체
+        // API 연동 시 아래 세 상수를 API 응답값으로 교체
         const progress = Math.max(0, Math.min(100, MAY_TOTAL_PROGRESS));
-        const remain = Math.max(0, 100 - progress);
+        const remain = Math.round((Math.max(0, 100 - progress)) * 10) / 10;
         const donutEl = document.getElementById('totalProgressDonut');
         const valueEl = document.getElementById('totalProgressValue');
         const doneEl = document.getElementById('totalProgressLegendDone');
         const remainEl = document.getElementById('totalProgressLegendRemain');
+        const amtEl = document.getElementById('totalProgressAmount');
         if (!donutEl || !valueEl || !doneEl || !remainEl) return;
         donutEl.style.setProperty('--progress', String(progress));
         valueEl.textContent = `${progress}%`;
         doneEl.textContent = `진행 ${progress}%`;
         remainEl.textContent = `미달성 ${remain}%`;
+        if (amtEl) amtEl.textContent = `실적 ${MAY_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')} / 계획 ${MAY_TOTAL_PLAN_AMT.toLocaleString('ko-KR')}천원`;
     }
 
     function renderShortcutGridHome(rows) {
