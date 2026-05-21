@@ -236,7 +236,6 @@
             border-radius: 12px;
             padding: 8px 10px;
             background: #f8fbff;
-            height: 100%;
         }
 
         .progress-project {
@@ -272,9 +271,8 @@
 
         .progress-slide-stack {
             display: grid;
-            grid-template-rows: repeat(5, minmax(0, 1fr));
+            grid-template-rows: repeat(5, auto);
             gap: 6px;
-            min-height: 332px;
         }
 
         .total-progress-wrap {
@@ -523,7 +521,7 @@
 
             .worker-status-scroll { max-height: 400px; }
 
-            .progress-slide-stack { min-height: 270px; }
+            .progress-slide-stack { gap: 4px; }
 
             .total-progress-wrap { min-height: 270px; }
 
@@ -572,27 +570,6 @@
     </header>
 
     <main class="container-fluid px-3 px-md-4 home-shell">
-        <section class="row g-3 mb-2">
-            <div class="col-6 col-lg-4">
-                <div class="home-card p-3">
-                    <div class="summary-label">오늘 일정</div>
-                    <div class="summary-value" id="kpiTodaySchedules">0</div>
-                </div>
-            </div>
-            <div class="col-6 col-lg-4">
-                <div class="home-card p-3">
-                    <div class="summary-label">야간 작업</div>
-                    <div class="summary-value" id="kpiNightSchedules">0</div>
-                </div>
-            </div>
-            <div class="col-6 col-lg-4">
-                <div class="home-card p-3">
-                    <div class="summary-label">외출 인원</div>
-                    <div class="summary-value" id="kpiOutingStaff">0</div>
-                </div>
-            </div>
-        </section>
-
         <section class="row g-3">
             <div class="col-12 col-xl-4">
                 <div class="home-card p-3 h-100">
@@ -661,7 +638,6 @@
                         </div>
                     </div>
                     <canvas id="salesProfitChart"></canvas>
-                    <div class="small text-muted mt-2">* 현재는 화면 느낌 확인용 샘플 데이터입니다.</div>
                 </div>
             </div>
             <div class="col-12 col-xl-4">

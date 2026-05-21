@@ -8,7 +8,11 @@
       "Bash(del *)",
       "Bash(.venv/Scripts/python -c ' *)",
       "Bash(dir *.js)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(python -c ' *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
