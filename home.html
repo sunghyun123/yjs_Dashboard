@@ -236,7 +236,6 @@
             border-radius: 12px;
             padding: 8px 10px;
             background: #f8fbff;
-            height: 100%;
         }
 
         .progress-project {
@@ -272,9 +271,8 @@
 
         .progress-slide-stack {
             display: grid;
-            grid-template-rows: repeat(5, minmax(0, 1fr));
+            grid-template-rows: repeat(5, auto);
             gap: 6px;
-            min-height: 332px;
         }
 
         .total-progress-wrap {
@@ -523,7 +521,7 @@
 
             .worker-status-scroll { max-height: 400px; }
 
-            .progress-slide-stack { min-height: 270px; }
+            .progress-slide-stack { gap: 4px; }
 
             .total-progress-wrap { min-height: 270px; }
 
