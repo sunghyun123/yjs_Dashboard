@@ -5,11 +5,10 @@
     // 현장별 5월 공정률 — 출처: 매출손익현황.xlsx "5월 공정률" 열 (소수→반올림 정수%)
     // planAmt / actualAmt 단위: 천원
     const MONTHLY_PROGRESS_DATA = [
-        { no: 'TY25-004', name: '군포로 군포중 지중화공사',                                   manager: '김무선',  percent: 0,   planAmt: 40000,  actualAmt: 0     },
-        { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                 manager: '김무선',  percent: 0,   planAmt: 30000,  actualAmt: 0     },
+        { no: 'TY25-004', name: '군포로 군포중 지중화공사',                                   manager: '김무선',  percent: 102, planAmt: 40000,  actualAmt: 40912 },
+        { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                 manager: '김무선',  percent: 68,  planAmt: 30000,  actualAmt: 20288 },
         { no: 'TY25-006', name: '과천동 부림동 지중화공사',                                   manager: '김무선',  percent: 0,   planAmt: 8000,   actualAmt: 0     },
-        { no: 'TY25-005', name: '초평동 한국토지주택공사 지장전주공사',                       manager: '김무선',  percent: 0,   planAmt: null,   actualAmt: null  },
-        { no: 'CG26-113', name: "'26년도 지상개폐기 정기검사(광명역세권지구)",               manager: '김무선',  percent: 0,   planAmt: null,   actualAmt: null  },
+        { no: 'CG26-113', name: "'26년도 지상개폐기 정기검사(광명역세권지구)",               manager: '김무선',  percent: 0,   planAmt: 25000,  actualAmt: 0     },
         { no: 'SY26-002', name: '부림SW53외 26년경과 노후변압기선로 교체공사',               manager: '김상훈',  percent: 6,   planAmt: 39355,  actualAmt: 2361  },
         { no: 'SY26-009', name: '석수동585-38 박도경 지장전주 이설공사(일직지35)',           manager: '김상훈',  percent: 0,   planAmt: 899,    actualAmt: 0     },
         { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)',   manager: '김상훈',  percent: 30,  planAmt: 14229,  actualAmt: 4269  },
@@ -28,9 +27,9 @@
     ];
 
     // 5월 총 공정률 — 출처: 매출손익현황.xlsx 합계행 (계획 + 계획 외 실적 포함) / 계획 목표금액
-    // (49,575,362 + 27,518,852) / 301,696,000 ≈ 25.6%
-    const MAY_TOTAL_PROGRESS = 25.6;
-    const MAY_TOTAL_ACTUAL_AMT = 77094;  // 천원 (계획 49,575 + 계획외 27,519)
+    // (77,094 + 20,288 + 40,912) / 301,696 ≈ 45.8% (5/22 TY25-003·004 실적 반영)
+    const MAY_TOTAL_PROGRESS = 45.8;
+    const MAY_TOTAL_ACTUAL_AMT = 138294; // 천원 (기존 77,094 + TY25-003 20,288 + TY25-004 40,912)
     const MAY_TOTAL_PLAN_AMT   = 301696; // 천원
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -197,7 +196,8 @@
                         if (!item) {
                             return '<div class="progress-slide-card is-placeholder" aria-hidden="true"></div>';
                         }
-                        const percent = Math.max(0, Math.min(100, Number(item.percent) || 0));
+                        const rawPercent = Number(item.percent) || 0;
+                        const barPercent = Math.max(0, Math.min(100, rawPercent));
                         const amtLabel = item.planAmt != null
                             ? `<span class="progress-meta-amt">${(item.actualAmt || 0).toLocaleString('ko-KR')} / ${item.planAmt.toLocaleString('ko-KR')}천원</span>`
                             : '';
@@ -206,10 +206,10 @@
                         <div class="progress-slide-card">
                             <div class="d-flex justify-content-between align-items-center gap-2">
                                 <div class="progress-project" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-                                <div class="progress-percent">${percent}%</div>
+                                <div class="progress-percent">${rawPercent}%</div>
                             </div>
-                            <div class="progress mt-2" role="progressbar" aria-label="공정률 ${percent}%">
-                                <div class="progress-bar bg-success" style="width:${percent}%"></div>
+                            <div class="progress mt-2" role="progressbar" aria-label="공정률 ${rawPercent}%">
+                                <div class="progress-bar bg-success" style="width:${barPercent}%"></div>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mt-1 gap-2">
                                 <div class="progress-meta text-truncate" title="${metaText}">${metaText}</div>
@@ -230,6 +230,12 @@
                 ${idx === 0 ? 'aria-current="true"' : ''}
                 aria-label="슬라이드 ${idx + 1}"></button>
         `).join('');
+
+        // 슬라이드 전환 시 레이아웃 높이 흔들림 방지: 첫 슬라이드(항상 만석)의 실제 높이로 inner를 고정
+        requestAnimationFrame(() => {
+            const activeItem = inner.querySelector('.carousel-item.active');
+            if (activeItem) inner.style.minHeight = activeItem.offsetHeight + 'px';
+        });
 
         if (projectProgressCarousel) {
             projectProgressCarousel.dispose();
