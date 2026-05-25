@@ -24,12 +24,13 @@
         { no: 'JY26-033', name: '내손동693-8 정은종합건설 임시 70kw 신설',                  manager: '이재규',  percent: 100, planAmt: 137,    actualAmt: 137   },
         { no: 'JY26-040', name: '안양동 441-9 백지현 일반용(갑)저압 15kw 공급방식변경증설', manager: '이재규',  percent: 100, planAmt: 203,    actualAmt: 204   },
         { no: 'JY26-041', name: '비산동1111 안양시동안구청 1650kw 공급지점변경',            manager: '이재규',  percent: 100, planAmt: 567,    actualAmt: 567   },
+        { no: 'JY26-045', name: '학의동1181 리젠시빌주택 고압 200kw 신설',                    manager: '',        percent: 100, planAmt: 0,      actualAmt: 9235  },
     ];
 
     // 5월 총 공정률 — 출처: 매출손익현황.xlsx 합계행 (계획 + 계획 외 실적 포함) / 계획 목표금액
-    // (77,094 + 20,288 + 40,912) / 301,696 ≈ 45.8% (5/22 TY25-003·004 실적 반영)
-    const MAY_TOTAL_PROGRESS = 45.8;
-    const MAY_TOTAL_ACTUAL_AMT = 138294; // 천원 (기존 77,094 + TY25-003 20,288 + TY25-004 40,912)
+    // (138,294 + 9,235) / 301,696 ≈ 48.9% (5/26 JY26-045 계획 외 실적 반영)
+    const MAY_TOTAL_PROGRESS = 48.9;
+    const MAY_TOTAL_ACTUAL_AMT = 147529; // 천원 (기존 138,294 + JY26-045 계획 외 9,235)
     const MAY_TOTAL_PLAN_AMT   = 301696; // 천원
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -199,7 +200,9 @@
                         const rawPercent = Number(item.percent) || 0;
                         const barPercent = Math.max(0, Math.min(100, rawPercent));
                         const amtLabel = item.planAmt != null
-                            ? `<span class="progress-meta-amt">${(item.actualAmt || 0).toLocaleString('ko-KR')} / ${item.planAmt.toLocaleString('ko-KR')}천원</span>`
+                            ? (item.planAmt === 0
+                                ? `<span class="progress-meta-amt">${(item.actualAmt || 0).toLocaleString('ko-KR')}천원 (계획 외)</span>`
+                                : `<span class="progress-meta-amt">${(item.actualAmt || 0).toLocaleString('ko-KR')} / ${item.planAmt.toLocaleString('ko-KR')}천원</span>`)
                             : '';
                         const metaText = `${escapeHtml(item.no)}${item.manager ? ' · ' + escapeHtml(item.manager) : ''}`;
                         return `
