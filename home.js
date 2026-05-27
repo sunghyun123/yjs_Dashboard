@@ -2,13 +2,13 @@
     // ─── 임시 실제 데이터 (매출손익현황.xlsx 5월 기준) ─────────────────────────
     // API 연동 시 MONTHLY_PROGRESS_DATA 배열과 MAY_TOTAL_PROGRESS 상수만 삭제하면 됩니다.
 
-    // 현장별 5월 공정률 — 출처: 매출손익현황.xlsx "5월 공정률" 열 (소수→반올림 정수%)
-    // planAmt / actualAmt 단위: 천원
+    // 현장별 5월 공정률 — 출처: 매출손익현황-1.xlsx "5월 공정현황" 시트 (5/27 기준)
+    // planAmt / actualAmt 단위: 천원 / 계획 외 공사는 총 공정률에만 반영, 슬라이드 미표시
     const MONTHLY_PROGRESS_DATA = [
         { no: 'TY25-004', name: '군포로 군포중 지중화공사',                                   manager: '김무선',  percent: 102, planAmt: 40000,  actualAmt: 40912 },
         { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                 manager: '김무선',  percent: 68,  planAmt: 30000,  actualAmt: 20288 },
         { no: 'TY25-006', name: '과천동 부림동 지중화공사',                                   manager: '김무선',  percent: 0,   planAmt: 8000,   actualAmt: 0     },
-        { no: 'CG26-113', name: "'26년도 지상개폐기 정기검사(광명역세권지구)",               manager: '김무선',  percent: 0,   planAmt: 25000,  actualAmt: 0     },
+        { no: 'CG26-005', name: '삼천리 역세권 신규/보수공사 (저압접속함공사)',               manager: '김무선',  percent: 0,   planAmt: 25000,  actualAmt: 0     },
         { no: 'SY26-002', name: '부림SW53외 26년경과 노후변압기선로 교체공사',               manager: '김상훈',  percent: 6,   planAmt: 39355,  actualAmt: 2361  },
         { no: 'SY26-009', name: '석수동585-38 박도경 지장전주 이설공사(일직지35)',           manager: '김상훈',  percent: 0,   planAmt: 899,    actualAmt: 0     },
         { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)',   manager: '김상훈',  percent: 30,  planAmt: 14229,  actualAmt: 4269  },
@@ -24,22 +24,23 @@
         { no: 'JY26-033', name: '내손동693-8 정은종합건설 임시 70kw 신설',                  manager: '이재규',  percent: 100, planAmt: 137,    actualAmt: 137   },
         { no: 'JY26-040', name: '안양동 441-9 백지현 일반용(갑)저압 15kw 공급방식변경증설', manager: '이재규',  percent: 100, planAmt: 203,    actualAmt: 204   },
         { no: 'JY26-041', name: '비산동1111 안양시동안구청 1650kw 공급지점변경',            manager: '이재규',  percent: 100, planAmt: 567,    actualAmt: 567   },
-        { no: 'JY26-045', name: '학의동1181 리젠시빌주택 고압 200kw 신설',                    manager: '',        percent: 100, planAmt: 0,      actualAmt: 9235  },
     ];
 
-    // 5월 총 공정률 — 출처: 매출손익현황.xlsx 합계행 (계획 + 계획 외 실적 포함) / 계획 목표금액
-    // (138,294 + 9,235) / 301,696 ≈ 48.9% (5/26 JY26-045 계획 외 실적 반영)
-    const MAY_TOTAL_PROGRESS = 48.9;
-    const MAY_TOTAL_ACTUAL_AMT = 147529; // 천원 (기존 138,294 + JY26-045 계획 외 9,235)
-    const MAY_TOTAL_PLAN_AMT   = 301696; // 천원
+    // 5월 총 공정률 — 출처: 매출손익현황-1.xlsx "5월 공정현황" 시트 (5/27 기준)
+    // 총 공정률 = (계획 실적 + 계획 외 실적) / 계획 목표금액
+    const MAY_TOTAL_PROGRESS    = 53.6;
+    const MAY_PLAN_ACTUAL_AMT   = 110776; // 천원 — 계획 공사 실적
+    const MAY_EXTRA_ACTUAL_AMT  = 50982;  // 천원 — 계획 외 공사 실적
+    const MAY_TOTAL_ACTUAL_AMT  = 161758; // 천원 — 합계 (계획 + 계획 외)
+    const MAY_TOTAL_PLAN_AMT    = 301696; // 천원 — 계획 목표금액
     // ─────────────────────────────────────────────────────────────────────────
 
-    // 매출손익현황.xlsx 합계행(성과금액) 기준 — 투입/손익은 미입력, 변경 시 이 객체만 교체
+    // 매출손익현황-1.xlsx Z합계 기준 — 5월 성과: 5/27 시트 Z합계 / 투입·손익은 별도 확인 필요
     const SALES_PROFIT_SAMPLE = {
         labels: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
-        profit:  [151263818, 266149856, 223096743, 157723564, 16209264, 0, 0, 0, 0, 0, 0, 0],
-        input:   [146579124, 329378889, 163532315, 139873160, 60884949, 0, 0, 0, 0, 0, 0, 0],
-        outcome: [297842942, 595528746, 386629057, 297596724, 77094214, 0, 0, 0, 0, 0, 0, 0],
+        profit:  [148077095, 266925701, 224823634, 146708745, 85936812,  0, 0, 0, 0, 0, 0, 0],
+        input:   [148259959, 330219307, 164792941, 149930938, 75820935,  0, 0, 0, 0, 0, 0, 0],
+        outcome: [296337055, 597145008, 389616576, 296639683, 161757747, 0, 0, 0, 0, 0, 0, 0],
     };
 
     let salesProfitChart = null;
@@ -342,7 +343,12 @@
         valueEl.textContent = `${progress}%`;
         doneEl.textContent = `진행 ${progress}%`;
         remainEl.textContent = `미달성 ${remain}%`;
-        if (amtEl) amtEl.textContent = `실적 ${MAY_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')} / 계획 ${MAY_TOTAL_PLAN_AMT.toLocaleString('ko-KR')}천원`;
+        if (amtEl) {
+            amtEl.innerHTML =
+                `<span style="white-space:nowrap;">실적 <b>${MAY_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')}천원</b></span>` +
+                `<br><span style="font-size:0.76rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">(계획 ${MAY_PLAN_ACTUAL_AMT.toLocaleString('ko-KR')} + 계획외 ${MAY_EXTRA_ACTUAL_AMT.toLocaleString('ko-KR')}천원)</span>` +
+                `<br><span style="white-space:nowrap;">목표 <b>${MAY_TOTAL_PLAN_AMT.toLocaleString('ko-KR')}천원</b></span>`;
+        }
     }
 
     function renderShortcutGridHome(rows) {
