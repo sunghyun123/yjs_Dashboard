@@ -12,7 +12,9 @@
       "Bash(python -c ' *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(python -c \"import sys; data=sys.stdin.buffer.read\\(\\); print\\(data.decode\\('cp949', errors='replace'\\)\\)\")",
+      "Bash(git rm *)"
     ]
   }
 }
