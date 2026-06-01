@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import re
 from typing import Optional
@@ -14,17 +15,24 @@ _PHOTO_ROOT_NAME = "공사별 사진 모음"
 
 
 class GoogleDriveService:
-    def __init__(self, service_account_file: str, shared_drive_id: str):
-        self._sa_file = service_account_file
+    def __init__(self, shared_drive_id: str, sa_file: str = "", sa_json: str = ""):
+        self._sa_file = sa_file
+        self._sa_json = sa_json
         self._drive_id = shared_drive_id
         self._service = None
         self._folder_cache: dict[str, str] = {}
 
     def _svc(self):
         if self._service is None:
-            creds = service_account.Credentials.from_service_account_file(
-                self._sa_file, scopes=SCOPES
-            )
+            if self._sa_json:
+                info = json.loads(self._sa_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    info, scopes=SCOPES
+                )
+            else:
+                creds = service_account.Credentials.from_service_account_file(
+                    self._sa_file, scopes=SCOPES
+                )
             self._service = build("drive", "v3", credentials=creds, cache_discovery=False)
         return self._service
 
