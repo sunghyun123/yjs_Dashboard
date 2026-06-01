@@ -1,38 +1,42 @@
 (function () {
-    // ─── 임시 실제 데이터 (매출손익현황.xlsx 5월 기준) ─────────────────────────
-    // API 연동 시 MONTHLY_PROGRESS_DATA 배열과 MAY_TOTAL_PROGRESS 상수만 삭제하면 됩니다.
+    // ─── 임시 실제 데이터 (6월 기준) ─────────────────────────────────────────
+    // API 연동 시 MONTHLY_PROGRESS_DATA 배열과 JUN_TOTAL_PROGRESS 상수만 삭제하면 됩니다.
 
-    // 현장별 5월 공정률 — 출처: 매출손익현황-1.xlsx "5월 공정현황" 시트 (5/27 기준)
+    // 현장별 6월 공정률 — 계획 수립 기준 (실적 미집계)
     // planAmt / actualAmt 단위: 천원 / 계획 외 공사는 총 공정률에만 반영, 슬라이드 미표시
     const MONTHLY_PROGRESS_DATA = [
-        { no: 'TY25-004', name: '군포로 군포중 지중화공사',                                   manager: '김무선',  percent: 102, planAmt: 40000,  actualAmt: 40912 },
-        { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                 manager: '김무선',  percent: 68,  planAmt: 30000,  actualAmt: 20288 },
-        { no: 'TY25-006', name: '과천동 부림동 지중화공사',                                   manager: '김무선',  percent: 0,   planAmt: 8000,   actualAmt: 0     },
-        { no: 'CG26-005', name: '삼천리 역세권 신규/보수공사 (저압접속함공사)',               manager: '김무선',  percent: 0,   planAmt: 25000,  actualAmt: 0     },
-        { no: 'SY26-002', name: '부림SW53외 26년경과 노후변압기선로 교체공사',               manager: '김상훈',  percent: 6,   planAmt: 39355,  actualAmt: 2361  },
-        { no: 'SY26-009', name: '석수동585-38 박도경 지장전주 이설공사(일직지35)',           manager: '김상훈',  percent: 0,   planAmt: 899,    actualAmt: 0     },
-        { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)',   manager: '김상훈',  percent: 30,  planAmt: 14229,  actualAmt: 4269  },
-        { no: 'SY26-016', name: '부림SW5 외 수명만료 노후 지중케이블 교체공사',             manager: '김상훈',  percent: 28,  planAmt: 63316,  actualAmt: 17729 },
-        { no: 'SY26-015', name: '동편MH22~동편T6-1 저압 노후케이블 교체공사',              manager: '김상훈',  percent: 0,   planAmt: 20771,  actualAmt: 0     },
-        { no: 'SY26-017', name: '평촌간28R2순시 적출분 해소공사',                            manager: '김상훈',  percent: 0,   planAmt: 4730,   actualAmt: 0     },
-        { no: 'SY25-011', name: '대농2 맨홀 내 저압접속 불량개소 보수공사',                 manager: '김상훈',  percent: 0,   planAmt: 4264,   actualAmt: 0     },
-        { no: 'JY25-256', name: '호계동553-1 평촌어반밸리 10750kW 신설',                    manager: '이재규',  percent: 90,  planAmt: 26766,  actualAmt: 24090 },
-        { no: 'JY25-260', name: '안양동 413-1 (주)대영플러스 일반용(갑)저압 120Kw 신설 외 1', manager: '이재규', percent: 0,  planAmt: 7472,   actualAmt: 0     },
-        { no: 'JY26-010', name: '고천동304-2 최가영 14+4kw 증설',                           manager: '이재규',  percent: 0,   planAmt: 1473,   actualAmt: 0     },
-        { no: 'JY26-011', name: '관양동 1020-1 현대드림모터스 89kw 증설',                   manager: '이재규',  percent: 0,   planAmt: 14296,  actualAmt: 0     },
-        { no: 'JY26-022', name: '호계동1020-3 무인교통단속장비 가로등(을) 1kw 신설',        manager: '이재규',  percent: 100, planAmt: 218,    actualAmt: 218   },
-        { no: 'JY26-033', name: '내손동693-8 정은종합건설 임시 70kw 신설',                  manager: '이재규',  percent: 100, planAmt: 137,    actualAmt: 137   },
-        { no: 'JY26-040', name: '안양동 441-9 백지현 일반용(갑)저압 15kw 공급방식변경증설', manager: '이재규',  percent: 100, planAmt: 203,    actualAmt: 204   },
-        { no: 'JY26-041', name: '비산동1111 안양시동안구청 1650kw 공급지점변경',            manager: '이재규',  percent: 100, planAmt: 567,    actualAmt: 567   },
+        { no: 'SY26-002', name: '부림SW53외 26년경과 노후변압기선로 교체공사',                           manager: '김상훈', percent: 0, planAmt: 36994,  actualAmt: 0 },
+        { no: 'SY25-011', name: '대농2 맨홀 내 저압접속 불량개소 보수공사',                             manager: '김상훈', percent: 0, planAmt: 1706,   actualAmt: 0 },
+        { no: 'SY26-010', name: '경수SW48 불량 경과지 관로 계통 보강공사',                              manager: '김상훈', percent: 0, planAmt: 11238,  actualAmt: 0 },
+        { no: 'SY25-020', name: '경수TR24외 26년경과 노후변압기선로 교체공사',                          manager: '김상훈', percent: 0, planAmt: 30190,  actualAmt: 0 },
+        { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)',              manager: '김상훈', percent: 0, planAmt: 5747,   actualAmt: 0 },
+        { no: 'SY26-016', name: '부림SW5 외 수명만료 노후 지중케이블 교체공사',                        manager: '김상훈', percent: 0, planAmt: 45588,  actualAmt: 0 },
+        { no: 'SG26-005', name: '26년 특정제원 지상개폐기 교체공사',                                    manager: '김상훈', percent: 0, planAmt: 14899,  actualAmt: 0 },
+        { no: 'SG26-011', name: '특정제원(이엔테크제) 지상개폐기 교체공사(하안249, 하안138-2)',         manager: '김상훈', percent: 0, planAmt: 2459,   actualAmt: 0 },
+        { no: 'SG26-004', name: '하안259 지상개폐기 교체공사(PT불량)',                                  manager: '김상훈', percent: 0, planAmt: 1131,   actualAmt: 0 },
+        { no: 'JY26-045', name: '학의동1181 리젠시빌주택 고압 200kw 신설_3206',                        manager: '이재규', percent: 0, planAmt: 1086,   actualAmt: 0 },
+        { no: 'JY25-256', name: '호계동553-1 평촌어반밸리 10,750kw 신설_3746',                         manager: '이재규', percent: 0, planAmt: 2677,   actualAmt: 0 },
+        { no: 'JY25-053', name: '안양동 97-3 안양1동진흥아파트주택재건축정비사업조합 주택용 3kw 신설', manager: '이재규', percent: 0, planAmt: 259,    actualAmt: 0 },
+        { no: 'JY25-054', name: '안양동 165-1 안양1동진흥아파트주택재건축정비사업조합 가로등(갑) 1kw 신설', manager: '이재규', percent: 0, planAmt: 259, actualAmt: 0 },
+        { no: '',         name: '고천동 526-7 이인성 저압 35kw 신설',                                   manager: '이재규', percent: 0, planAmt: 925,    actualAmt: 0 },
+        { no: 'JY26-051', name: '관양동 1385-3 ㈜한미건설 임시 20kw 신설',                             manager: '이재규', percent: 0, planAmt: 17,     actualAmt: 0 },
+        { no: 'JY26-042', name: '박달동 15-17 조인준 일반용(갑)저압 10kw 신설',                        manager: '이재규', percent: 0, planAmt: 405,    actualAmt: 0 },
+        { no: 'JY26-043', name: '고천나구역 초등학교부지 일반용(을)고압A 950kw 신설',                  manager: '이재규', percent: 0, planAmt: 9903,   actualAmt: 0 },
+        { no: 'JG26-028', name: '광명동 광명시장 일반용 850kw 신설_3167',                              manager: '이재규', percent: 0, planAmt: 1002,   actualAmt: 0 },
+        { no: 'JY25-172', name: '내손라구역 GS건설 300kW 신설(상가용)',                                manager: '이재규', percent: 0, planAmt: 1137,   actualAmt: 0 },
+        { no: 'JY25-165', name: '내손라구역 대우건설 160kW 신설공사 (상가용)',                         manager: '이재규', percent: 0, planAmt: 395,    actualAmt: 0 },
+        { no: 'JY25.260', name: '안양동 413-1 ㈜대영플러스 일반용(갑)저압 120kW 신설 외 1',           manager: '이재규', percent: 0, planAmt: 7472,   actualAmt: 0 },
+        { no: 'JY26-011', name: '관양동1020-1 현대드림모터스 89kw 증설_3040',                         manager: '이재규', percent: 0, planAmt: 14296,  actualAmt: 0 },
+        { no: 'JY26-022', name: '(지중)하안동 광명시청 일반용(갑)저압 300kw 신설(상용/임시)',         manager: '이재규', percent: 0, planAmt: 15102,  actualAmt: 0 },
     ];
 
-    // 5월 총 공정률 — 출처: 매출손익현황-1.xlsx "5월 공정현황" 시트 (5/27 기준)
+    // 6월 총 공정률 — 계획 수립 기준 (실적 미집계)
     // 총 공정률 = (계획 실적 + 계획 외 실적) / 계획 목표금액
-    const MAY_TOTAL_PROGRESS    = 56.6;
-    const MAY_PLAN_ACTUAL_AMT   = 110776; // 천원 — 계획 공사 실적
-    const MAY_EXTRA_ACTUAL_AMT  = 59909;  // 천원 — 계획 외 공사 실적
-    const MAY_TOTAL_ACTUAL_AMT  = 170685; // 천원 — 합계 (계획 + 계획 외)
-    const MAY_TOTAL_PLAN_AMT    = 301696; // 천원 — 계획 목표금액
+    const JUN_TOTAL_PROGRESS    = 0.0;
+    const JUN_PLAN_ACTUAL_AMT   = 0;      // 천원 — 계획 공사 실적
+    const JUN_EXTRA_ACTUAL_AMT  = 0;      // 천원 — 계획 외 공사 실적
+    const JUN_TOTAL_ACTUAL_AMT  = 0;      // 천원 — 합계 (계획 + 계획 외)
+    const JUN_TOTAL_PLAN_AMT    = 204887; // 천원 — 계획 목표금액
     // ─────────────────────────────────────────────────────────────────────────
 
     // 매출손익현황-1.xlsx Z합계 기준 — 5월 성과: 5/27 시트 Z합계 / 투입·손익은 별도 확인 필요
@@ -331,7 +335,7 @@
 
     function renderTotalProgressChartHome() {
         // API 연동 시 아래 세 상수를 API 응답값으로 교체
-        const progress = Math.max(0, Math.min(100, MAY_TOTAL_PROGRESS));
+        const progress = Math.max(0, Math.min(100, JUN_TOTAL_PROGRESS));
         const remain = Math.round((Math.max(0, 100 - progress)) * 10) / 10;
         const donutEl = document.getElementById('totalProgressDonut');
         const valueEl = document.getElementById('totalProgressValue');
@@ -345,9 +349,9 @@
         remainEl.textContent = `미달성 ${remain}%`;
         if (amtEl) {
             amtEl.innerHTML =
-                `<span style="white-space:nowrap;">실적 <b>${MAY_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')}천원</b></span>` +
-                `<br><span style="font-size:0.76rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">(계획 ${MAY_PLAN_ACTUAL_AMT.toLocaleString('ko-KR')} + 계획외 ${MAY_EXTRA_ACTUAL_AMT.toLocaleString('ko-KR')}천원)</span>` +
-                `<br><span style="white-space:nowrap;">목표 <b>${MAY_TOTAL_PLAN_AMT.toLocaleString('ko-KR')}천원</b></span>`;
+                `<span style="white-space:nowrap;">실적 <b>${JUN_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')}천원</b></span>` +
+                `<br><span style="font-size:0.76rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">(계획 ${JUN_PLAN_ACTUAL_AMT.toLocaleString('ko-KR')} + 계획외 ${JUN_EXTRA_ACTUAL_AMT.toLocaleString('ko-KR')}천원)</span>` +
+                `<br><span style="white-space:nowrap;">목표 <b>${JUN_TOTAL_PLAN_AMT.toLocaleString('ko-KR')}천원</b></span>`;
         }
     }
 
