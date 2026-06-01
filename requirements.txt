@@ -9,3 +9,5 @@ python-multipart==0.0.26
 bcrypt==5.0.0
 pytest==9.0.3
 httpx==0.28.1
+google-api-python-client==2.197.0
+google-auth==2.49.2

@@ -31,3 +31,6 @@ __pycache__/
 
 # User uploaded files (server-local, never track)
 uploads/
+
+# Google 서비스 계정 키 (민감 정보)
+공사 데이터 입력 자동화/*.json

@@ -2,6 +2,193 @@
     const DAY_COLLAPSE_LIMIT = 4;
     const quickAddSelectedPersonNames = new Set();
 
+    const ERP_SCHEMA = [
+        { label: '상용직',   dayKey: 'regular_day',   nightKey: 'regular_night' },
+        { label: '일용직',   dayKey: 'daily_day',      nightKey: 'daily_night' },
+        { label: '모범신호수', dayKey: 'signalman_day', nightKey: 'signalman_night' },
+        { label: '6W',       dayKey: 'w6_day',         nightKey: 'w6_night' },
+        { label: '3W',       dayKey: 'w3_day',         nightKey: 'w3_night' },
+        { label: '덤프15T',  dayKey: 'dump15t_day',    nightKey: 'dump15t_night' },
+        { label: '크레인',   dayKey: 'crane_day',      nightKey: 'crane_night' },
+        { label: '물청소차', dayKey: 'watertruck_day', nightKey: 'watertruck_night' },
+        { label: 'MCM',      dayKey: 'mcm_day',        nightKey: 'mcm_night' },
+        { label: '접속',     dayKey: 'connection_day', nightKey: 'connection_night' },
+        { label: '외주1',    singleKey: 'outsource_1' },
+        { label: '외주2',    singleKey: 'outsource_2' },
+    ];
+
+    // ── 수주대장 자동완성 ────────────────────────────────────────────────────
+    let _constructionListCache = null;
+    let _acDropdown = null;
+    let _acCurrentTaskInput = null;
+    let _acCurrentCodeInput = null;
+    let _acActiveIdx = -1;
+
+    async function fetchConstructionList() {
+        if (_constructionListCache !== null) return _constructionListCache;
+        try {
+            const res = await fetch('/api/schedules/construction-list');
+            if (!res.ok) { _constructionListCache = []; return []; }
+            const data = await res.json();
+            _constructionListCache = data.data || [];
+        } catch { _constructionListCache = []; }
+        return _constructionListCache;
+    }
+
+    function filterConstructionList(query) {
+        if (!query || query.length < 1 || !_constructionListCache) return [];
+        const q = query.toLowerCase();
+        return _constructionListCache
+            .filter(i => i.code.toLowerCase().includes(q) || i.name.toLowerCase().includes(q))
+            .slice(0, 15);
+    }
+
+    function getOrCreateAcDropdown() {
+        if (!_acDropdown) {
+            _acDropdown = document.createElement('div');
+            _acDropdown.className = 'construction-ac-dropdown';
+            _acDropdown.style.display = 'none';
+            document.body.appendChild(_acDropdown);
+        }
+        return _acDropdown;
+    }
+
+    function positionAcDropdown(inputEl) {
+        const rect = inputEl.getBoundingClientRect();
+        const dd = getOrCreateAcDropdown();
+        dd.style.top = (rect.bottom + window.scrollY + 2) + 'px';
+        dd.style.left = (rect.left + window.scrollX) + 'px';
+        dd.style.width = Math.max(rect.width, 300) + 'px';
+    }
+
+    function hideAcDropdown() {
+        if (_acDropdown) _acDropdown.style.display = 'none';
+        _acActiveIdx = -1;
+    }
+
+    function selectAcItem(item) {
+        if (_acCurrentTaskInput) _acCurrentTaskInput.value = item.name;
+        if (_acCurrentCodeInput) _acCurrentCodeInput.value = item.code;
+        hideAcDropdown();
+    }
+
+    function renderAcDropdown(results, inputEl) {
+        const dd = getOrCreateAcDropdown();
+        if (!results.length) { dd.style.display = 'none'; return; }
+        positionAcDropdown(inputEl);
+        _acActiveIdx = -1;
+        dd.innerHTML = results.map((item, i) =>
+            `<div class="construction-ac-item" data-idx="${i}">` +
+            `<span class="ac-code">${escapeHtml(item.code)}</span>` +
+            `<span class="ac-name">${escapeHtml(item.name)}</span>` +
+            (item.work_type ? `<span class="ac-badge">${escapeHtml(item.work_type)}</span>` : '') +
+            `</div>`
+        ).join('');
+        dd.querySelectorAll('.construction-ac-item').forEach((el, i) => {
+            el.addEventListener('mousedown', e => { e.preventDefault(); selectAcItem(results[i]); });
+        });
+        dd.style.display = 'block';
+    }
+
+    function handleAcKeydown(e, results) {
+        const items = _acDropdown ? _acDropdown.querySelectorAll('.construction-ac-item') : [];
+        if (!items.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            _acActiveIdx = Math.min(_acActiveIdx + 1, items.length - 1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            _acActiveIdx = Math.max(_acActiveIdx - 1, 0);
+        } else if (e.key === 'Enter' && _acActiveIdx >= 0) {
+            e.preventDefault();
+            selectAcItem(results[_acActiveIdx]);
+            return;
+        } else if (e.key === 'Escape') {
+            hideAcDropdown(); return;
+        } else { return; }
+        items.forEach((el, i) => el.classList.toggle('ac-active', i === _acActiveIdx));
+    }
+
+    function attachConstructionAutocomplete(taskInputId, codeInputId) {
+        const taskInput = document.getElementById(taskInputId);
+        const codeInput = document.getElementById(codeInputId);
+        if (!taskInput || !codeInput) return;
+        getOrCreateAcDropdown();
+
+        async function onInput(e) {
+            _acCurrentTaskInput = taskInput;
+            _acCurrentCodeInput = codeInput;
+            await fetchConstructionList();
+            const results = filterConstructionList(e.target.value);
+            renderAcDropdown(results, e.target);
+        }
+
+        [taskInput, codeInput].forEach(input => {
+            input.addEventListener('input', onInput);
+            input.addEventListener('focus', async (e) => {
+                _acCurrentTaskInput = taskInput;
+                _acCurrentCodeInput = codeInput;
+                if (e.target.value.length >= 1) {
+                    await fetchConstructionList();
+                    renderAcDropdown(filterConstructionList(e.target.value), e.target);
+                }
+            });
+            input.addEventListener('blur', () => setTimeout(hideAcDropdown, 180));
+            input.addEventListener('keydown', e => {
+                handleAcKeydown(e, filterConstructionList(input.value));
+            });
+        });
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    function erpDataSummaryLine(erpData) {
+        if (!erpData) return '';
+        const data = typeof erpData === 'string'
+            ? (() => { try { return JSON.parse(erpData); } catch { return {}; } })()
+            : erpData;
+        const parts = [];
+        ERP_SCHEMA.forEach(row => {
+            if (row.dayKey) {
+                const day = Number(data[row.dayKey] || 0);
+                const night = Number(data[row.nightKey] || 0);
+                if (day > 0 && night > 0) parts.push(`${row.label} ${day}주/${night}야`);
+                else if (day > 0) parts.push(`${row.label} ${day}`);
+                else if (night > 0) parts.push(`${row.label} ${night}야`);
+            } else if (row.singleKey) {
+                const val = Number(data[row.singleKey] || 0);
+                if (val > 0) parts.push(`${row.label} ${val}`);
+            }
+        });
+        return parts.join(' · ');
+    }
+
+    function readErpData(prefix) {
+        const d = {};
+        ERP_SCHEMA.forEach(row => {
+            if (row.dayKey)    d[row.dayKey]    = Number(document.getElementById(`${prefix}_${row.dayKey}`)?.value   || 0);
+            if (row.nightKey)  d[row.nightKey]  = Number(document.getElementById(`${prefix}_${row.nightKey}`)?.value || 0);
+            if (row.singleKey) d[row.singleKey] = Number(document.getElementById(`${prefix}_${row.singleKey}`)?.value || 0);
+        });
+        return d;
+    }
+
+    function writeErpData(prefix, erpData) {
+        const data = typeof erpData === 'string' ? (() => { try { return JSON.parse(erpData); } catch { return {}; } })() : (erpData || {});
+        ERP_SCHEMA.forEach(row => {
+            if (row.dayKey)    { const el = document.getElementById(`${prefix}_${row.dayKey}`);    if (el) el.value = data[row.dayKey]    ?? 0; }
+            if (row.nightKey)  { const el = document.getElementById(`${prefix}_${row.nightKey}`);  if (el) el.value = data[row.nightKey]  ?? 0; }
+            if (row.singleKey) { const el = document.getElementById(`${prefix}_${row.singleKey}`); if (el) el.value = data[row.singleKey] ?? 0; }
+        });
+    }
+
+    function resetErpData(prefix) {
+        ERP_SCHEMA.forEach(row => {
+            if (row.dayKey)    { const el = document.getElementById(`${prefix}_${row.dayKey}`);    if (el) el.value = 0; }
+            if (row.nightKey)  { const el = document.getElementById(`${prefix}_${row.nightKey}`);  if (el) el.value = 0; }
+            if (row.singleKey) { const el = document.getElementById(`${prefix}_${row.singleKey}`); if (el) el.value = 0; }
+        });
+    }
+
     function getScheduleState() {
         if (!window.__dashboardScheduleState) {
             window.__dashboardScheduleState = {
@@ -366,7 +553,6 @@
 
     function renderCompactScheduleItem(item) {
         const catClass = compactCategoryClass(item.category);
-        const personLine = fullPersonLabel(item.person);
         const detailLine = String(item.details || '').trim();
         const detailLines = detailLineCount(detailLine);
         const shiftType = applyDefaultShiftType(item.category || '', item.shift_type || '');
@@ -375,7 +561,7 @@
         const taskLabel = `${escapeHtml(displayScheduleTaskTitle(item.task) || '공사명 미기재')}`;
         const badgeParts = [];
         if (shiftType) badgeParts.push(`<span class="schedule-shift-badge ${shiftClass}">${shiftType}</span>`);
-        if (scheduleViewOptions.showWorkCode && workCode) {
+        if (workCode) {
             badgeParts.push(`<span class="schedule-workcode-badge">${escapeHtml(workCode)}</span>`);
         }
         if (isPhotoPlanPendingReview(item)) {
@@ -386,22 +572,22 @@
             : '';
         const shiftCardClass = constructionShiftCardClass(item);
         const photoPlanClass = isPhotoPlanPendingReview(item) ? ' schedule-item-photo-plan' : '';
+        const erpSummary = erpDataSummaryLine(item.erp_data);
         const detailModalBtn = detailLine && detailLines >= 3
             ? `<button type="button" class="btn btn-sm btn-outline-dark mt-1" onclick="event.stopPropagation(); openScheduleDetailModal('${item.id}')">상세 정보</button>`
             : '';
         return `
                 <div class="schedule-compact-item ${catClass} ${shiftCardClass}${photoPlanClass}" data-id="${item.id}">
                     <div class="schedule-compact-task"><span class="schedule-task-head"><span class="schedule-category-dot ${catClass}"></span>${taskLabel}</span>${badgesHtml}</div>
-                    ${scheduleViewOptions.showPerson && personLine ? `<div class="schedule-compact-person">👷 ${escapeHtml(personLine)}</div>` : ''}
+                    ${erpSummary ? `<div class="schedule-compact-person" style="color:#2d5fa0;font-size:0.78rem;">📋 ${escapeHtml(erpSummary)}</div>` : ''}
                     ${scheduleViewOptions.showDetails && detailLine ? `<div class="schedule-compact-detail-preview">📝 ${escapeHtml(detailLine)}</div>` : ''}
                     <div class="schedule-action-panel">
                         ${detailLine && detailLines <= 2 ? `<div class="detail-text">📝 ${detailInlineHtml(detailLine)}</div>` : ''}
                         ${detailModalBtn}
-                        <div class="schedule-attachment-feed" data-schedule-id="${item.id}">
-                            <div class="attachment-feed-list"></div>
-                            <label class="attachment-upload-label btn btn-sm btn-outline-secondary mt-1">
-                                사진/파일 추가
-                                <input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="event.stopPropagation(); handleAttachmentUpload(event, '${item.id}')">
+                        <div>
+                            <label class="attachment-upload-label btn btn-sm btn-outline-secondary mt-1" id="drive-upload-label-${item.id}">
+                                📂 드라이브에 사진 업로드
+                                <input type="file" accept="image/*,application/pdf,video/*" multiple style="display:none" onchange="event.stopPropagation(); handleDriveUpload(event, '${item.id}')">
                             </label>
                         </div>
                         <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
@@ -562,6 +748,7 @@
         document.getElementById('editCategory').value = normalizeCategoryForSave(item.category || '공사 일정');
         document.getElementById('editShiftType').value = applyDefaultShiftType(item.category || '공사 일정', item.shift_type || '');
         document.getElementById('editWorkCode').value = String(item.work_code || '').trim();
+        writeErpData('editErp', item.erp_data || null);
         window.editRequestModal.show();
     }
 
@@ -574,13 +761,13 @@
         const shiftInput = document.getElementById('quickAddShiftType');
         const workCodeInput = document.getElementById('quickAddWorkCode');
         const peopleSection = document.getElementById('quickAddPeopleSection');
-        const advancedSection = document.getElementById('quickAddAdvancedSection');
+        const otherSection = document.getElementById('quickAddOtherSection');
         const staffListBox = document.getElementById('quickAddFieldStaffList');
         if (!dateInput || !window.quickAddScheduleModal) return;
         quickAddSelectedPersonNames.clear();
         bindQuickAddSectionEvents();
         if (peopleSection) peopleSection.open = false;
-        if (advancedSection) advancedSection.open = false;
+        if (otherSection) otherSection.open = false;
         dateInput.value = String(dateKey || '').trim() || formatLocalDateYYYYMMDD();
         if (categoryInput) categoryInput.value = '공사 일정';
         if (taskInput) taskInput.value = '';
@@ -597,6 +784,7 @@
         if (staffListBox) {
             staffListBox.innerHTML = '<span class="small text-muted">펼치면 인원 목록이 보입니다.</span>';
         }
+        resetErpData('qaErp');
         window.quickAddScheduleModal.show();
         if (taskInput) taskInput.focus();
     }
@@ -625,6 +813,7 @@
             category,
             request_note: '',
             schedule_id: null,
+            erp_data: readErpData('qaErp'),
         };
         const response = await fetch('/api/schedules/board/template-action', {
             method: 'POST',
@@ -662,6 +851,7 @@
                 category: catVal,
                 shift_type: shiftVal,
                 work_code: document.getElementById('editWorkCode').value.trim(),
+                erp_data: readErpData('editErp'),
             }
         };
 
@@ -895,10 +1085,38 @@
     window.openScheduleDetailModal = openScheduleDetailModal;
     window.openDetailPreviewModal = openDetailPreviewModal;
     window.loadWorkerStatus = loadWorkerStatus;
-    window.loadAttachmentFeed = loadAttachmentFeed;
-    window.handleAttachmentUpload = handleAttachmentUpload;
-    window.deleteAttachment = deleteAttachment;
+    window.attachConstructionAutocomplete = attachConstructionAutocomplete;
+    window.handleDriveUpload = handleDriveUpload;
 })();
+
+async function handleDriveUpload(event, scheduleId) {
+    const input = event.target;
+    const files = input.files ? Array.from(input.files) : [];
+    if (!files.length) return;
+    const label = document.getElementById(`drive-upload-label-${scheduleId}`);
+    const originalHtml = label ? label.innerHTML : '';
+    let failed = 0;
+    for (let i = 0; i < files.length; i++) {
+        if (label) label.textContent = `업로드 중... (${i + 1}/${files.length})`;
+        const formData = new FormData();
+        formData.append('file', files[i]);
+        try {
+            const res = await fetch(`/api/schedules/${scheduleId}/drive-upload`, {
+                method: 'POST', body: formData,
+            });
+            if (!res.ok) { failed++; continue; }
+            const data = await res.json();
+            if (data.link && typeof showSaveToast === 'function') {
+                showSaveToast(`${files[i].name} 업로드 완료`, 'success');
+            }
+        } catch (_) { failed++; }
+    }
+    input.value = '';
+    if (label) label.innerHTML = originalHtml;
+    if (failed > 0 && typeof showSaveToast === 'function') {
+        showSaveToast(`${failed}개 업로드 실패`, 'error');
+    }
+}
 
 async function loadAttachmentFeed(scheduleId) {
     const feedEl = document.querySelector(`.schedule-attachment-feed[data-schedule-id="${scheduleId}"]`);

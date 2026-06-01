@@ -1,8 +1,9 @@
 # app/api/schedules.py
 import json
-from fastapi import APIRouter, HTTPException, Depends
+import os.path
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal, List
 import logging
 from datetime import datetime
 
@@ -20,6 +21,39 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/schedules", tags=["Schedules"])
 
 ai_svc = GeminiService(api_key=settings.GEMINI_API_KEY)
+
+# ── 수주대장 자동완성 캐시 ──────────────────────────────────────────────────
+_construction_list_cache: List[Dict[str, str]] = []
+_construction_list_loaded: bool = False
+
+def _load_construction_list() -> List[Dict[str, str]]:
+    global _construction_list_cache, _construction_list_loaded
+    if _construction_list_loaded:
+        return _construction_list_cache
+    xlsx_path = "수주대장조회.xlsx"
+    if not os.path.exists(xlsx_path):
+        logger.warning("수주대장조회.xlsx 파일을 찾을 수 없습니다.")
+        _construction_list_loaded = True
+        return []
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+        ws = wb.active
+        result = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            code = str(row[0] or "").strip()
+            name = str(row[2] or "").strip()
+            work_type = str(row[3] or "").strip()
+            manager = str(row[4] or "").strip()
+            if code and name:
+                result.append({"code": code, "name": name, "work_type": work_type, "manager": manager})
+        wb.close()
+        _construction_list_cache = result
+        logger.info(f"수주대장 {len(result)}건 로드 완료")
+    except Exception as e:
+        logger.error(f"수주대장 로드 실패: {e}")
+    _construction_list_loaded = True
+    return _construction_list_cache
 
 
 class ChatRequest(BaseModel):
@@ -64,6 +98,7 @@ class BoardTemplateActionRequest(BaseModel):
     category: str = Field(default="공사 일정", description="카테고리")
     request_note: str = Field(default="", description="수정/삭제 요청 시 관리자 메모")
     schedule_id: Optional[int] = Field(default=None, description="수정/삭제 대상 일정 ID")
+    erp_data: Optional[Dict[str, Any]] = Field(default=None, description="ERP 투입실적 데이터 (JSON)")
 
 
 class DirectScheduleUpdateRequest(BaseModel):
@@ -290,6 +325,19 @@ async def execute_action(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/construction-list", summary="수주대장 공사 목록 (자동완성용)")
+def get_construction_list(
+    q: str = Query(default="", description="검색어 (공사코드 또는 공사명 부분 일치)"),
+    _user_session=Depends(require_session),
+):
+    items = _load_construction_list()
+    if q:
+        q_lower = q.lower()
+        items = [i for i in items if q_lower in i["code"].lower() or q_lower in i["name"].lower()]
+        items = items[:50]
+    return {"data": items, "total": len(items)}
+
+
 @router.get("/field-staff", summary="현장직 이름 목록 (작업 인원 선택)")
 def list_field_staff(
     _user_session=Depends(require_session),
@@ -398,6 +446,7 @@ def board_template_action(
                 "person": request.person or "", "details": request.details,
                 "work_code": request.work_code or "", "shift_type": request.shift_type or "",
                 "tags": [], "category": request.category or "공사 일정",
+                "erp_data": request.erp_data,
             },
             actor_user=actor_user, actor_device=actor_device,
         )
@@ -609,3 +658,51 @@ def delete_schedule_attachment(
     if not export_repo.delete_schedule_attachment(attachment_id, schedule_id):
         raise HTTPException(status_code=404, detail="첨부를 찾을 수 없습니다.")
     return {"status": "success", "message": "첨부가 삭제되었습니다."}
+
+
+# ── 구글 드라이브 업로드 ──────────────────────────────────────────────────────
+_gdrive_svc = None
+
+def _get_gdrive_svc():
+    global _gdrive_svc
+    if _gdrive_svc is not None:
+        return _gdrive_svc
+    sa_file = settings.GDRIVE_SERVICE_ACCOUNT_FILE
+    drive_id = settings.GDRIVE_SHARED_DRIVE_ID
+    if not sa_file or not drive_id:
+        return None
+    from app.services.gdrive_service import GoogleDriveService
+    _gdrive_svc = GoogleDriveService(sa_file, drive_id)
+    return _gdrive_svc
+
+
+@router.post("/{schedule_id}/drive-upload", summary="구글 드라이브에 공사 사진 업로드")
+async def drive_upload_photo(
+    schedule_id: int,
+    file: UploadFile = File(...),
+    _user_session=Depends(require_session),
+    sched_repo: ScheduleRepository = Depends(get_schedule_repo),
+):
+    svc = _get_gdrive_svc()
+    if svc is None:
+        raise HTTPException(status_code=503, detail="구글 드라이브 연동이 설정되지 않았습니다.")
+
+    schedule = sched_repo.get_by_id(schedule_id)
+    if not schedule or schedule.get("deleted_at"):
+        raise HTTPException(status_code=404, detail="일정을 찾을 수 없습니다.")
+
+    work_code = str(schedule.get("work_code") or "").strip()
+    task_name = str(schedule.get("task") or "").strip()
+    date_str = str(schedule.get("date") or datetime.now().strftime("%Y-%m-%d"))[:10]
+
+    contents = await file.read()
+    mime = file.content_type or "application/octet-stream"
+    filename = file.filename or "upload"
+
+    try:
+        link = svc.upload_photo(contents, filename, mime, work_code, task_name, date_str)
+    except Exception as e:
+        logger.error(f"드라이브 업로드 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"업로드 실패: {e}")
+
+    return {"status": "success", "link": link, "filename": filename}
