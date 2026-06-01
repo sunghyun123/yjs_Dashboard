@@ -1,4 +1,5 @@
 # app/db/repos/schedule.py
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -80,6 +81,14 @@ def _normalize_schedule_data(data: Dict[str, Any]) -> Dict[str, Any]:
     sk = str(d.get("source_kind") or "manual").strip() or "manual"
     d["source_kind"] = sk if sk in ("manual", "photo_plan") else "manual"
 
+    erp_raw = d.get("erp_data")
+    if isinstance(erp_raw, dict):
+        d["erp_data"] = json.dumps(erp_raw, ensure_ascii=False)
+    elif erp_raw is None or erp_raw == "":
+        d["erp_data"] = None
+    else:
+        d["erp_data"] = str(erp_raw)
+
     raw_puid = d.get("source_photo_upload_id")
     if raw_puid is not None and str(raw_puid).strip():
         try:
@@ -128,7 +137,7 @@ class ScheduleRepository:
                     SET task=:task, person=:person, details=:details, tags=:tags,
                         work_code=:work_code, shift_type=:shift_type, category=:category,
                         source_kind=:source_kind, source_photo_upload_id=:source_photo_upload_id,
-                        photo_plan_acknowledged=:photo_plan_acknowledged,
+                        photo_plan_acknowledged=:photo_plan_acknowledged, erp_data=:erp_data,
                         created_at=CURRENT_TIMESTAMP,
                         last_actor_user=:last_actor_user, last_actor_device=:last_actor_device,
                         last_actor_at=:last_actor_at
@@ -149,11 +158,11 @@ class ScheduleRepository:
                     """
                     INSERT INTO field_schedules (
                         date, location, task, person, details, tags, work_code, shift_type, category,
-                        source_kind, source_photo_upload_id, photo_plan_acknowledged,
+                        source_kind, source_photo_upload_id, photo_plan_acknowledged, erp_data,
                         last_actor_user, last_actor_device, last_actor_at, display_order
                     ) VALUES (
                         :date, :location, :task, :person, :details, :tags, :work_code, :shift_type, :category,
-                        :source_kind, :source_photo_upload_id, :photo_plan_acknowledged,
+                        :source_kind, :source_photo_upload_id, :photo_plan_acknowledged, :erp_data,
                         :last_actor_user, :last_actor_device, :last_actor_at, :display_order
                     )
                     """,
@@ -183,11 +192,11 @@ class ScheduleRepository:
                     """
                     INSERT INTO field_schedules (
                         date, location, task, person, details, tags, work_code, shift_type, category,
-                        source_kind, source_photo_upload_id, photo_plan_acknowledged,
+                        source_kind, source_photo_upload_id, photo_plan_acknowledged, erp_data,
                         last_actor_user, last_actor_device, last_actor_at, display_order
                     ) VALUES (
                         :date, :location, :task, :person, :details, :tags, :work_code, :shift_type, :category,
-                        :source_kind, :source_photo_upload_id, :photo_plan_acknowledged,
+                        :source_kind, :source_photo_upload_id, :photo_plan_acknowledged, :erp_data,
                         :last_actor_user, :last_actor_device, :last_actor_at, :display_order
                     )
                     """,
@@ -203,7 +212,7 @@ class ScheduleRepository:
                 SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
                        created_at, deleted_at, deleted_by, delete_reason,
                        last_actor_user, last_actor_device, last_actor_at, display_order,
-                       source_kind, source_photo_upload_id, photo_plan_acknowledged
+                       source_kind, source_photo_upload_id, photo_plan_acknowledged, erp_data
                 FROM field_schedules WHERE id=?
                 """,
                 (schedule_id,),
@@ -245,6 +254,14 @@ class ScheduleRepository:
                 if isinstance(tags, list):
                     tags = ",".join(tags)
 
+                erp_raw = data.get("erp_data")
+                if isinstance(erp_raw, dict):
+                    erp_json = json.dumps(erp_raw, ensure_ascii=False)
+                elif erp_raw is None or erp_raw == "":
+                    erp_json = None
+                else:
+                    erp_json = str(erp_raw)
+
                 cursor = conn.execute(
                     """
                     UPDATE field_schedules
@@ -252,7 +269,7 @@ class ScheduleRepository:
                         details=:details, tags=:tags, work_code=:work_code, shift_type=:shift_type,
                         category=:category, source_kind=:source_kind,
                         source_photo_upload_id=:source_photo_upload_id,
-                        photo_plan_acknowledged=:photo_plan_acknowledged,
+                        photo_plan_acknowledged=:photo_plan_acknowledged, erp_data=:erp_data,
                         created_at=CURRENT_TIMESTAMP,
                         last_actor_user=:last_actor_user, last_actor_device=:last_actor_device,
                         last_actor_at=:last_actor_at
@@ -272,6 +289,7 @@ class ScheduleRepository:
                         "source_kind": sk,
                         "source_photo_upload_id": puid,
                         "photo_plan_acknowledged": ack,
+                        "erp_data": erp_json,
                         "last_actor_user": actor_user,
                         "last_actor_device": actor_device,
                         "last_actor_at": now_iso,
@@ -388,7 +406,7 @@ class ScheduleRepository:
             rows = conn.execute(
                 """
                 SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
-                       source_kind, source_photo_upload_id, photo_plan_acknowledged,
+                       source_kind, source_photo_upload_id, photo_plan_acknowledged, erp_data,
                        datetime(created_at, 'localtime') as created_at
                 FROM field_schedules
                 WHERE deleted_at IS NULL AND date >= ? AND date <= ?
@@ -403,7 +421,7 @@ class ScheduleRepository:
             rows = conn.execute(
                 """
                 SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
-                       source_kind, source_photo_upload_id, photo_plan_acknowledged,
+                       source_kind, source_photo_upload_id, photo_plan_acknowledged, erp_data,
                        deleted_at, deleted_by, delete_reason,
                        last_actor_user, last_actor_device, last_actor_at,
                        datetime(created_at, 'localtime') AS created_at
@@ -418,7 +436,7 @@ class ScheduleRepository:
             rows = conn.execute(
                 """
                 SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
-                       source_kind, source_photo_upload_id, photo_plan_acknowledged,
+                       source_kind, source_photo_upload_id, photo_plan_acknowledged, erp_data,
                        deleted_at, deleted_by, delete_reason,
                        last_actor_user, last_actor_device, last_actor_at,
                        datetime(created_at, 'localtime') AS created_at

@@ -41,6 +41,7 @@ def run_migrations(db_path: str) -> None:
             _add_col_if_missing("source_kind", "TEXT DEFAULT 'manual'")
             _add_col_if_missing("source_photo_upload_id", "INTEGER")
             _add_col_if_missing("photo_plan_acknowledged", "INTEGER NOT NULL DEFAULT 0")
+            _add_col_if_missing("erp_data", "TEXT")
 
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
