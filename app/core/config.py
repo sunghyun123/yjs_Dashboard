@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     SESSION_TTL_DAYS: int = 30
     # 구글 드라이브 연동
     GDRIVE_SERVICE_ACCOUNT_FILE: str = ""
+    GDRIVE_SERVICE_ACCOUNT_JSON: str = ""
     GDRIVE_SHARED_DRIVE_ID: str = ""
     # 외출 복귀 시각(until_time) 비교에 사용. 브라우저는 로컬 날짜+시각으로 저장하므로 서버가 UTC여도 맞춤.
     APP_TIMEZONE: str = "Asia/Seoul"

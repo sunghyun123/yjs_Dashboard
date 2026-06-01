@@ -667,12 +667,13 @@ def _get_gdrive_svc():
     global _gdrive_svc
     if _gdrive_svc is not None:
         return _gdrive_svc
-    sa_file = settings.GDRIVE_SERVICE_ACCOUNT_FILE
     drive_id = settings.GDRIVE_SHARED_DRIVE_ID
-    if not sa_file or not drive_id:
+    sa_json = settings.GDRIVE_SERVICE_ACCOUNT_JSON
+    sa_file = settings.GDRIVE_SERVICE_ACCOUNT_FILE
+    if not drive_id or (not sa_json and not sa_file):
         return None
     from app.services.gdrive_service import GoogleDriveService
-    _gdrive_svc = GoogleDriveService(sa_file, drive_id)
+    _gdrive_svc = GoogleDriveService(drive_id, sa_file=sa_file, sa_json=sa_json)
     return _gdrive_svc
 
 
