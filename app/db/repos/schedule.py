@@ -367,22 +367,6 @@ class ScheduleRepository:
             logger.error("일정 검색 오류: %s", e)
             return []
 
-    def list_recent(self, limit: int = 50) -> List[Dict[str, Any]]:
-        with get_conn(self._db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT id, date, location, task, person, details, tags, work_code, shift_type, category,
-                       source_kind, source_photo_upload_id, photo_plan_acknowledged,
-                       datetime(created_at, 'localtime') as created_at
-                FROM field_schedules
-                WHERE deleted_at IS NULL
-                ORDER BY date DESC, display_order ASC, created_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
-            return [dict(row) for row in rows]
-
     def list_window(self, base_date: Optional[str] = None, past_days: int = 3, future_days: int = 7) -> List[Dict[str, Any]]:
         today = datetime.strptime(base_date, "%Y-%m-%d").date() if base_date else datetime.now().date()
         start = (today - timedelta(days=past_days)).strftime("%Y-%m-%d")

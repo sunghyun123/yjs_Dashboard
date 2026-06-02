@@ -98,23 +98,23 @@ app.include_router(admin.router)
 
 @app.get("/", summary="기본 운영 홈 화면", tags=["Pages"])
 async def serve_home():
-    return FileResponse("home.html")
+    return FileResponse("web/home.html")
 
 @app.get("/dashboard.html", summary="상황판 화면", tags=["Pages"])
 async def serve_dashboard():
-    return FileResponse("dashboard.html")
+    return FileResponse("web/dashboard.html")
 
 @app.get("/home.html", summary="운영 홈 화면", tags=["Pages"])
 async def serve_home_page():
-    return FileResponse("home.html")
+    return FileResponse("web/home.html")
 
 @app.get("/index.html", summary="채팅 입력 화면", tags=["Pages"])
 async def serve_index():
-    return FileResponse("index.html")
+    return FileResponse("web/index.html")
 
 @app.get("/admin.html", summary="관리자 화면", tags=["Pages"])
 async def serve_admin():
-    return FileResponse("admin.html")
+    return FileResponse("web/admin.html")
 
 @app.get("/board.html", summary="레거시 경로 → 상황판 리다이렉트", tags=["Pages"])
 async def serve_board():
@@ -122,35 +122,35 @@ async def serve_board():
 
 @app.get("/site.webmanifest", summary="PWA 매니페스트", tags=["Pages"])
 async def serve_web_manifest():
-    return FileResponse("site.webmanifest", media_type="application/manifest+json")
+    return FileResponse("web/site.webmanifest", media_type="application/manifest+json")
 
 @app.get("/sw.js", summary="서비스 워커(설치용)", tags=["Pages"])
 async def serve_service_worker():
-    return FileResponse("sw.js", media_type="application/javascript")
+    return FileResponse("web/sw.js", media_type="application/javascript")
 
 @app.get("/icon.svg", summary="PWA 아이콘", tags=["Pages"])
 async def serve_app_icon():
-    return FileResponse("icon.svg", media_type="image/svg+xml")
+    return FileResponse("web/icon.svg", media_type="image/svg+xml")
 
 @app.get("/dashboard.common.js", summary="대시보드 공통 유틸 스크립트", tags=["Pages"])
 async def serve_dashboard_common_js():
-    return FileResponse("dashboard.common.js", media_type="application/javascript")
+    return FileResponse("web/dashboard.common.js", media_type="application/javascript")
 
 @app.get("/dashboard.auth.js", summary="대시보드 인증 스크립트", tags=["Pages"])
 async def serve_dashboard_auth_js():
-    return FileResponse("dashboard.auth.js", media_type="application/javascript")
+    return FileResponse("web/dashboard.auth.js", media_type="application/javascript")
 
 @app.get("/dashboard.sidebar.js", summary="대시보드 사이드바 스크립트", tags=["Pages"])
 async def serve_dashboard_sidebar_js():
-    return FileResponse("dashboard.sidebar.js", media_type="application/javascript")
+    return FileResponse("web/dashboard.sidebar.js", media_type="application/javascript")
 
 @app.get("/dashboard.schedule.js", summary="대시보드 일정 스크립트", tags=["Pages"])
 async def serve_dashboard_schedule_js():
-    return FileResponse("dashboard.schedule.js", media_type="application/javascript")
+    return FileResponse("web/dashboard.schedule.js", media_type="application/javascript")
 
 @app.get("/home.js", summary="홈 화면 스크립트", tags=["Pages"])
 async def serve_home_js():
-    return FileResponse("home.js", media_type="application/javascript")
+    return FileResponse("web/home.js", media_type="application/javascript")
 
 @app.get("/uploads/photos/{file_path:path}", summary="첨부 사진 파일 서빙", tags=["Pages"])
 async def serve_upload_photo(file_path: str):

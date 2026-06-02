@@ -39,7 +39,6 @@
     const JUN_TOTAL_PLAN_AMT    = 204887; // 천원 — 계획 목표금액
     // ─────────────────────────────────────────────────────────────────────────
 
-    // 매출손익현황-1.xlsx Z합계 기준 — 5월 성과: 5/27 시트 Z합계 / 투입·손익은 별도 확인 필요
     const SALES_PROFIT_SAMPLE = {
         labels: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
         profit:  [148077095, 266925701, 224823634, 142866009, 82726095,  0, 0, 0, 0, 0, 0, 0],
@@ -51,22 +50,6 @@
     let projectProgressCarousel = null;
     let workerReturnTimeModal = null;
     let workerReturnTimeTargetUser = '';
-
-    function formatLocalDateYYYYMMDD(d = new Date()) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
-    }
-
-    function escapeHtml(value) {
-        return String(value ?? '')
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#39;');
-    }
 
     function normalizeShiftType(raw) {
         const val = String(raw || '').trim();

@@ -14,7 +14,19 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(python -c \"import sys; data=sys.stdin.buffer.read\\(\\); print\\(data.decode\\('cp949', errors='replace'\\)\\)\")",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git commit *)",
+      "Bash(python -c \"import openpyxl; print\\(openpyxl.__version__\\)\")",
+      "Bash(findstr -i \"openpyxl\\\\|excel\")",
+      "Bash(python -m pip install google-api-python-client google-auth)",
+      "Bash(Select-String -Pattern \"Successfully|already|error\" -SimpleMatch)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(gh pr *)",
+      "Bash(git *)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\조성현\\\\Documents\\\\GitHub\\\\yjs_Dashboard\")",
+      "Bash(Select-Object Name, Mode)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\조성현\\\\Documents\\\\GitHub\\\\yjs_Dashboard\" | Where-Object { $_.Name -notmatch \"^\\\\.\" -and $_.Name -ne \"__pycache__\" } | Select-Object Name, Mode | Sort-Object Mode, Name)"
     ]
   }
 }

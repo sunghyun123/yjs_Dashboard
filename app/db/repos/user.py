@@ -11,14 +11,6 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
-def verify_password(plain: str, stored_hash: str) -> bool:
-    if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
-        return bcrypt.checkpw(plain.encode("utf-8"), stored_hash.encode("utf-8"))
-    # Legacy SHA-256 hash — accept but signal for rehash via exception pattern
-    import hashlib
-    return hashlib.sha256(plain.encode("utf-8")).hexdigest() == stored_hash
-
-
 class UserRepository:
     def __init__(self, db_path: str):
         self._db_path = db_path
@@ -30,37 +22,6 @@ class UserRepository:
                 (user_id,),
             ).fetchone()
             return dict(row) if row else None
-
-    def get_by_name(self, user_name: str) -> Optional[Dict[str, Any]]:
-        with get_conn(self._db_path) as conn:
-            row = conn.execute(
-                "SELECT user_id, user_name FROM users WHERE user_name=? ORDER BY created_at DESC LIMIT 1",
-                (user_name,),
-            ).fetchone()
-            return dict(row) if row else None
-
-    def update_password_hash(self, user_id: str, new_hash: str) -> None:
-        with get_conn(self._db_path) as conn:
-            with conn:
-                conn.execute("UPDATE users SET password_hash=? WHERE user_id=?", (new_hash, user_id))
-
-    def create(self, user_name: str, user_id: str, password: str, role: str = "worker", register_code: str = "") -> None:
-        u_name = (user_name or "").strip()
-        u_id = (user_id or "").strip()
-        pw = password or ""
-        if not u_name:
-            raise ValueError("사용자 이름을 입력해 주세요.")
-        if not u_id:
-            raise ValueError("아이디를 입력해 주세요.")
-        if not pw:
-            raise ValueError("비밀번호를 입력해 주세요.")
-        pw_hash = hash_password(pw)
-        with get_conn(self._db_path) as conn:
-            with conn:
-                conn.execute(
-                    "INSERT INTO users (user_id, user_name, password_hash, register_code, role) VALUES (?,?,?,?,?)",
-                    (u_id, u_name, pw_hash, register_code, role),
-                )
 
     def ensure_oauth_user(self, user_id: str, user_name: str, role: str) -> None:
         u_id = (user_id or "").strip()
@@ -80,21 +41,6 @@ class UserRepository:
                         "INSERT INTO users (user_id, user_name, password_hash, register_code, role) VALUES (?,?,?,?,?)",
                         (u_id, u_name, pw_hash, "", r_db),
                     )
-
-    def reset_password(self, user_id: str, user_name: str, new_password: str) -> bool:
-        u_id = (user_id or "").strip()
-        u_name = (user_name or "").strip()
-        pw = new_password or ""
-        if not u_id or not u_name or not pw:
-            return False
-        pw_hash = hash_password(pw)
-        with get_conn(self._db_path) as conn:
-            with conn:
-                cursor = conn.execute(
-                    "UPDATE users SET password_hash=? WHERE user_id=? AND user_name=?",
-                    (pw_hash, u_id, u_name),
-                )
-                return cursor.rowcount > 0
 
     def upsert_login_access_request(self, kakao_id: str, note: str = "") -> Dict[str, Any]:
         k_id = str(kakao_id or "").strip()
