@@ -585,10 +585,8 @@
                         ${detailLine && detailLines <= 2 ? `<div class="detail-text">📝 ${detailInlineHtml(detailLine)}</div>` : ''}
                         ${detailModalBtn}
                         <div>
-                            <label class="attachment-upload-label btn btn-sm btn-outline-secondary mt-1" id="drive-upload-label-${item.id}">
-                                📂 드라이브에 사진 업로드
-                                <input type="file" accept="image/*,application/pdf,video/*" multiple style="position:absolute;width:0;height:0;opacity:0;pointer-events:none" onchange="event.stopPropagation(); handleDriveUpload(event, '${item.id}')">
-                            </label>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="drive-upload-label-${item.id}" onclick="event.stopPropagation(); document.getElementById('drive-file-${item.id}').click()">📂 드라이브에 사진 업로드</button>
+                            <input type="file" id="drive-file-${item.id}" accept="image/*,application/pdf,video/*" multiple style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0" onchange="event.stopPropagation(); handleDriveUpload(event, '${item.id}')">
                         </div>
                         <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
                             ${isPhotoPlanPendingReview(item) ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); acknowledgePhotoPlanImport(${item.id})">추출 검토 완료</button>` : ''}
@@ -1093,11 +1091,11 @@ async function handleDriveUpload(event, scheduleId) {
     const input = event.target;
     const files = input.files ? Array.from(input.files) : [];
     if (!files.length) return;
-    const label = document.getElementById(`drive-upload-label-${scheduleId}`);
-    const originalHtml = label ? label.innerHTML : '';
+    const label = input.previousElementSibling || document.getElementById(`drive-upload-label-${scheduleId}`);
+    const originalText = label ? label.textContent : '';
     let failed = 0;
     for (let i = 0; i < files.length; i++) {
-        if (label) label.textContent = `업로드 중... (${i + 1}/${files.length})`;
+        if (label) label.textContent = `⏳ 업로드 중... (${i + 1}/${files.length})`;
         const formData = new FormData();
         formData.append('file', files[i]);
         try {
@@ -1119,7 +1117,7 @@ async function handleDriveUpload(event, scheduleId) {
         }
     }
     input.value = '';
-    if (label) label.innerHTML = originalHtml;
+    if (label) label.textContent = originalText;
     if (failed > 0 && typeof showSaveToast === 'function') {
         showSaveToast(`${failed}개 업로드 실패`, 'error');
     }
