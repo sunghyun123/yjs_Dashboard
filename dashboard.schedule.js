@@ -57,9 +57,13 @@
         const rect = inputEl.getBoundingClientRect();
         const dd = getOrCreateAcDropdown();
         // position: fixed 기준이므로 scrollY/scrollX 없이 viewport 좌표 그대로 사용
+        const desiredWidth = Math.max(rect.width, 300);
+        const maxLeft = Math.max(0, window.innerWidth - desiredWidth - 4);
+        const left = Math.min(rect.left, maxLeft);
+        const width = Math.min(desiredWidth, window.innerWidth - left - 4);
         dd.style.top = (rect.bottom + 2) + 'px';
-        dd.style.left = rect.left + 'px';
-        dd.style.width = Math.max(rect.width, 300) + 'px';
+        dd.style.left = left + 'px';
+        dd.style.width = width + 'px';
     }
 
     function hideAcDropdown() {
@@ -87,7 +91,7 @@
         ).join('');
         dd.querySelectorAll('.construction-ac-item').forEach((el, i) => {
             el.addEventListener('mousedown', e => { e.preventDefault(); selectAcItem(results[i]); });
-            el.addEventListener('touchstart', e => { e.preventDefault(); selectAcItem(results[i]); }, { passive: false });
+            el.addEventListener('click', () => { selectAcItem(results[i]); });
         });
         dd.style.display = 'block';
     }
@@ -588,8 +592,8 @@
                     <div class="schedule-action-panel">
                         ${detailLine && detailLines <= 2 ? `<div class="detail-text">📝 ${detailInlineHtml(detailLine)}</div>` : ''}
                         ${detailModalBtn}
-                        <div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="drive-upload-label-${item.id}" onclick="event.stopPropagation(); document.getElementById('drive-file-${item.id}').click()">📂 드라이브에 사진 업로드</button>
+                        <div class="overflow-hidden">
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-1 w-100 text-truncate" id="drive-upload-label-${item.id}" onclick="event.stopPropagation(); document.getElementById('drive-file-${item.id}').click()">📂 드라이브에 사진 업로드</button>
                             <input type="file" id="drive-file-${item.id}" accept="image/*,application/pdf,video/*" multiple style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0" onchange="event.stopPropagation(); handleDriveUpload(event, '${item.id}')">
                         </div>
                         <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
