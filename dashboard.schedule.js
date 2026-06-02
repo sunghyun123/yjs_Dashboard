@@ -1091,11 +1091,11 @@ async function handleDriveUpload(event, scheduleId) {
     const input = event.target;
     const files = input.files ? Array.from(input.files) : [];
     if (!files.length) return;
-    const label = document.getElementById(`drive-upload-label-${scheduleId}`);
-    const originalHtml = label ? label.innerHTML : '';
+    const label = input.previousElementSibling || document.getElementById(`drive-upload-label-${scheduleId}`);
+    const originalText = label ? label.textContent : '';
     let failed = 0;
     for (let i = 0; i < files.length; i++) {
-        if (label) label.textContent = `업로드 중... (${i + 1}/${files.length})`;
+        if (label) label.textContent = `⏳ 업로드 중... (${i + 1}/${files.length})`;
         const formData = new FormData();
         formData.append('file', files[i]);
         try {
@@ -1117,7 +1117,7 @@ async function handleDriveUpload(event, scheduleId) {
         }
     }
     input.value = '';
-    if (label) label.innerHTML = originalHtml;
+    if (label) label.textContent = originalText;
     if (failed > 0 && typeof showSaveToast === 'function') {
         showSaveToast(`${failed}개 업로드 실패`, 'error');
     }
