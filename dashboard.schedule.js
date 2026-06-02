@@ -587,7 +587,7 @@
                         <div>
                             <label class="attachment-upload-label btn btn-sm btn-outline-secondary mt-1" id="drive-upload-label-${item.id}">
                                 📂 드라이브에 사진 업로드
-                                <input type="file" accept="image/*,application/pdf,video/*" multiple style="display:none" onchange="event.stopPropagation(); handleDriveUpload(event, '${item.id}')">
+                                <input type="file" accept="image/*,application/pdf,video/*" multiple style="position:absolute;width:0;height:0;opacity:0;pointer-events:none" onchange="event.stopPropagation(); handleDriveUpload(event, '${item.id}')">
                             </label>
                         </div>
                         <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
@@ -1104,12 +1104,19 @@ async function handleDriveUpload(event, scheduleId) {
             const res = await fetch(`/api/schedules/${scheduleId}/drive-upload`, {
                 method: 'POST', body: formData,
             });
-            if (!res.ok) { failed++; continue; }
+            if (!res.ok) {
+                const errText = await res.text().catch(() => '');
+                if (typeof showSaveToast === 'function') showSaveToast(`업로드 실패 (${res.status})${errText ? ': ' + errText.slice(0, 80) : ''}`, 'error');
+                failed++; continue;
+            }
             const data = await res.json();
             if (data.link && typeof showSaveToast === 'function') {
                 showSaveToast(`${files[i].name} 업로드 완료`, 'success');
             }
-        } catch (_) { failed++; }
+        } catch (err) {
+            if (typeof showSaveToast === 'function') showSaveToast(`업로드 오류: ${err.message || err}`, 'error');
+            failed++;
+        }
     }
     input.value = '';
     if (label) label.innerHTML = originalHtml;
