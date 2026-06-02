@@ -1099,7 +1099,10 @@ async function handleDriveUpload(event, scheduleId) {
     const input = event.target;
     const files = input.files ? Array.from(input.files) : [];
     if (!files.length) return;
-    const label = input.previousElementSibling || document.getElementById(`drive-upload-label-${scheduleId}`);
+    // getElementById로 살아있는 DOM의 버튼을 우선 참조.
+    // 모바일에서 파일 피커가 열린 동안 visibilitychange → loadSchedules()로 DOM이 재렌더링되면
+    // previousElementSibling은 분리된 옛 요소를 가리켜 textContent 변경이 화면에 반영되지 않음.
+    const label = document.getElementById(`drive-upload-label-${scheduleId}`) || input.previousElementSibling;
     const originalText = label ? label.textContent : '';
     let failed = 0;
     for (let i = 0; i < files.length; i++) {
