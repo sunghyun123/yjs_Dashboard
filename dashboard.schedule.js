@@ -586,7 +586,7 @@
                         ${detailModalBtn}
                         <div>
                             <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="drive-upload-label-${item.id}" onclick="event.stopPropagation(); document.getElementById('drive-file-${item.id}').click()">📂 드라이브에 사진 업로드</button>
-                            <input type="file" id="drive-file-${item.id}" accept="image/*,application/pdf,video/*" multiple style="display:none" onchange="event.stopPropagation(); handleDriveUpload(event, '${item.id}')">
+                            <input type="file" id="drive-file-${item.id}" accept="image/*,application/pdf,video/*" multiple style="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0" onchange="event.stopPropagation(); handleDriveUpload(event, '${item.id}')">
                         </div>
                         <div class="schedule-actions mt-2 d-flex gap-2 justify-content-end flex-wrap">
                             ${isPhotoPlanPendingReview(item) ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); acknowledgePhotoPlanImport(${item.id})">추출 검토 완료</button>` : ''}
@@ -1112,7 +1112,9 @@ async function handleDriveUpload(event, scheduleId) {
                 showSaveToast(`${files[i].name} 업로드 완료`, 'success');
             }
         } catch (err) {
-            if (typeof showSaveToast === 'function') showSaveToast(`업로드 오류: ${err.message || err}`, 'error');
+            const msg = `업로드 오류: ${err.message || err}`;
+            alert(msg);
+            if (typeof showSaveToast === 'function') showSaveToast(msg, 'error');
             failed++;
         }
     }
