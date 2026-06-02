@@ -1095,18 +1095,40 @@
     window.handleDriveUpload = handleDriveUpload;
 })();
 
+// body 직속 progress 표시 — loadSchedules() DOM 재렌더링에 영향받지 않음
+function _setUploadProgress(text) {
+    let el = document.getElementById('_driveUploadProgress');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = '_driveUploadProgress';
+        el.style.cssText = [
+            'position:fixed', 'left:50%', 'bottom:80px',
+            'transform:translateX(-50%)',
+            'background:#1a4f8a', 'color:#fff',
+            'padding:10px 20px', 'border-radius:24px',
+            'font-size:0.9rem', 'z-index:3000',
+            'box-shadow:0 4px 16px rgba(0,0,0,0.25)',
+            'max-width:90vw', 'pointer-events:none',
+            'display:none',
+        ].join(';');
+        document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.style.display = text ? 'block' : 'none';
+}
+
 async function handleDriveUpload(event, scheduleId) {
     const input = event.target;
     const files = input.files ? Array.from(input.files) : [];
     if (!files.length) return;
-    // getElementById로 살아있는 DOM의 버튼을 우선 참조.
-    // 모바일에서 파일 피커가 열린 동안 visibilitychange → loadSchedules()로 DOM이 재렌더링되면
-    // previousElementSibling은 분리된 옛 요소를 가리켜 textContent 변경이 화면에 반영되지 않음.
-    const label = document.getElementById(`drive-upload-label-${scheduleId}`) || input.previousElementSibling;
-    const originalText = label ? label.textContent : '';
     let failed = 0;
     for (let i = 0; i < files.length; i++) {
-        if (label) label.textContent = `⏳ 업로드 중... (${i + 1}/${files.length})`;
+        const progressText = `⏳ 업로드 중... (${i + 1}/${files.length})`;
+        // body 직속 표시 (모바일 DOM 재렌더링에도 살아남음)
+        _setUploadProgress(progressText);
+        // 버튼 텍스트도 업데이트 (PC 등 재렌더링이 없는 환경용)
+        const label = document.getElementById(`drive-upload-label-${scheduleId}`);
+        if (label) label.textContent = progressText;
         const formData = new FormData();
         formData.append('file', files[i]);
         try {
@@ -1127,8 +1149,10 @@ async function handleDriveUpload(event, scheduleId) {
             failed++;
         }
     }
+    _setUploadProgress('');
     input.value = '';
-    if (label) label.textContent = originalText;
+    const finalLabel = document.getElementById(`drive-upload-label-${scheduleId}`);
+    if (finalLabel) finalLabel.textContent = '📂 드라이브에 사진 업로드';
     if (failed > 0 && typeof showSaveToast === 'function') {
         showSaveToast(`${failed}개 업로드 실패`, 'error');
     }
