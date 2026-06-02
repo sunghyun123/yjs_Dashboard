@@ -56,8 +56,9 @@
     function positionAcDropdown(inputEl) {
         const rect = inputEl.getBoundingClientRect();
         const dd = getOrCreateAcDropdown();
-        dd.style.top = (rect.bottom + window.scrollY + 2) + 'px';
-        dd.style.left = (rect.left + window.scrollX) + 'px';
+        // position: fixed 기준이므로 scrollY/scrollX 없이 viewport 좌표 그대로 사용
+        dd.style.top = (rect.bottom + 2) + 'px';
+        dd.style.left = rect.left + 'px';
         dd.style.width = Math.max(rect.width, 300) + 'px';
     }
 
@@ -86,6 +87,7 @@
         ).join('');
         dd.querySelectorAll('.construction-ac-item').forEach((el, i) => {
             el.addEventListener('mousedown', e => { e.preventDefault(); selectAcItem(results[i]); });
+            el.addEventListener('touchstart', e => { e.preventDefault(); selectAcItem(results[i]); }, { passive: false });
         });
         dd.style.display = 'block';
     }
@@ -113,6 +115,8 @@
         const taskInput = document.getElementById(taskInputId);
         const codeInput = document.getElementById(codeInputId);
         if (!taskInput || !codeInput) return;
+        taskInput.setAttribute('autocomplete', 'off');
+        codeInput.setAttribute('autocomplete', 'off');
         getOrCreateAcDropdown();
 
         async function onInput(e) {
