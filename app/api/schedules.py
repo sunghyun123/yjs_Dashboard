@@ -1,4 +1,5 @@
 # app/api/schedules.py
+import asyncio
 import json
 import os.path
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
@@ -701,7 +702,7 @@ async def drive_upload_photo(
     filename = file.filename or "upload"
 
     try:
-        link = svc.upload_photo(contents, filename, mime, work_code, task_name, date_str)
+        link = await asyncio.to_thread(svc.upload_photo, contents, filename, mime, work_code, task_name, date_str)
     except Exception as e:
         logger.error(f"드라이브 업로드 실패: {e}")
         raise HTTPException(status_code=500, detail=f"업로드 실패: {e}")

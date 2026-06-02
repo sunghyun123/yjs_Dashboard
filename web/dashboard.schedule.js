@@ -1117,20 +1117,48 @@ function _setUploadProgress(text) {
     el.style.display = text ? 'block' : 'none';
 }
 
+async function _compressImage(file, quality = 0.75) {
+    if (!file.type.startsWith('image/') || file.type === 'image/gif') return file;
+    return new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            canvas.toBlob((blob) => {
+                if (!blob || blob.size >= file.size) { resolve(file); return; }
+                resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg', lastModified: file.lastModified }));
+            }, 'image/jpeg', quality);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+        img.src = url;
+    });
+}
+
 async function handleDriveUpload(event, scheduleId) {
     const input = event.target;
     const files = input.files ? Array.from(input.files) : [];
     if (!files.length) return;
+
+    const CONCURRENCY = 5;
+    let completed = 0;
     let failed = 0;
-    for (let i = 0; i < files.length; i++) {
-        const progressText = `⏳ 업로드 중... (${i + 1}/${files.length})`;
-        // body 직속 표시 (모바일 DOM 재렌더링에도 살아남음)
-        _setUploadProgress(progressText);
-        // 버튼 텍스트도 업데이트 (PC 등 재렌더링이 없는 환경용)
-        const label = document.getElementById(`drive-upload-label-${scheduleId}`);
-        if (label) label.textContent = progressText;
+
+    const label = document.getElementById(`drive-upload-label-${scheduleId}`);
+    const updateProgress = () => {
+        const text = `⏳ 업로드 중... (${completed}/${files.length})`;
+        _setUploadProgress(text);
+        if (label) label.textContent = text;
+    };
+    updateProgress();
+
+    const uploadOne = async (file) => {
+        const compressed = await _compressImage(file);
         const formData = new FormData();
-        formData.append('file', files[i]);
+        formData.append('file', compressed);
         try {
             const res = await fetch(`/api/schedules/${scheduleId}/drive-upload`, {
                 method: 'POST', body: formData,
@@ -1138,23 +1166,29 @@ async function handleDriveUpload(event, scheduleId) {
             if (!res.ok) {
                 const errText = await res.text().catch(() => '');
                 if (typeof showSaveToast === 'function') showSaveToast(`업로드 실패 (${res.status})${errText ? ': ' + errText.slice(0, 80) : ''}`, 'error');
-                failed++; continue;
-            }
-            const data = await res.json();
-            if (data.link && typeof showSaveToast === 'function') {
-                showSaveToast(`${files[i].name} 업로드 완료`, 'success');
+                failed++;
+            } else {
+                await res.json().catch(() => {});
             }
         } catch (err) {
             if (typeof showSaveToast === 'function') showSaveToast(`업로드 오류: ${err.message || err}`, 'error');
             failed++;
         }
+        completed++;
+        updateProgress();
+    };
+
+    for (let i = 0; i < files.length; i += CONCURRENCY) {
+        await Promise.all(files.slice(i, i + CONCURRENCY).map(uploadOne));
     }
+
     _setUploadProgress('');
     input.value = '';
     const finalLabel = document.getElementById(`drive-upload-label-${scheduleId}`);
     if (finalLabel) finalLabel.textContent = '📂 드라이브에 사진 업로드';
-    if (failed > 0 && typeof showSaveToast === 'function') {
-        showSaveToast(`${failed}개 업로드 실패`, 'error');
+    if (typeof showSaveToast === 'function') {
+        if (failed > 0) showSaveToast(`${files.length - failed}개 완료, ${failed}개 실패`, 'error');
+        else showSaveToast(`${files.length}개 업로드 완료`, 'success');
     }
 }
 

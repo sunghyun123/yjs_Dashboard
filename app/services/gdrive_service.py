@@ -2,6 +2,7 @@ import io
 import json
 import logging
 import re
+import threading
 from typing import Optional
 
 from google.oauth2 import service_account
@@ -19,11 +20,11 @@ class GoogleDriveService:
         self._sa_file = sa_file
         self._sa_json = sa_json
         self._drive_id = shared_drive_id
-        self._service = None
+        self._local = threading.local()  # 스레드마다 별도 service 인스턴스
         self._folder_cache: dict[str, str] = {}
 
     def _svc(self):
-        if self._service is None:
+        if not hasattr(self._local, "service"):
             if self._sa_json:
                 info = json.loads(self._sa_json)
                 creds = service_account.Credentials.from_service_account_info(
@@ -33,8 +34,8 @@ class GoogleDriveService:
                 creds = service_account.Credentials.from_service_account_file(
                     self._sa_file, scopes=SCOPES
                 )
-            self._service = build("drive", "v3", credentials=creds, cache_discovery=False)
-        return self._service
+            self._local.service = build("drive", "v3", credentials=creds, cache_discovery=False)
+        return self._local.service
 
     def _find_folder(self, name: str, parent_id: str) -> Optional[str]:
         key = f"{parent_id}|{name}"
