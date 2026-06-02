@@ -1112,9 +1112,7 @@ async function handleDriveUpload(event, scheduleId) {
                 showSaveToast(`${files[i].name} 업로드 완료`, 'success');
             }
         } catch (err) {
-            const msg = `업로드 오류: ${err.message || err}`;
-            alert(msg);
-            if (typeof showSaveToast === 'function') showSaveToast(msg, 'error');
+            if (typeof showSaveToast === 'function') showSaveToast(`업로드 오류: ${err.message || err}`, 'error');
             failed++;
         }
     }
