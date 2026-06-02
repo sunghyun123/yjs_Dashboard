@@ -1184,8 +1184,7 @@ function renderAttachmentFeed(listEl, attachments, scheduleId) {
         const filePath = att.file_path || '';
         const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
         const isImage = IMAGE_EXTS.has(ext);
-        // file_path는 자동화_데이터/... 형태이므로 자동화_데이터/ 이후 경로를 URL에 사용
-        const relPath = filePath.replace(/\\/g, '/').replace(/^자동화_데이터\//, '');
+        const relPath = filePath.replace(/\\/g, '/').replace(/^(?:자동화_데이터|uploads)\//, '');
         const imgUrl = `/uploads/photos/${relPath}`;
         const timeStr = (att.created_at || '').substring(0, 16).replace('T', ' ');
         const noteHtml = att.note ? `<div class="attachment-note">${escapeHtml(att.note)}</div>` : '';

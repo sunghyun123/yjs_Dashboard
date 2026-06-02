@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisResult(BaseModel):
-    # model_config 부분을 삭제했습니다.
     doc_type: Literal["작업일지", "영수증", "자재명세서", "확인필요_미분류"] = Field(description="문서 종류")
     project_name: str = Field(default="미파악공사", description="공사명")
     project_code: str = Field(default="000-000", description="공사코드")

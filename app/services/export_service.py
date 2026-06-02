@@ -28,7 +28,6 @@ class DailyExportService:
         statuses = worker.list_status()
         admin_requests = admin.list_daily_requests(target_date)
         audit_events = admin.list_daily_audit_events(target_date)
-        login_sessions = ScheduleRepository(self._db_path)  # placeholder
         from app.db.repos.user import UserRepository
         login_sessions = UserRepository(self._db_path).list_daily_sessions(target_date)
         chat_events = admin.list_daily_chat_events(target_date)
