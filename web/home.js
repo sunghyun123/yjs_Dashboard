@@ -262,10 +262,10 @@
                 labels: SALES_PROFIT_SAMPLE.labels,
                 datasets: [
                     {
-                        label: '손익금액',
-                        data: SALES_PROFIT_SAMPLE.profit.map(toMillionUnit),
-                        backgroundColor: 'rgba(222, 102, 43, 0.85)',
-                        borderColor: 'rgba(191, 78, 25, 1)',
+                        label: '성과금액',
+                        data: SALES_PROFIT_SAMPLE.outcome.map(toMillionUnit),
+                        backgroundColor: 'rgba(233, 179, 52, 0.85)',
+                        borderColor: 'rgba(197, 147, 29, 1)',
                         borderWidth: 1,
                     },
                     {
@@ -276,10 +276,10 @@
                         borderWidth: 1,
                     },
                     {
-                        label: '성과금액',
-                        data: SALES_PROFIT_SAMPLE.outcome.map(toMillionUnit),
-                        backgroundColor: 'rgba(233, 179, 52, 0.85)',
-                        borderColor: 'rgba(197, 147, 29, 1)',
+                        label: '손익금액',
+                        data: SALES_PROFIT_SAMPLE.profit.map(toMillionUnit),
+                        backgroundColor: 'rgba(222, 102, 43, 0.85)',
+                        borderColor: 'rgba(191, 78, 25, 1)',
                         borderWidth: 1,
                     },
                 ],
