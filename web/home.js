@@ -7,7 +7,7 @@
     const MONTHLY_PROGRESS_DATA = [
         // 김무선
         { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                               manager: '김무선', percent: 0,     planAmt: 35000,  actualAmt: 0    },
-        { no: 'TY25-004', name: '군포중 지중화공사',                                                         manager: '김무선', percent: 59.3,  planAmt: 30000,  actualAmt: 17783 },
+        { no: 'TY25-004', name: '군포중 지중화공사',                                                         manager: '김무선', percent: 76.3,  planAmt: 30000,  actualAmt: 22881 },
         { no: '',         name: '남양 뉴타운배전간선 설치공사',                                              manager: '김무선', percent: 0,     planAmt: 75000,  actualAmt: 0    },
         { no: 'TY25-006', name: '과천부림동 지중화공사',                                                     manager: '김무선', percent: 0,     planAmt: 8000,   actualAmt: 0    },
         // 김상훈
@@ -28,7 +28,7 @@
         { no: 'JY26-057', name: '고천동 526-7 이인성 저압 35kw 신설',                                       manager: '이재규', percent: 100.1, planAmt: 925,    actualAmt: 925  },
         { no: 'JY26-051', name: '관양동 1385-3 ㈜한미건설 임시 20kw 신설',                                  manager: '이재규', percent: 101.7, planAmt: 17,     actualAmt: 17   },
         { no: 'JY26-042', name: '박달동 15-17 조인준 일반용(갑)저압 10kw 신설',                             manager: '이재규', percent: 100.2, planAmt: 405,    actualAmt: 406  },
-        { no: 'JY26-043', name: '고천나구역 초등학교부지 일반용(을)고압A 950kw 신설',                       manager: '이재규', percent: 0,     planAmt: 9903,   actualAmt: 0    },
+        { no: 'JY26-043', name: '고천나구역 초등학교부지 일반용(을)고압A 950kw 신설',                       manager: '이재규', percent: 100.0, planAmt: 9903,   actualAmt: 9904 },
         { no: 'JG26-028', name: '광명동 광명시장 일반용 850kw 신설_3167',                                   manager: '이재규', percent: 0,     planAmt: 1002,   actualAmt: 0    },
         { no: 'JY25-172', name: '내손라구역 GS건설 300kW 신설(상가용)',                                     manager: '이재규', percent: 0,     planAmt: 1137,   actualAmt: 0    },
         { no: 'JY25-165', name: '내손라구역 대우건설 160kW 신설공사 (상가용)',                              manager: '이재규', percent: 0,     planAmt: 395,    actualAmt: 0    },
@@ -39,12 +39,12 @@
         { no: 'MY25-001', name: '수암천 하천정비 및 주차장,공사 조성사업 전기공사',                        manager: '김단후', percent: 0,     planAmt: 76363,  actualAmt: 0    },
     ];
 
-    // 6월 총 공정현황 (2026-06-08 기준)
+    // 6월 총 공정현황 (2026-06-09 기준)
     // 총 공정률 = (계획 실적 + 계획 외 실적) / 계획 목표금액
-    const JUN_TOTAL_PROGRESS    = 10.3;
-    const JUN_PLAN_ACTUAL_AMT   = 36493;  // 천원 — 계획 공사 실적
+    const JUN_TOTAL_PROGRESS    = 13.8;
+    const JUN_PLAN_ACTUAL_AMT   = 51496;  // 천원 — 계획 공사 실적
     const JUN_EXTRA_ACTUAL_AMT  = 7638;   // 천원 — 계획 외 공사 실적
-    const JUN_TOTAL_ACTUAL_AMT  = 44132;  // 천원 — 합계
+    const JUN_TOTAL_ACTUAL_AMT  = 59134;  // 천원 — 합계
     const JUN_TOTAL_PLAN_AMT    = 429250; // 천원 — 계획 목표금액
     // ─────────────────────────────────────────────────────────────────────────
 
