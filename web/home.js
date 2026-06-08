@@ -7,12 +7,12 @@
     const MONTHLY_PROGRESS_DATA = [
         // 김무선
         { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                               manager: '김무선', percent: 0,     planAmt: 35000,  actualAmt: 0    },
-        { no: 'TY25-004', name: '군포중 지중화공사',                                                         manager: '김무선', percent: 0,     planAmt: 30000,  actualAmt: 0    },
+        { no: 'TY25-004', name: '군포중 지중화공사',                                                         manager: '김무선', percent: 59.3,  planAmt: 30000,  actualAmt: 17783 },
         { no: '',         name: '남양 뉴타운배전간선 설치공사',                                              manager: '김무선', percent: 0,     planAmt: 75000,  actualAmt: 0    },
         { no: 'TY25-006', name: '과천부림동 지중화공사',                                                     manager: '김무선', percent: 0,     planAmt: 8000,   actualAmt: 0    },
         // 김상훈
         { no: 'SY26-002', name: '부림SW53외 26년경과 노후변압기선로 교체공사',                              manager: '김상훈', percent: 27.7,  planAmt: 36994,  actualAmt: 10233 },
-        { no: 'SY25-011', name: '대농2 맨홀 내 저압접속 불량개소 보수공사',                                 manager: '김상훈', percent: 0,     planAmt: 1706,   actualAmt: 0    },
+        { no: 'SY25-011', name: '대농2 맨홀 내 저압접속 불량개소 보수공사',                                 manager: '김상훈', percent: 100.0, planAmt: 1706,   actualAmt: 1706 },
         { no: 'SY26-010', name: '경수SW48 불량 경과지 관로 계통 보강공사',                                  manager: '김상훈', percent: 0,     planAmt: 11238,  actualAmt: 0    },
         { no: 'SY25-020', name: '경수TR24외 26년경과 노후변압기선로 교체공사',                              manager: '김상훈', percent: 0,     planAmt: 30190,  actualAmt: 0    },
         { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)',                  manager: '김상훈', percent: 0,     planAmt: 5747,   actualAmt: 0    },
@@ -41,10 +41,10 @@
 
     // 6월 총 공정현황 (2026-06-08 기준)
     // 총 공정률 = (계획 실적 + 계획 외 실적) / 계획 목표금액
-    const JUN_TOTAL_PROGRESS    = 5.7;
-    const JUN_PLAN_ACTUAL_AMT   = 17005;  // 천원 — 계획 공사 실적
+    const JUN_TOTAL_PROGRESS    = 10.3;
+    const JUN_PLAN_ACTUAL_AMT   = 36493;  // 천원 — 계획 공사 실적
     const JUN_EXTRA_ACTUAL_AMT  = 7638;   // 천원 — 계획 외 공사 실적
-    const JUN_TOTAL_ACTUAL_AMT  = 24643;  // 천원 — 합계
+    const JUN_TOTAL_ACTUAL_AMT  = 44132;  // 천원 — 합계
     const JUN_TOTAL_PLAN_AMT    = 429250; // 천원 — 계획 목표금액
     // ─────────────────────────────────────────────────────────────────────────
 
