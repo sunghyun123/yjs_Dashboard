@@ -7,7 +7,7 @@
     const MONTHLY_PROGRESS_DATA = [
         // 김무선
         { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                               manager: '김무선', percent: 0,     planAmt: 35000,  actualAmt: 0    },
-        { no: 'TY25-004', name: '군포중 지중화공사',                                                         manager: '김무선', percent: 76.3,  planAmt: 30000,  actualAmt: 22881 },
+        { no: 'TY25-004', name: '군포중 지중화공사',                                                         manager: '김무선', percent: 76.3,  planAmt: 30000,  actualAmt: 26114 },
         { no: '',         name: '남양 뉴타운배전간선 설치공사',                                              manager: '김무선', percent: 0,     planAmt: 75000,  actualAmt: 0    },
         { no: 'TY25-006', name: '과천부림동 지중화공사',                                                     manager: '김무선', percent: 0,     planAmt: 8000,   actualAmt: 0    },
         // 김상훈
@@ -41,18 +41,18 @@
 
     // 6월 총 공정현황 (2026-06-09 기준)
     // 총 공정률 = (계획 실적 + 계획 외 실적) / 계획 목표금액
-    const JUN_TOTAL_PROGRESS    = 13.8;
-    const JUN_PLAN_ACTUAL_AMT   = 51496;  // 천원 — 계획 공사 실적
+    const JUN_TOTAL_PROGRESS    = 14.5;
+    const JUN_PLAN_ACTUAL_AMT   = 54728;  // 천원 — 계획 공사 실적
     const JUN_EXTRA_ACTUAL_AMT  = 7638;   // 천원 — 계획 외 공사 실적
-    const JUN_TOTAL_ACTUAL_AMT  = 59134;  // 천원 — 합계
+    const JUN_TOTAL_ACTUAL_AMT  = 62367;  // 천원 — 합계
     const JUN_TOTAL_PLAN_AMT    = 429250; // 천원 — 계획 목표금액
     // ─────────────────────────────────────────────────────────────────────────
 
     const SALES_PROFIT_SAMPLE = {
         labels: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
-        profit:  [148077095, 273019042, 221839141, 173332713, 66160062,  4551099, 0, 0, 0, 0, 0, 0],
-        input:   [148259959, 330219307, 164792941, 149930938, 95582937,  20092067, 0, 0, 0, 0, 0, 0],
-        outcome: [296337055, 603238349, 386632082, 323263651, 161742999, 24643166, 0, 0, 0, 0, 0, 0],
+        profit:  [148077095, 273019042, 221839141, 173332713, 66160062,  27856202, 0, 0, 0, 0, 0, 0],
+        input:   [148259959, 330219307, 164792941, 149930938, 95582937,  34510934, 0, 0, 0, 0, 0, 0],
+        outcome: [296337055, 603238349, 386632082, 323263651, 161742999, 62367136, 0, 0, 0, 0, 0, 0],
     };
 
     let salesProfitChart = null;
