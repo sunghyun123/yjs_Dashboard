@@ -28,7 +28,8 @@
       "Bash(Select-Object Name, Mode)",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\조성현\\\\Documents\\\\GitHub\\\\yjs_Dashboard\" | Where-Object { $_.Name -notmatch \"^\\\\.\" -and $_.Name -ne \"__pycache__\" } | Select-Object Name, Mode | Sort-Object Mode, Name)",
       "Bash(dir C:\\\\Users\\\\조성현\\\\Documents\\\\GitHub\\\\yjs_Dashboard *)",
-      "Bash(python -c \"from app.services.erp_sync_service import sync_constructions; from app.api.schedules import router; from app.api.admin import router as admin_router; print\\('imports OK'\\)\")"
+      "Bash(python -c \"from app.services.erp_sync_service import sync_constructions; from app.api.schedules import router; from app.api.admin import router as admin_router; print\\('imports OK'\\)\")",
+      "Bash(python -c \"from app.api.admin import router; print\\('OK'\\)\")"
     ]
   }
 }

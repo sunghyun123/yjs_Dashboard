@@ -191,6 +191,37 @@ def review_request(
     return {"status": "success", "message": "요청이 승인 처리되었습니다."}
 
 
+@router.post("/erp-sync", summary="ERP 서버로 공사 일괄 동기화")
+def erp_bulk_sync(
+    date_from: str = "2026-06-01",
+    date_to: Optional[str] = None,
+    _admin=Depends(require_admin),
+    sched_repo: ScheduleRepository = Depends(get_schedule_repo),
+):
+    """
+    work_code가 있는 공사를 지정 기간 범위로 ERP에 일괄 전송한다.
+    date_to 미지정 시 오늘 이전까지.
+    """
+    from datetime import date as _date
+    end = date_to or _date.today().strftime("%Y-%m-%d")
+    rows = sched_repo.list_by_date_range(date_from, end)
+    records = [
+        r for r in rows
+        if str(r.get("work_code") or "").strip()
+    ]
+    if not records:
+        return {"status": "success", "message": "전송할 공사가 없습니다.", "sent": 0}
+
+    sync_constructions(records)
+    return {
+        "status": "success",
+        "message": f"{len(records)}건을 ERP로 전송했습니다.",
+        "sent": len(records),
+        "date_from": date_from,
+        "date_to": end,
+    }
+
+
 @router.get("/login-access-requests")
 def list_login_access_requests(
     status: str = "pending",
