@@ -2,7 +2,7 @@
 import asyncio
 import json
 import os.path
-from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, UploadFile, File
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any, Literal, List
 import logging
@@ -16,6 +16,7 @@ from app.db.repos.export import ExportRepository
 from app.db.deps import get_schedule_repo, get_admin_repo, get_worker_repo, get_export_repo
 from app.core.config import settings
 from app.core.auth import require_session
+from app.services.erp_sync_service import sync_constructions
 
 logger = logging.getLogger(__name__)
 
@@ -291,6 +292,7 @@ async def chat_with_ai(
 @router.post("/execute", summary="[V2] 사용자 확인 후 DB 실제 반영")
 async def execute_action(
     request: ExecuteRequest,
+    background_tasks: BackgroundTasks,
     user_session=Depends(require_session),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
     admin_repo: AdminRepository = Depends(get_admin_repo),
@@ -303,6 +305,8 @@ async def execute_action(
             if not request.schedule_data:
                 raise HTTPException(status_code=400, detail="일정 데이터가 누락되었습니다.")
             result = sched_repo.upsert(request.schedule_data, actor_user=actor_user, actor_device=actor_device)
+            if str(request.schedule_data.get("work_code") or "").strip():
+                background_tasks.add_task(sync_constructions, [request.schedule_data])
             return {"message": _upsert_result_message(result), "status": "success"}
 
         elif action in ["update", "delete"]:
@@ -432,6 +436,7 @@ def delete_worker_status(
 @router.post("/board/template-action", summary="전자칠판 템플릿 액션 처리")
 def board_template_action(
     request: BoardTemplateActionRequest,
+    background_tasks: BackgroundTasks,
     _user_session=Depends(require_session),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
     admin_repo: AdminRepository = Depends(get_admin_repo),
@@ -451,6 +456,10 @@ def board_template_action(
             },
             actor_user=actor_user, actor_device=actor_device,
         )
+        if str(request.work_code or "").strip():
+            background_tasks.add_task(sync_constructions, [
+                {"work_code": request.work_code, "task": request.task, "date": target_date}
+            ])
         return {"status": "success", "message": _upsert_result_message(result)}
 
     req_type = "update_request" if request.action_type == "update_request" else "delete_request"
@@ -476,6 +485,7 @@ def board_template_action(
 @router.post("/direct-update", summary="현황판/전자칠판 즉시 수정")
 def direct_update_schedule(
     request: DirectScheduleUpdateRequest,
+    background_tasks: BackgroundTasks,
     user_session=Depends(require_session),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
     admin_repo: AdminRepository = Depends(get_admin_repo),
@@ -499,6 +509,8 @@ def direct_update_schedule(
         before_json=json.dumps(before, ensure_ascii=False), after_json=json.dumps(after, ensure_ascii=False),
         reason=request.reason, actor_user=actor_user, actor_device=actor_device,
     )
+    if after and str(after.get("work_code") or "").strip():
+        background_tasks.add_task(sync_constructions, [after])
     return {"status": "success", "message": "일정이 즉시 수정되었습니다."}
 
 
@@ -549,6 +561,7 @@ def reorder_batch(
 @router.post("/import-construction-plan", summary="공사일정계획서 추출 행을 상황판에 반영")
 def import_construction_plan(
     request: ImportConstructionPlanRequest,
+    background_tasks: BackgroundTasks,
     user_session=Depends(require_session),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
 ):
@@ -560,6 +573,7 @@ def import_construction_plan(
     existing = sched_repo.search_by_keyword(date=target_date, keyword=None)
     inserted_ids: list[int] = []
     overlap_warnings: list[Dict[str, Any]] = []
+    erp_records: list[Dict[str, Any]] = []
 
     for raw in request.rows:
         if not isinstance(raw, dict):
@@ -603,6 +617,11 @@ def import_construction_plan(
         )
         inserted_ids.append(new_id)
         existing.append({"id": new_id, "task": task_title, "source_kind": "photo_plan"})
+        if wc:
+            erp_records.append({"work_code": wc, "task": task_title, "date": target_date})
+
+    if erp_records:
+        background_tasks.add_task(sync_constructions, erp_records)
 
     return {
         "status": "success",

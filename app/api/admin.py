@@ -3,7 +3,7 @@ import re
 import sqlite3
 from typing import Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.auth import require_admin
@@ -15,6 +15,7 @@ from app.db.repos.user import UserRepository
 from app.db.repos.export import ExportRepository
 from app.db.deps import get_schedule_repo, get_admin_repo, get_worker_repo, get_user_repo, get_export_repo
 from app.services.export_service import DailyExportService
+from app.services.erp_sync_service import sync_constructions
 
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
@@ -136,6 +137,7 @@ def recommend_candidates(
 @router.post("/requests/review")
 def review_request(
     payload: ReviewRequest,
+    background_tasks: BackgroundTasks,
     admin=Depends(require_admin),
     admin_repo: AdminRepository = Depends(get_admin_repo),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
@@ -171,6 +173,10 @@ def review_request(
 
     if request_type in ["update_request"] and payload.schedule_id and payload_data:
         applied = sched_repo.update_by_id(payload.schedule_id, payload_data, actor_user=actor_user, actor_device=actor_device)
+        if applied:
+            updated = sched_repo.get_by_id(payload.schedule_id)
+            if updated and str(updated.get("work_code") or "").strip():
+                background_tasks.add_task(sync_constructions, [updated])
     elif request_type in ["delete_request"] and payload.schedule_id:
         applied = sched_repo.soft_delete(schedule_id=payload.schedule_id, deleted_by=actor_user,
                                           delete_reason=payload.reason, actor_device=actor_device)
