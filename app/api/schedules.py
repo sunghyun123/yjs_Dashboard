@@ -28,6 +28,15 @@ ai_svc = GeminiService(api_key=settings.GEMINI_API_KEY)
 _construction_list_cache: List[Dict[str, str]] = []
 _construction_list_loaded: bool = False
 
+def reload_construction_list() -> int:
+    """캐시를 초기화하고 xlsx를 다시 로드한다. 로드된 건수를 반환."""
+    global _construction_list_cache, _construction_list_loaded
+    _construction_list_loaded = False
+    _construction_list_cache = []
+    _load_construction_list()
+    return len(_construction_list_cache)
+
+
 def _load_construction_list() -> List[Dict[str, str]]:
     global _construction_list_cache, _construction_list_loaded
     if _construction_list_loaded:

@@ -16,6 +16,7 @@ from app.db.repos.export import ExportRepository
 from app.db.deps import get_schedule_repo, get_admin_repo, get_worker_repo, get_user_repo, get_export_repo
 from app.services.export_service import DailyExportService
 from app.services.erp_sync_service import sync_constructions
+from app.api.schedules import reload_construction_list
 
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
@@ -362,3 +363,11 @@ def run_daily_export(
     except Exception as e:
         export_repo.create_export_job(target_date=target_date, status="failed", output_path="", message=str(e))
         raise HTTPException(status_code=500, detail=f"일일 내보내기 실패: {e}")
+
+
+@router.post("/reload-construction-list", summary="수주대장 자동완성 캐시 강제 리로드")
+def reload_construction_list_endpoint(
+    _admin=Depends(require_admin),
+):
+    count = reload_construction_list()
+    return {"status": "success", "message": f"수주대장 {count}건 리로드 완료"}

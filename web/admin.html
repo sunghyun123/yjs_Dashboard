@@ -82,6 +82,7 @@
                     <a href="/admin.html" class="btn btn-sm btn-light">관리자</a>
                 </nav>
             </div>
+            <button class="btn btn-outline-success btn-sm" onclick="reloadConstructionList()">수주대장 리로드</button>
             <button class="btn btn-outline-primary btn-sm" onclick="runDailyExport()">백업데이터 생성</button>
             <button class="btn btn-primary btn-sm" onclick="loadRequests()">새로고침</button>
             <button class="btn btn-outline-danger btn-sm" onclick="logout()">로그아웃</button>
@@ -964,6 +965,13 @@
         rejectModal.hide();
         alert(data.message || '반려 처리 완료');
         loadRequests();
+    }
+
+    async function reloadConstructionList() {
+        const res = await fetch('/api/admin/reload-construction-list', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) { alert(data.detail || '수주대장 리로드 실패'); return; }
+        alert(data.message || '수주대장 리로드 완료');
     }
 
     function runDailyExport() {
