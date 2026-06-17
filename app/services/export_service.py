@@ -12,6 +12,21 @@ from app.db.repos.export import ExportRepository
 from app.core.config import settings
 
 
+# 백업 Excel에 담을 컬럼 (내부 메타데이터·항상 빈 컬럼은 제외)
+# 제외: location(항상 빈값), last_actor_device(UA 문자열),
+#       source_kind / source_photo_upload_id / photo_plan_acknowledged / erp_data(내부 메타)
+SCHEDULE_COLS = [
+    "id", "date", "task", "person", "details", "tags",
+    "work_code", "shift_type", "category", "is_deleted",
+    "deleted_at", "deleted_by", "delete_reason",
+    "last_actor_user", "last_actor_at", "created_at",
+]
+STATUS_COLS = [
+    "user_name", "status", "location", "until_time", "note",
+    "updated_at", "last_actor_user", "last_actor_at", "exported_date",
+]
+
+
 class DailyExportService:
     def __init__(self, db_path: str, base_path: str = ""):
         self._db_path = db_path
@@ -44,28 +59,47 @@ class DailyExportService:
                 out.append(copied)
             return out
 
-        schedules_flagged = with_deleted_flag(schedules)
         all_flagged = with_deleted_flag(all_schedules)
 
         with pd.ExcelWriter(workbook_path, engine="openpyxl") as writer:
-            pd.DataFrame(schedules_flagged).to_excel(writer, sheet_name="공사일정_당일", index=False)
-            pd.DataFrame(all_flagged).to_excel(writer, sheet_name="공사일정_전체", index=False)
-            core_cols = [
-                "id", "date", "location", "task", "details", "person", "tags", "category", "is_deleted",
-                "deleted_at", "deleted_by", "delete_reason", "last_actor_user", "last_actor_at", "created_at",
+            # 공사일정: 당일/전체/핵심을 하나로 통합 (전체 일정, 정리된 컬럼)
+            schedule_rows = [{k: row.get(k, "") for k in SCHEDULE_COLS} for row in all_flagged]
+            pd.DataFrame(schedule_rows, columns=SCHEDULE_COLS).to_excel(
+                writer, sheet_name="공사일정", index=False
+            )
+
+            # 외출상태: 데이터가 있을 때만
+            if statuses:
+                status_rows = [
+                    {**{k: dict(row).get(k, "") for k in STATUS_COLS}, "exported_date": target_date}
+                    for row in statuses
+                ]
+                pd.DataFrame(status_rows, columns=STATUS_COLS).to_excel(
+                    writer, sheet_name="외출상태", index=False
+                )
+
+            # 부가 로그: 데이터가 있을 때만 시트 생성
+            optional_sheets = [
+                ("관리자요청", admin_requests),
+                ("감사로그", audit_events),
+                ("로그인세션", login_sessions),
+                ("채팅로그", chat_events),
             ]
-            core_rows = [{k: row.get(k, "") for k in core_cols} for row in all_flagged]
-            pd.DataFrame(core_rows).to_excel(writer, sheet_name="공사일정_핵심", index=False)
+            for sheet_name, rows in optional_sheets:
+                if rows:
+                    pd.DataFrame(rows).to_excel(writer, sheet_name=sheet_name, index=False)
 
-            status_rows = [{**dict(row), "exported_date": target_date} for row in statuses]
-            pd.DataFrame(status_rows).to_excel(writer, sheet_name="외출상태_스냅샷", index=False)
-            pd.DataFrame(admin_requests).to_excel(writer, sheet_name="관리자요청", index=False)
-            pd.DataFrame(audit_events).to_excel(writer, sheet_name="감사로그", index=False)
-            pd.DataFrame(login_sessions).to_excel(writer, sheet_name="로그인세션", index=False)
-            pd.DataFrame(chat_events).to_excel(writer, sheet_name="채팅로그", index=False)
-
+            # 운영지표: 분석용 핵심 데이터이므로 항상 포함
             metrics_rows = [{"metric": k, "value": v} for k, v in metrics.items()]
             pd.DataFrame(metrics_rows).to_excel(writer, sheet_name="운영지표", index=False)
+
+        # 분석용 일별 지표를 Firestore로 동기화(선택적, 실패해도 백업은 영향 없음)
+        firestore_synced = False
+        try:
+            from app.services.firestore_export_service import push_daily_metrics
+            firestore_synced = push_daily_metrics(metrics) is not None
+        except Exception:
+            firestore_synced = False
 
         export.create_export_job(
             target_date=target_date,
@@ -73,7 +107,8 @@ class DailyExportService:
             output_path=str(workbook_path),
             message=(
                 f"schedules={len(schedules)}, status={len(statuses)}, "
-                f"dau={metrics.get('daily_active_user_count', 0)}, chat={metrics.get('chat_count', 0)}"
+                f"dau={metrics.get('daily_active_user_count', 0)}, chat={metrics.get('chat_count', 0)}, "
+                f"firestore={'Y' if firestore_synced else 'N'}"
             ),
         )
         return {

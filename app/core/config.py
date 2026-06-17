@@ -1,4 +1,6 @@
 # app/core/config.py
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,6 +32,9 @@ class Settings(BaseSettings):
     GDRIVE_SHARED_DRIVE_ID: str = ""
     # 외출 복귀 시각(until_time) 비교에 사용. 브라우저는 로컬 날짜+시각으로 저장하므로 서버가 UTC여도 맞춤.
     APP_TIMEZONE: str = "Asia/Seoul"
+    # Firebase Firestore 연동 (포트폴리오용 일별 운영지표 분석 파이프라인)
+    # 서비스 계정 키 JSON 파일 경로. 비어 있으면 Firestore 동기화 비활성화.
+    FIREBASE_CREDENTIALS_FILE: str = ""
 
     # 예전 .env 값이 남아 있어도 기동되게 무시
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -43,6 +48,12 @@ class Settings(BaseSettings):
     def trusted_host_list(self) -> list[str]:
         values = [v.strip() for v in self.ALLOWED_HOSTS.split(",") if v.strip()]
         return values or ["*"]
+
+    @property
+    def firebase_enabled(self) -> bool:
+        """서비스 계정 키 파일이 지정되고 실제 존재할 때만 Firestore 동기화 활성화."""
+        path = (self.FIREBASE_CREDENTIALS_FILE or "").strip()
+        return bool(path) and Path(path).is_file()
 
     @property
     def sqlite_db_path(self) -> str:

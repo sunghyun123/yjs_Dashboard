@@ -29,7 +29,27 @@
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\조성현\\\\Documents\\\\GitHub\\\\yjs_Dashboard\" | Where-Object { $_.Name -notmatch \"^\\\\.\" -and $_.Name -ne \"__pycache__\" } | Select-Object Name, Mode | Sort-Object Mode, Name)",
       "Bash(dir C:\\\\Users\\\\조성현\\\\Documents\\\\GitHub\\\\yjs_Dashboard *)",
       "Bash(python -c \"from app.services.erp_sync_service import sync_constructions; from app.api.schedules import router; from app.api.admin import router as admin_router; print\\('imports OK'\\)\")",
-      "Bash(python -c \"from app.api.admin import router; print\\('OK'\\)\")"
+      "Bash(python -c \"from app.api.admin import router; print\\('OK'\\)\")",
+      "Bash(python -c \"import openpyxl; wb = openpyxl.load_workbook\\('수주대장조회.xlsx', read_only=True\\); print\\('Sheets:', wb.sheetnames\\)\")",
+      "Bash(python)",
+      "Bash(ls schedule.db)",
+      "Bash(ls -la yjsdashboard-firebase-adminsdk-fbsvc-5265fdc166.json)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('yjsdashboard-firebase-adminsdk-fbsvc-5265fdc166.json'\\)\\); print\\('project_id:', d.get\\('project_id'\\)\\); print\\('client_email:', d.get\\('client_email'\\)\\); print\\('keys:', list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(python -c \"import firebase_admin; print\\('firebase-admin:', firebase_admin.__version__\\)\")",
+      "Bash(pip install *)",
+      "Bash(ls -la .env)",
+      "Bash(cat .gitignore)",
+      "Bash(git status *)",
+      "Bash(touch scripts/__init__.py)",
+      "Bash(python -m scripts.backfill_firestore --dry-run)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m scripts.backfill_firestore)",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m scripts.seed_firestore --dry-run)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m scripts.seed_firestore)",
+      "Bash(python -c \"import google.cloud.bigquery as bq; print\\('bigquery client:', bq.__version__\\)\")",
+      "Bash(python -c \"import google.cloud.bigquery as bq; print\\('version:', bq.__version__\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 python -m scripts.sync_bigquery --dry-run)",
+      "Bash(PYTHONIOENCODING=utf-8 python -m scripts.sync_bigquery)"
     ]
   }
 }
