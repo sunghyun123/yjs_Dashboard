@@ -16,7 +16,7 @@
         { no: 'SY26-010', name: '경수SW48 불량 경과지 관로 계통 보강공사',                                  manager: '김상훈', percent: 0,     planAmt: 11238,  actualAmt: 0    },
         { no: 'SY25-020', name: '경수TR24외 26년경과 노후변압기선로 교체공사',                              manager: '김상훈', percent: 0,     planAmt: 30190,  actualAmt: 0    },
         { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)',                  manager: '김상훈', percent: 0,     planAmt: 5747,   actualAmt: 0    },
-        { no: 'SY26-016', name: '부림SW5 외 수명만료 노후 지중케이블 교체공사',                             manager: '김상훈', percent: 93.1,  planAmt: 45588,  actualAmt: 42422 },
+        { no: 'SY26-016', name: '부림SW5 외 수명만료 노후 지중케이블 교체공사',                             manager: '김상훈', percent: 100.0, planAmt: 45588,  actualAmt: 45588 },
         { no: 'SG26-005', name: '26년 특정제원 지상개폐기 교체공사',                                        manager: '김상훈', percent: 0,     planAmt: 14899,  actualAmt: 0    },
         { no: 'SG26-011', name: '특정제원(이엔테크제) 지상개폐기 교체공사(하안249, 하안138-2)',              manager: '김상훈', percent: 100.0, planAmt: 2459,   actualAmt: 2459 },
         { no: 'SG26-004', name: '하안259 지상개폐기 교체공사(PT불량)',                                      manager: '김상훈', percent: 100.0, planAmt: 1131,   actualAmt: 1131 },
@@ -34,26 +34,26 @@
         { no: 'JY25-165', name: '내손라구역 대우건설 160kW 신설공사 (상가용)',                              manager: '이재규', percent: 100.1, planAmt: 395,    actualAmt: 395  },
         { no: 'JY25.260', name: '안양동 413-1 ㈜대영플러스 일반용(갑)저압 120kW 신설 외 1',                manager: '이재규', percent: 100.0, planAmt: 7472,   actualAmt: 7473 },
         { no: 'JY26-011', name: '관양동1020-1 현대드림모터스 89kw 증설_3040',                              manager: '이재규', percent: 0,     planAmt: 14296,  actualAmt: 0    },
-        { no: 'JY26-022', name: '(지중)하안동 광명시청 일반용(갑)저압 300kw 신설(상용/임시)',              manager: '이재규', percent: 0,     planAmt: 15102,  actualAmt: 0    },
+        { no: 'JY26-022', name: '(지중)하안동 광명시청 일반용(갑)저압 300kw 신설(상용/임시)',              manager: '이재규', percent: 50.0,  planAmt: 15102,  actualAmt: 7550 },
         // 김단후
         { no: 'MY25-001', name: '수암천 하천정비 및 주차장,공사 조성사업 전기공사',                        manager: '김단후', percent: 0,     planAmt: 76363,  actualAmt: 0    },
     ];
 
-    // 6월 총 공정현황 (2026-06-17 기준)
+    // 6월 총 공정현황 (2026-06-18 기준)
     // 총 공정률 = (계획 실적 + 계획 외 실적) / 계획 목표금액
-    const JUN_DATA_UPDATED      = '2026-06-17';
-    const JUN_TOTAL_PROGRESS    = 31.8;
-    const JUN_PLAN_ACTUAL_AMT   = 123646; // 천원 — 계획 공사 실적
-    const JUN_EXTRA_ACTUAL_AMT  = 12904;  // 천원 — 계획 외 공사 실적
-    const JUN_TOTAL_ACTUAL_AMT  = 136551; // 천원 — 합계
+    const JUN_DATA_UPDATED      = '2026-06-18';
+    const JUN_TOTAL_PROGRESS    = 34.8;
+    const JUN_PLAN_ACTUAL_AMT   = 134362; // 천원 — 계획 공사 실적
+    const JUN_EXTRA_ACTUAL_AMT  = 14958;  // 천원 — 계획 외 공사 실적
+    const JUN_TOTAL_ACTUAL_AMT  = 149320; // 천원 — 합계
     const JUN_TOTAL_PLAN_AMT    = 429250; // 천원 — 계획 목표금액
     // ─────────────────────────────────────────────────────────────────────────
 
     const SALES_PROFIT_SAMPLE = {
         labels: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
-        profit:  [148077095, 273019042, 221839141, 173332713, 66160062,  63954362, 0, 0, 0, 0, 0, 0],
-        input:   [148259959, 330219307, 164792941, 149930938, 95582937,  72596320, 0, 0, 0, 0, 0, 0],
-        outcome: [296337055, 603238349, 386632082, 323263651, 161742999, 136550682, 0, 0, 0, 0, 0, 0],
+        profit:  [148077095, 273019042, 221839141, 173332713, 66160062,  69402468, 0, 0, 0, 0, 0, 0],
+        input:   [148259959, 330219307, 164792941, 149930938, 95582937,  79917054, 0, 0, 0, 0, 0, 0],
+        outcome: [296337055, 603238349, 386632082, 323263651, 161742999, 149319522, 0, 0, 0, 0, 0, 0],
     };
 
     let salesProfitChart = null;
