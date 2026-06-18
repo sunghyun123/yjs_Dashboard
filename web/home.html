@@ -18,17 +18,20 @@
             --y-text-subtle: #5f6f82;
         }
 
+        html, body { height: 100%; }
+
         body {
             margin: 0;
             background: var(--y-bg);
             font-family: 'Malgun Gothic', sans-serif;
             color: #172230;
+            overflow: hidden; /* 1600x900 한 화면 고정 */
         }
 
         .home-header {
             background: linear-gradient(110deg, #0b3a67, #1a5895);
             color: #fff;
-            padding: 10px 0;
+            padding: 8px 0;
             box-shadow: 0 3px 14px rgba(8, 31, 58, 0.2);
             position: fixed;
             top: 0;
@@ -39,7 +42,7 @@
 
         .header-title {
             margin: 0;
-            font-size: 1.38rem;
+            font-size: 1.3rem;
             font-weight: 900;
             letter-spacing: 0.08em;
             line-height: 1;
@@ -52,10 +55,23 @@
             text-shadow: 0 0 10px rgba(255, 80, 60, 0.28);
         }
 
-        .header-sub {
-            font-size: 0.82rem;
+        .top-nav-shell {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.38);
+            background: rgba(7, 28, 52, 0.24);
+        }
+
+        .top-nav-label {
+            font-size: 0.66rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
             color: rgba(255, 255, 255, 0.82);
-            margin: 0;
+            line-height: 1;
         }
 
         .app-top-nav {
@@ -64,30 +80,11 @@
             flex-wrap: wrap;
         }
 
-        .top-nav-shell {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 10px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.38);
-            background: rgba(7, 28, 52, 0.24);
-        }
-
-        .top-nav-label {
-            font-size: 0.68rem;
-            font-weight: 700;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.82);
-            line-height: 1;
-        }
-
         .app-top-nav .btn {
             border-radius: 999px;
-            font-size: 0.78rem;
-            padding: 4px 11px;
-            min-width: 74px;
+            font-size: 0.76rem;
+            padding: 3px 11px;
+            min-width: 70px;
             font-weight: 700;
         }
 
@@ -96,8 +93,20 @@
         }
 
         .home-shell {
-            padding-top: 88px;
-            padding-bottom: 24px;
+            position: fixed;
+            top: 52px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 10px 14px 12px;
+        }
+
+        .home-row {
+            height: 100%;
+        }
+
+        .home-row > [class^="col"] {
+            height: 100%;
         }
 
         .home-card {
@@ -107,40 +116,29 @@
             box-shadow: 0 3px 10px rgba(13, 41, 69, 0.06);
         }
 
-        .summary-value {
-            font-size: 1.55rem;
-            font-weight: 800;
-            line-height: 1.1;
-            color: #102a44;
-        }
-
-        .summary-label {
-            font-size: 0.82rem;
-            color: var(--y-text-subtle);
-        }
-
         .section-title {
-            font-size: 0.98rem;
+            font-size: 0.94rem;
             font-weight: 700;
             color: #1f3045;
         }
 
+        /* ── 외출/행선표 ── */
         .worker-grid {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 6px;
+            gap: 5px;
         }
 
         .worker-row {
             border: 1px solid #e3ebf4;
-            border-radius: 10px;
+            border-radius: 9px;
             background: #f9fbff;
-            padding: 6px 8px;
-            min-height: 44px;
+            padding: 6px 9px;
+            min-height: 42px;
         }
 
         .worker-row b {
-            font-size: 0.87rem;
+            font-size: 0.85rem;
         }
 
         .worker-row .btn.badge {
@@ -167,20 +165,21 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            font-size: 0.74rem;
+            font-size: 0.72rem;
             color: #3f5f86;
             white-space: nowrap;
         }
 
         .worker-outing-meta .btn-link {
-            font-size: 0.74rem;
+            font-size: 0.72rem;
             color: #0d6efd;
         }
 
         .worker-status-scroll {
-            max-height: 398px;
             overflow-y: auto;
             padding-right: 2px;
+            flex: 1 1 auto;
+            min-height: 0;
         }
 
         .worker-status-scroll::-webkit-scrollbar {
@@ -196,102 +195,196 @@
             background: transparent;
         }
 
-        .quick-link {
-            border: 1px solid #d5e2f0;
-            border-radius: 10px;
-            padding: 10px;
-            display: block;
-            text-decoration: none;
-            color: #1b3551;
-            background: #f8fbff;
-            font-weight: 700;
-        }
-
-        .quick-link:hover {
-            background: #edf5ff;
-            border-color: #b9cfe8;
-        }
-
-        .progress-carousel .carousel-indicators {
-            position: static;
-            margin: 10px 0 0;
-        }
-
-        .progress-carousel .carousel-indicators [data-bs-target] {
-            background-color: #9eb5cc;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            border: 0;
-        }
-
-        .progress-carousel .carousel-indicators .active {
-            background-color: #2f5fa0;
-            width: 22px;
-            border-radius: 999px;
-        }
-
-        .progress-slide-card {
-            border: 1px solid #e3ebf6;
-            border-radius: 12px;
-            padding: 8px 10px;
-            background: #f8fbff;
-            min-height: 84px;
-        }
-
-        .progress-project {
-            font-weight: 800;
-            font-size: 0.9rem;
-            color: #1f3045;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .progress-percent {
-            font-weight: 800;
-            color: #1c8b4c;
-            font-size: 0.9rem;
-        }
-
-        .progress-meta-amt {
-            font-size: 0.72rem;
-            color: #2e6e4a;
-            font-weight: 600;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-        .progress-meta {
-            font-size: 0.76rem;
-            color: #5c6f84;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .progress-slide-stack {
-            display: grid;
-            grid-template-rows: repeat(5, auto);
-            gap: 6px;
-        }
-
-        .total-progress-wrap {
-            min-height: 332px;
+        /* ── 현장 날씨 ── */
+        .weather-now {
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 12px;
+            background: linear-gradient(120deg, #eaf3fb, #f4f9ff);
+            border: 1px solid #d9e8f5;
+            border-radius: 12px;
+            padding: 10px 12px;
         }
 
-        .total-progress-canvas-wrap {
-            width: min(220px, 100%);
-            margin: 0 auto;
+        .weather-icon { font-size: 2.4rem; line-height: 1; }
+        .weather-temp { font-size: 1.85rem; font-weight: 800; color: #143656; line-height: 1; }
+        .weather-cond { font-size: 0.8rem; color: #4a647e; margin-top: 2px; }
+
+        .weather-meta {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
         }
 
-        .total-progress-donut {
-            --progress: 68;
+        .weather-chip {
+            font-size: 0.72rem;
+            color: #44607a;
+            background: #f1f6fb;
+            border: 1px solid #dde9f3;
+            border-radius: 999px;
+            padding: 3px 9px;
+        }
+
+        .weather-chip b { color: #1f3045; }
+
+        .weather-forecast {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-top: 9px;
+        }
+
+        .wf-day {
+            text-align: center;
+            border: 1px solid #e6eef6;
+            border-radius: 10px;
+            padding: 7px 4px;
+            background: #fbfdff;
+        }
+
+        .wf-day .d { font-size: 0.72rem; color: #6b7d90; font-weight: 700; }
+        .wf-day .i { font-size: 1.3rem; margin: 3px 0; }
+        .wf-day .t { font-size: 0.74rem; font-weight: 700; color: #1f3045; }
+        .wf-day .t small { color: #8aa0b4; font-weight: 600; }
+        .dust-good { color: #2f9e44; font-weight: 700; }
+        .dust-soso { color: #f08c00; font-weight: 700; }
+        .dust-bad { color: #e8590c; font-weight: 700; }
+
+        .weather-alert {
+            font-size: 0.72rem;
+            color: #8a5a00;
+            margin-top: 8px;
+        }
+
+        /* ── 진행중 공사 지도 ── */
+        .map-card-body {
+            position: relative;
+            flex: 1 1 auto;
+            min-height: 0;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #dbe7df;
+            background: #eef3f1;
+        }
+
+        #progressMap {
+            position: absolute;
+            inset: 0;
             width: 100%;
-            max-width: 220px;
+            height: 100%;
+        }
+
+        .map-overlay-label {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(255, 255, 255, 0.86);
+            border: 1px solid #d3e0ec;
+            border-radius: 8px;
+            padding: 5px 10px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #2c4a6b;
+            z-index: 6;
+            pointer-events: none;
+        }
+
+        .map-legend {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #d3e0ec;
+            border-radius: 10px;
+            padding: 7px 11px;
+            font-size: 0.73rem;
+            color: #45586c;
+            z-index: 6;
+            line-height: 1.65;
+            pointer-events: none;
+        }
+
+        .legend-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+            transform: translateY(1px);
+        }
+
+        .map-placeholder {
+            position: absolute;
+            inset: 0;
+            z-index: 8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-align: center;
+            padding: 24px;
+            background:
+                radial-gradient(circle at 30% 25%, #eaf3e8 0 18%, transparent 18%),
+                radial-gradient(circle at 72% 60%, #e7f0f7 0 26%, transparent 26%),
+                linear-gradient(135deg, #eef4ec 0%, #e9f1f6 100%);
+            color: #5b7088;
+            font-size: 0.85rem;
+        }
+
+        .map-placeholder .ph-icon { font-size: 2rem; }
+        .map-placeholder.d-none { display: none; }
+
+        /* 클릭 툴팁 (카카오 CustomOverlay 내용) */
+        .map-tip {
+            position: relative;
+            width: 232px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(13, 41, 69, 0.22);
+            border: 1px solid #e1e9f2;
+            padding: 11px 13px;
+        }
+
+        .map-tip::after {
+            content: "";
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 8px 8px 0 8px;
+            border-style: solid;
+            border-color: #fff transparent transparent transparent;
+            filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.06));
+        }
+
+        .map-tip-close {
+            position: absolute;
+            top: 4px;
+            right: 6px;
+            border: 0;
+            background: transparent;
+            color: #98a8b8;
+            font-size: 1.1rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .map-tip-close:hover { color: #5b6b7b; }
+
+        .tt-name { font-size: 0.82rem; font-weight: 800; color: #1c3350; line-height: 1.3; padding-right: 14px; }
+        .tt-row { display: flex; justify-content: space-between; font-size: 0.74rem; margin-top: 5px; color: #54677c; }
+        .tt-row b { color: #1f3045; }
+        .tt-pct { color: #1c8b4c; font-weight: 800; }
+        .tt-bar { height: 6px; border-radius: 999px; background: #eef2f7; margin-top: 7px; overflow: hidden; }
+        .tt-bar > div { height: 100%; background: #2f9e44; }
+
+        /* ── 총 공정률 도넛 ── */
+        .total-progress-donut {
+            --progress: 34.8;
+            width: 100%;
+            max-width: 168px;
             aspect-ratio: 1 / 1;
             margin: 0 auto;
             border-radius: 50%;
@@ -320,24 +413,15 @@
             line-height: 1.15;
         }
 
-        .total-progress-value {
-            font-size: 1.7rem;
-            font-weight: 800;
-            color: #1f3045;
-        }
-
-        .total-progress-sub {
-            font-size: 0.72rem;
-            font-weight: 700;
-            color: #62758b;
-        }
+        .total-progress-value { font-size: 1.5rem; font-weight: 800; color: #1f3045; }
+        .total-progress-sub { font-size: 0.7rem; font-weight: 700; color: #62758b; }
 
         .total-progress-legend {
             display: flex;
             justify-content: center;
             gap: 10px;
-            margin-top: 8px;
-            font-size: 0.78rem;
+            margin-top: 7px;
+            font-size: 0.76rem;
             color: #4f6278;
         }
 
@@ -350,30 +434,24 @@
             transform: translateY(-1px);
         }
 
-        .dot-chip.progress {
-            background: #2f8df7;
-        }
-
-        .dot-chip.remain {
-            background: #ff7a00;
-        }
+        .dot-chip.progress { background: #2f8df7; }
+        .dot-chip.remain { background: #ff7a00; }
 
         .total-progress-caption {
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             color: #5f6f82;
             text-align: center;
-            margin-top: 8px;
+            margin-top: 6px;
+            line-height: 1.55;
         }
 
-        .progress-slide-card.is-placeholder {
-            visibility: hidden;
-            pointer-events: none;
-        }
-
+        /* ── 바로가기 ── */
         .mini-link-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            overflow-y: auto;
+            min-height: 0;
         }
 
         .mini-link {
@@ -382,9 +460,9 @@
             background: #f8fbff;
             text-decoration: none;
             color: #1a3655;
-            padding: 10px 8px;
+            padding: 9px 6px;
             text-align: center;
-            font-size: 0.8rem;
+            font-size: 0.76rem;
             font-weight: 700;
             transition: all 0.15s ease;
         }
@@ -395,63 +473,20 @@
             transform: translateY(-1px);
         }
 
-        .mini-link-icon {
-            font-size: 1.15rem;
-            display: block;
-            margin-bottom: 4px;
-        }
-
         .mini-link-favicon {
             width: 18px;
             height: 18px;
             display: block;
-            margin: 0 auto 4px;
+            margin: 0 auto 3px;
             border-radius: 4px;
             object-fit: cover;
         }
 
         .mini-link-icon-fallback {
             display: block;
-            margin-bottom: 4px;
-            font-size: 1.1rem;
+            margin-bottom: 3px;
+            font-size: 1.05rem;
             line-height: 1;
-        }
-
-        #salesProfitChart {
-            width: 100%;
-            max-height: 290px;
-        }
-
-        .sales-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
-            margin-bottom: 6px;
-        }
-
-        .sales-total-inline {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-        }
-
-        .sales-total-chip {
-            border: 1px solid #dce8f4;
-            background: #f8fbff;
-            border-radius: 999px;
-            padding: 3px 8px;
-            font-size: 0.72rem;
-            color: #4f6074;
-            line-height: 1.2;
-            white-space: nowrap;
-        }
-
-        .sales-total-chip b {
-            color: #1f3045;
-            font-weight: 800;
-            margin-left: 3px;
         }
 
         .login-card {
@@ -482,63 +517,16 @@
             margin-top: 2px;
         }
 
-        @media (max-width: 768px) {
-            .header-title {
-                font-size: 1.05rem;
-            }
-
+        /* 1600x900 미만 / 세로 짧은 화면: 스크롤 허용으로 폴백 */
+        @media (max-width: 1200px), (max-height: 720px) {
+            body { overflow: auto; }
             .home-shell {
-                padding-top: 124px;
+                position: static;
+                top: auto;
+                padding: 70px 12px 16px;
             }
-
-            .summary-value {
-                font-size: 1.3rem;
-            }
-
-            .worker-status-scroll { max-height: 360px; }
-
-            .total-progress-wrap { min-height: 0; }
-        }
-
-        /* 1980x1080급 데스크톱에서 한 화면 가시성을 높이기 위한 압축 레이아웃 */
-        @media (min-width: 1600px) and (min-height: 900px) {
-            .home-shell {
-                padding-top: 80px;
-                padding-bottom: 10px;
-            }
-
-            .home-shell .row {
-                --bs-gutter-x: 0.75rem;
-                --bs-gutter-y: 0.55rem;
-            }
-
-            .summary-value {
-                font-size: 1.36rem;
-            }
-
-            .section-title {
-                font-size: 0.9rem;
-            }
-
-            .worker-status-scroll { max-height: 400px; }
-
-            .progress-slide-stack { gap: 4px; }
-
-            .total-progress-wrap { min-height: 270px; }
-
-            #salesProfitChart {
-                max-height: 205px;
-            }
-
-            .mini-link {
-                padding: 8px 6px;
-                font-size: 0.74rem;
-            }
-
-            .sales-total-chip {
-                padding: 2px 7px;
-                font-size: 0.68rem;
-            }
+            .home-row, .home-row > [class^="col"] { height: auto; }
+            .map-card-body { min-height: 380px; }
         }
     </style>
 </head>
@@ -546,19 +534,17 @@
 <body>
     <header class="home-header">
         <div class="container-fluid px-3 px-md-4">
-            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-                <div>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <h1 class="header-title">YEC</h1>
-                        <div class="top-nav-shell">
-                            <span class="top-nav-label">메뉴</span>
-                            <nav class="app-top-nav" aria-label="주요 화면 이동">
-                                <a href="/home.html" class="btn btn-sm btn-light">홈</a>
-                                <a href="/dashboard.html" class="btn btn-sm btn-outline-light">월간 계획표</a>
-                                <a href="/index.html" class="btn btn-sm btn-outline-light">AI 비서</a>
-                                <a href="/admin.html" id="drawerAdminLink" class="btn btn-sm btn-outline-warning js-admin-only d-none">관리자</a>
-                            </nav>
-                        </div>
+            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <h1 class="header-title">YEC</h1>
+                    <div class="top-nav-shell">
+                        <span class="top-nav-label">메뉴</span>
+                        <nav class="app-top-nav" aria-label="주요 화면 이동">
+                            <a href="/home.html" class="btn btn-sm btn-light">홈</a>
+                            <a href="/dashboard.html" class="btn btn-sm btn-outline-light">월간 계획표</a>
+                            <a href="/index.html" class="btn btn-sm btn-outline-light">AI 비서</a>
+                            <a href="/admin.html" id="drawerAdminLink" class="btn btn-sm btn-outline-warning js-admin-only d-none">관리자</a>
+                        </nav>
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
@@ -570,86 +556,112 @@
         </div>
     </header>
 
-    <main class="container-fluid px-3 px-md-4 home-shell">
-        <section class="row g-3">
-            <div class="col-12 col-xl-4">
-                <div class="home-card p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div class="section-title">외출/행선표</div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadWorkerStatusHome()" title="새로고침" aria-label="새로고침">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
-                                <path d="M8 3a5 5 0 1 0 4.546 2.916.5.5 0 1 1 .908-.418A6 6 0 1 1 8 2v1z"/>
-                                <path d="M8 0a.5.5 0 0 1 .5.5V2a.5.5 0 0 1-1 0V.5A.5.5 0 0 1 8 0z"/>
-                                <path d="M8.5 2.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1z"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="worker-status-scroll">
-                        <div id="workerStatusListHome" class="worker-grid"></div>
-                    </div>
-                </div>
-            </div>
+    <main class="home-shell">
+        <div class="row g-2 home-row">
+            <!-- 좌: 외출/행선표 + 현장 날씨 -->
             <div class="col-12 col-xl-3">
-                <div class="home-card p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div class="section-title">6월 총 공정률</div>
-                        <span class="badge text-bg-light border">진행/미달성</span>
-                    </div>
-                    <div class="total-progress-wrap">
-                        <div class="total-progress-canvas-wrap">
-                            <div id="totalProgressDonut" class="total-progress-donut" style="--progress:53.6;">
-                                <div class="total-progress-center">
-                                    <div id="totalProgressValue" class="total-progress-value">53.6%</div>
-                                    <div class="total-progress-sub">6월 총 공정률</div>
-                                </div>
-                            </div>
-                            <div class="total-progress-legend">
-                                <span><i class="dot-chip progress"></i><span id="totalProgressLegendDone">진행 53.6%</span></span>
-                                <span><i class="dot-chip remain"></i><span id="totalProgressLegendRemain">미달성 46.4%</span></span>
-                            </div>
-                            <div id="totalProgressAmount" class="total-progress-caption" style="margin-top:4px;font-weight:700;color:#1f3045;font-size:0.88rem;line-height:1.65;"></div>
-                            <div class="total-progress-caption"></div>
+                <div class="d-flex flex-column gap-2 h-100">
+                    <!-- 외출/행선표 -->
+                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 56%; min-height: 0;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="section-title">외출/행선표</div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadWorkerStatusHome()" title="새로고침" aria-label="새로고침">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                                    <path d="M8 3a5 5 0 1 0 4.546 2.916.5.5 0 1 1 .908-.418A6 6 0 1 1 8 2v1z"/>
+                                    <path d="M8 0a.5.5 0 0 1 .5.5V2a.5.5 0 0 1-1 0V.5A.5.5 0 0 1 8 0z"/>
+                                    <path d="M8.5 2.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="worker-status-scroll">
+                            <div id="workerStatusListHome" class="worker-grid"></div>
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-12 col-xl-5">
-                <div class="home-card p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div class="section-title">월별 공정률</div>
-                        <span class="badge text-bg-light border">슬라이드</span>
-                    </div>
-                    <div id="projectProgressCarousel" class="carousel slide progress-carousel" data-bs-ride="carousel" data-bs-interval="5000" data-bs-pause="hover">
-                        <div id="projectProgressCarouselInner" class="carousel-inner"></div>
-                        <div id="projectProgressCarouselIndicators" class="carousel-indicators"></div>
-                    </div>
-                </div>
-            </div>
-        </section>
 
-        <section class="row g-3 mt-1">
-            <div class="col-12 col-xl-8">
-                <div class="home-card p-3 h-100">
-                    <div class="sales-header">
-                        <div class="section-title">매출 / 손익 현황 (백만원)</div>
-                        <div class="sales-total-inline" id="salesTotalGrid">
-                            <div class="sales-total-chip">성과<b id="totalOutcomeValue">0백만원</b></div>
-                            <div class="sales-total-chip">투입<b id="totalInputValue">0백만원</b></div>
-                            <div class="sales-total-chip">손익<b id="totalProfitValue">0백만원</b></div>
+                    <!-- 현장 날씨 -->
+                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 44%; min-height: 0;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="section-title">현장 날씨 · <span id="weatherCity">안양</span></div>
+                            <span id="weatherDateBadge" class="badge text-bg-light border">-</span>
+                        </div>
+                        <div class="weather-now">
+                            <div class="weather-icon" id="weatherIcon">⛅</div>
+                            <div>
+                                <div class="weather-temp" id="weatherTemp">--°</div>
+                                <div class="weather-cond" id="weatherCond">날씨 정보 연동 대기</div>
+                            </div>
+                        </div>
+                        <div class="weather-meta" id="weatherMeta">
+                            <span class="weather-chip">강수확률 <b id="weatherPop">--</b></span>
+                            <span class="weather-chip">바람 <b id="weatherWind">--</b></span>
+                            <span class="weather-chip">습도 <b id="weatherHumidity">--</b></span>
+                        </div>
+                        <div class="weather-forecast" id="weatherForecast"></div>
+                        <div class="weather-alert" id="weatherAlert"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 중앙: 진행중 공사 지도 -->
+            <div class="col-12 col-xl-6">
+                <div class="home-card p-3 d-flex flex-column h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="section-title">진행중 공사 지도</div>
+                        <div class="d-flex align-items-center gap-2">
+                            <a href="/map-admin.html" class="badge text-bg-light border text-decoration-none" title="공사 목록·위치 관리">⚙ 위치 관리</a>
+                            <span id="mapCountBadge" class="badge text-bg-light border">자동 표시</span>
                         </div>
                     </div>
-                    <canvas id="salesProfitChart"></canvas>
-                </div>
-            </div>
-            <div class="col-12 col-xl-4">
-                <div class="home-card p-3 h-100">
-                    <div class="section-title mb-2">바로가기 모음</div>
-                    <div id="homeFrequentSiteList" class="mini-link-grid">
-                        <div class="text-muted small">불러오는 중...</div>
+                    <div class="map-card-body">
+                        <div id="progressMap"></div>
+                        <div class="map-overlay-label">📍 경기 안양·군포·과천·광명 일대</div>
+                        <div class="map-legend">
+                            <div><span class="legend-dot" style="background:#2f6fed"></span>김무선</div>
+                            <div><span class="legend-dot" style="background:#e8590c"></span>김상훈</div>
+                            <div><span class="legend-dot" style="background:#2f9e44"></span>이재규</div>
+                            <div><span class="legend-dot" style="background:#ae3ec9"></span>김단후</div>
+                        </div>
+                        <div id="mapPlaceholder" class="map-placeholder">
+                            <div class="ph-icon">🗺️</div>
+                            <div id="mapPlaceholderText">지도를 불러오는 중...</div>
+                        </div>
+                    </div>
+                    <div class="text-muted mt-2" style="font-size:0.74rem;">
+                        ※ 우측 상단 <b>⚙ 위치 관리</b>에서 월 1회 공사 목록을 갱신하면 핀이 반영됩니다. 위치가 틀어진 건은 지도에서 핀을 끌어 고정하세요.
                     </div>
                 </div>
             </div>
-        </section>
+
+            <!-- 우: 총 공정률 + 바로가기 -->
+            <div class="col-12 col-xl-3">
+                <div class="d-flex flex-column gap-2 h-100">
+                    <div class="home-card p-3" style="flex: 0 0 auto;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="section-title">6월 총 공정률</div>
+                            <span class="badge text-bg-light border">진행/미달성</span>
+                        </div>
+                        <div id="totalProgressDonut" class="total-progress-donut" style="--progress:34.8;">
+                            <div class="total-progress-center">
+                                <div id="totalProgressValue" class="total-progress-value">34.8%</div>
+                                <div class="total-progress-sub">6월 총 공정률</div>
+                            </div>
+                        </div>
+                        <div class="total-progress-legend">
+                            <span><i class="dot-chip progress"></i><span id="totalProgressLegendDone">진행 34.8%</span></span>
+                            <span><i class="dot-chip remain"></i><span id="totalProgressLegendRemain">미달성 65.2%</span></span>
+                        </div>
+                        <div id="totalProgressAmount" class="total-progress-caption" style="margin-top:6px;font-weight:700;color:#1f3045;font-size:0.84rem;line-height:1.6;"></div>
+                    </div>
+
+                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 auto; min-height: 0;">
+                        <div class="section-title mb-2">바로가기 모음</div>
+                        <div id="homeFrequentSiteList" class="mini-link-grid">
+                            <div class="text-muted small">불러오는 중...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <div class="modal fade" id="workerReturnTimeModal" tabindex="-1" aria-hidden="true">
@@ -705,10 +717,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20260527"></script>
+    <script src="/home.js?v=20260618e"></script>
 </body>
 
 </html>

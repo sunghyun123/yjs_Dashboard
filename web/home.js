@@ -1,46 +1,22 @@
 (function () {
-    // ─── 임시 실제 데이터 (6월 기준) ─────────────────────────────────────────
-    // API 연동 시 MONTHLY_PROGRESS_DATA 배열과 JUN_TOTAL_PROGRESS 상수만 삭제하면 됩니다.
+    // ═══════════════════════════════════════════════════════════════════════
+    //  연동 키 (사용자 발급 후 입력) ─ 이 두 값만 채우면 지도/날씨가 동작합니다.
+    // ───────────────────────────────────────────────────────────────────────
+    //  카카오맵 JS 키는 서버 .env(KAKAO_MAP_JS_KEY)에 두고 `/api/public-config`로 받아온다.
+    //    (도메인 제한이 걸린 공개 키이지만 코드/깃에 하드코딩하지 않기 위함)
+    //  WEATHER_API_BASE: 날씨는 CORS/키 보호를 위해 백엔드 프록시(`/api/weather/current`) 경유.
+    //    백엔드 엔드포인트가 준비되면 자동으로 실데이터가 표시됩니다.
+    const WEATHER_API_BASE = '/api/weather/current';
+    let kakaoMapJsKey = ''; // /api/public-config에서 런타임 주입
+    // ═══════════════════════════════════════════════════════════════════════
 
-    // 현장별 6월 공정률 — 계획 수립 기준 (실적 미집계)
-    // planAmt / actualAmt 단위: 천원 / 계획 외 공사는 총 공정률에만 반영, 슬라이드 미표시
-    const MONTHLY_PROGRESS_DATA = [
-        // 김무선
-        { no: 'TY25-003', name: '안양 샘모루초교 지중화공사',                                               manager: '김무선', percent: 0,     planAmt: 35000,  actualAmt: 0    },
-        { no: 'TY25-004', name: '군포중 지중화공사',                                                         manager: '김무선', percent: 124.4, planAmt: 30000,  actualAmt: 37306 },
-        { no: '',         name: '남양 뉴타운배전간선 설치공사',                                              manager: '김무선', percent: 0,     planAmt: 75000,  actualAmt: 0    },
-        { no: 'TY25-006', name: '과천부림동 지중화공사',                                                     manager: '김무선', percent: 0,     planAmt: 8000,   actualAmt: 0    },
-        // 김상훈
-        { no: 'SY26-002', name: '부림SW53외 26년경과 노후변압기선로 교체공사',                              manager: '김상훈', percent: 40.4,  planAmt: 36994,  actualAmt: 14955 },
-        { no: 'SY25-011', name: '대농2 맨홀 내 저압접속 불량개소 보수공사',                                 manager: '김상훈', percent: 100.0, planAmt: 1706,   actualAmt: 1706 },
-        { no: 'SY26-010', name: '경수SW48 불량 경과지 관로 계통 보강공사',                                  manager: '김상훈', percent: 0,     planAmt: 11238,  actualAmt: 0    },
-        { no: 'SY25-020', name: '경수TR24외 26년경과 노후변압기선로 교체공사',                              manager: '김상훈', percent: 0,     planAmt: 30190,  actualAmt: 0    },
-        { no: 'SY25-032', name: '안양동 682-3 현대건설 지중외상고장 복구공사(에스제이이)',                  manager: '김상훈', percent: 0,     planAmt: 5747,   actualAmt: 0    },
-        { no: 'SY26-016', name: '부림SW5 외 수명만료 노후 지중케이블 교체공사',                             manager: '김상훈', percent: 100.0, planAmt: 45588,  actualAmt: 45588 },
-        { no: 'SG26-005', name: '26년 특정제원 지상개폐기 교체공사',                                        manager: '김상훈', percent: 0,     planAmt: 14899,  actualAmt: 0    },
-        { no: 'SG26-011', name: '특정제원(이엔테크제) 지상개폐기 교체공사(하안249, 하안138-2)',              manager: '김상훈', percent: 100.0, planAmt: 2459,   actualAmt: 2459 },
-        { no: 'SG26-004', name: '하안259 지상개폐기 교체공사(PT불량)',                                      manager: '김상훈', percent: 100.0, planAmt: 1131,   actualAmt: 1131 },
-        // 이재규
-        { no: 'JY26-045', name: '학의동1181 리젠시빌주택 고압 200kw 신설_3206',                             manager: '이재규', percent: 150.1, planAmt: 1086,   actualAmt: 1630 },
-        { no: 'JY25-256', name: '호계동553-1 평촌어반밸리 10,750kw 신설_3746',                              manager: '이재규', percent: 0,     planAmt: 2677,   actualAmt: 0    },
-        { no: 'JY25-053', name: '안양동 97-3 안양1동진흥아파트주택재건축정비사업조합 주택용 3kw 신설',      manager: '이재규', percent: 0,     planAmt: 259,    actualAmt: 0    },
-        { no: 'JY25-054', name: '안양동 165-1 안양1동진흥아파트주택재건축정비사업조합 가로등(갑) 1kw 신설', manager: '이재규', percent: 78.7,  planAmt: 259,    actualAmt: 204  },
-        { no: 'JY26-057', name: '고천동 526-7 이인성 저압 35kw 신설',                                       manager: '이재규', percent: 100.1, planAmt: 925,    actualAmt: 925  },
-        { no: 'JY26-051', name: '관양동 1385-3 ㈜한미건설 임시 20kw 신설',                                  manager: '이재규', percent: 101.7, planAmt: 17,     actualAmt: 17   },
-        { no: 'JY26-042', name: '박달동 15-17 조인준 일반용(갑)저압 10kw 신설',                             manager: '이재규', percent: 100.2, planAmt: 405,    actualAmt: 406  },
-        { no: 'JY26-043', name: '고천나구역 초등학교부지 일반용(을)고압A 950kw 신설',                       manager: '이재규', percent: 100.0, planAmt: 9903,   actualAmt: 9904 },
-        { no: 'JG26-028', name: '광명동 광명시장 일반용 850kw 신설_3167',                                   manager: '이재규', percent: 157.2, planAmt: 1002,   actualAmt: 1575 },
-        { no: 'JY25-172', name: '내손라구역 GS건설 300kW 신설(상가용)',                                     manager: '이재규', percent: 100.0, planAmt: 1137,   actualAmt: 1137 },
-        { no: 'JY25-165', name: '내손라구역 대우건설 160kW 신설공사 (상가용)',                              manager: '이재규', percent: 100.1, planAmt: 395,    actualAmt: 395  },
-        { no: 'JY25.260', name: '안양동 413-1 ㈜대영플러스 일반용(갑)저압 120kW 신설 외 1',                manager: '이재규', percent: 100.0, planAmt: 7472,   actualAmt: 7473 },
-        { no: 'JY26-011', name: '관양동1020-1 현대드림모터스 89kw 증설_3040',                              manager: '이재규', percent: 0,     planAmt: 14296,  actualAmt: 0    },
-        { no: 'JY26-022', name: '(지중)하안동 광명시청 일반용(갑)저압 300kw 신설(상용/임시)',              manager: '이재규', percent: 50.0,  planAmt: 15102,  actualAmt: 7550 },
-        // 김단후
-        { no: 'MY25-001', name: '수암천 하천정비 및 주차장,공사 조성사업 전기공사',                        manager: '김단후', percent: 0,     planAmt: 76363,  actualAmt: 0    },
-    ];
+    // ─── 지도 핀 데이터 소스 ────────────────────────────────────────────────
+    // 서버 `/api/progress-sites`(data/progress_sites.json)에서 받아온다.
+    // 위치는 다음 우선순위로 결정: ① lat/lng(관리 페이지에서 핀 고정) → ② addr(주소 지오코딩)
+    //   → ③ 공사명에서 자동 추출(폴백). 관리 화면: /map-admin.html
+    let MONTHLY_PROGRESS_DATA = [];
 
     // 6월 총 공정현황 (2026-06-18 기준)
-    // 총 공정률 = (계획 실적 + 계획 외 실적) / 계획 목표금액
     const JUN_DATA_UPDATED      = '2026-06-18';
     const JUN_TOTAL_PROGRESS    = 34.8;
     const JUN_PLAN_ACTUAL_AMT   = 134362; // 천원 — 계획 공사 실적
@@ -49,17 +25,27 @@
     const JUN_TOTAL_PLAN_AMT    = 429250; // 천원 — 계획 목표금액
     // ─────────────────────────────────────────────────────────────────────────
 
-    const SALES_PROFIT_SAMPLE = {
-        labels: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
-        profit:  [148077095, 273019042, 221839141, 173332713, 66160062,  69402468, 0, 0, 0, 0, 0, 0],
-        input:   [148259959, 330219307, 164792941, 149930938, 95582937,  79917054, 0, 0, 0, 0, 0, 0],
-        outcome: [296337055, 603238349, 386632082, 323263651, 161742999, 149319522, 0, 0, 0, 0, 0, 0],
+    // 담당자별 핀 색상/약칭 (메모리 project-home-renewal 확정값)
+    const MANAGER_STYLE = {
+        '김무선': { color: '#2f6fed', short: '무선' },
+        '김상훈': { color: '#e8590c', short: '상훈' },
+        '이재규': { color: '#2f9e44', short: '이재' },
+        '김단후': { color: '#ae3ec9', short: '단후' },
     };
+    const DEFAULT_MANAGER_STYLE = { color: '#64748b', short: '담당' };
 
-    let salesProfitChart = null;
-    let projectProgressCarousel = null;
+    // 안양시청 부근 — 키워드 검색 위치 보정 / 지도 초기 중심
+    const ANYANG_CENTER = { lat: 37.3943, lng: 126.9568 };
+    const GEO_CACHE_KEY = 'yjs_geo_cache_v1';
+
     let workerReturnTimeModal = null;
     let workerReturnTimeTargetUser = '';
+    let mapInstance = null;
+    let activeTooltipOverlay = null;
+
+    function managerStyle(name) {
+        return MANAGER_STYLE[String(name || '').trim()] || DEFAULT_MANAGER_STYLE;
+    }
 
     function normalizeShiftType(raw) {
         const val = String(raw || '').trim();
@@ -134,6 +120,8 @@
         const text = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} (${days[now.getDay()]})`;
         const el = document.getElementById('homeNowLabel');
         if (el) el.textContent = text;
+        const badge = document.getElementById('weatherDateBadge');
+        if (badge) badge.textContent = `오늘 ${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
     }
 
     function toSafeExternalUrl(rawUrl) {
@@ -155,179 +143,7 @@
         }
     }
 
-    function chunkArray(source, size) {
-        const chunkSize = Math.max(1, Number(size) || 1);
-        const chunks = [];
-        for (let idx = 0; idx < source.length; idx += chunkSize) {
-            chunks.push(source.slice(idx, idx + chunkSize));
-        }
-        return chunks;
-    }
-
-    function toMillionUnit(value) {
-        return Math.round((Number(value) || 0) / 1000000);
-    }
-
-    function sumNumbers(values) {
-        return (Array.isArray(values) ? values : []).reduce((acc, cur) => acc + (Number(cur) || 0), 0);
-    }
-
-    function formatMillionLabel(rawWon) {
-        const million = toMillionUnit(rawWon);
-        return `${million.toLocaleString('ko-KR')}백만원`;
-    }
-
-    function renderProjectProgressHome() {
-        const inner = document.getElementById('projectProgressCarouselInner');
-        const indicators = document.getElementById('projectProgressCarouselIndicators');
-        if (!inner || !indicators) return;
-        const carouselRoot = document.getElementById('projectProgressCarousel');
-        if (!carouselRoot) return;
-
-        const perSlide = 5;
-        const pages = chunkArray(MONTHLY_PROGRESS_DATA, perSlide);
-
-        inner.innerHTML = pages.map((group, pageIdx) => `
-            <div class="carousel-item ${pageIdx === 0 ? 'active' : ''}">
-                <div class="progress-slide-stack">
-                    ${Array.from({ length: perSlide }).map((_, cardIdx) => {
-                        const item = group[cardIdx] || null;
-                        if (!item) {
-                            return '<div class="progress-slide-card is-placeholder" aria-hidden="true"></div>';
-                        }
-                        const rawPercent = Number(item.percent) || 0;
-                        const barPercent = Math.max(0, Math.min(100, rawPercent));
-                        const amtLabel = item.planAmt != null
-                            ? (item.planAmt === 0
-                                ? `<span class="progress-meta-amt">${(item.actualAmt || 0).toLocaleString('ko-KR')}천원 (계획 외)</span>`
-                                : `<span class="progress-meta-amt">${(item.actualAmt || 0).toLocaleString('ko-KR')} / ${item.planAmt.toLocaleString('ko-KR')}천원</span>`)
-                            : '';
-                        const metaText = `${escapeHtml(item.no)}${item.manager ? ' · ' + escapeHtml(item.manager) : ''}`;
-                        return `
-                        <div class="progress-slide-card">
-                            <div class="d-flex justify-content-between align-items-center gap-2">
-                                <div class="progress-project" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-                                <div class="progress-percent">${rawPercent}%</div>
-                            </div>
-                            <div class="progress mt-2" role="progressbar" aria-label="공정률 ${rawPercent}%">
-                                <div class="progress-bar bg-success" style="width:${barPercent}%"></div>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center mt-1 gap-2">
-                                <div class="progress-meta text-truncate" title="${metaText}">${metaText}</div>
-                                ${amtLabel}
-                            </div>
-                        </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        `).join('');
-
-        indicators.innerHTML = pages.map((_, idx) => `
-            <button type="button"
-                data-bs-target="#projectProgressCarousel"
-                data-bs-slide-to="${idx}"
-                class="${idx === 0 ? 'active' : ''}"
-                ${idx === 0 ? 'aria-current="true"' : ''}
-                aria-label="슬라이드 ${idx + 1}"></button>
-        `).join('');
-
-        // 슬라이드 전환 시 레이아웃 높이 흔들림 방지: 첫 슬라이드(항상 만석)의 실제 높이로 inner를 고정
-        requestAnimationFrame(() => {
-            const activeItem = inner.querySelector('.carousel-item.active');
-            if (activeItem) inner.style.minHeight = activeItem.offsetHeight + 'px';
-        });
-
-        if (projectProgressCarousel) {
-            projectProgressCarousel.dispose();
-        }
-        projectProgressCarousel = new bootstrap.Carousel(carouselRoot, {
-            interval: 5000,
-            pause: 'hover',
-            ride: 'carousel',
-            touch: true,
-            wrap: true,
-        });
-    }
-
-    function renderSalesProfitChartHome() {
-        const chartEl = document.getElementById('salesProfitChart');
-        if (!chartEl || typeof Chart === 'undefined') return;
-        const ctx = chartEl.getContext('2d');
-        if (!ctx) return;
-        if (salesProfitChart) salesProfitChart.destroy();
-
-        salesProfitChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: SALES_PROFIT_SAMPLE.labels,
-                datasets: [
-                    {
-                        label: '성과금액',
-                        data: SALES_PROFIT_SAMPLE.outcome.map(toMillionUnit),
-                        backgroundColor: 'rgba(233, 179, 52, 0.85)',
-                        borderColor: 'rgba(197, 147, 29, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: '투입금액',
-                        data: SALES_PROFIT_SAMPLE.input.map(toMillionUnit),
-                        backgroundColor: 'rgba(119, 177, 67, 0.85)',
-                        borderColor: 'rgba(95, 149, 48, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: '손익금액',
-                        data: SALES_PROFIT_SAMPLE.profit.map(toMillionUnit),
-                        backgroundColor: 'rgba(222, 102, 43, 0.85)',
-                        borderColor: 'rgba(191, 78, 25, 1)',
-                        borderWidth: 1,
-                    },
-                ],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { position: 'right' },
-                    tooltip: {
-                        callbacks: {
-                            label(context) {
-                                const label = context.dataset.label || '';
-                                const value = Number(context.parsed.y || 0).toLocaleString('ko-KR');
-                                return `${label}: ${value}백만원`;
-                            },
-                        },
-                    },
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: '백만원',
-                        },
-                        ticks: {
-                            callback(value) {
-                                return `${Number(value).toLocaleString('ko-KR')}M`;
-                            },
-                        },
-                    },
-                },
-            },
-        });
-
-        const totalOutcomeEl = document.getElementById('totalOutcomeValue');
-        const totalInputEl = document.getElementById('totalInputValue');
-        const totalProfitEl = document.getElementById('totalProfitValue');
-        if (totalOutcomeEl) totalOutcomeEl.textContent = formatMillionLabel(sumNumbers(SALES_PROFIT_SAMPLE.outcome));
-        if (totalInputEl) totalInputEl.textContent = formatMillionLabel(sumNumbers(SALES_PROFIT_SAMPLE.input));
-        if (totalProfitEl) totalProfitEl.textContent = formatMillionLabel(sumNumbers(SALES_PROFIT_SAMPLE.profit));
-    }
-
     function renderTotalProgressChartHome() {
-        // API 연동 시 아래 세 상수를 API 응답값으로 교체
         const progress = Math.max(0, Math.min(100, JUN_TOTAL_PROGRESS));
         const remain = Math.round((Math.max(0, 100 - progress)) * 10) / 10;
         const donutEl = document.getElementById('totalProgressDonut');
@@ -343,11 +159,364 @@
         if (amtEl) {
             amtEl.innerHTML =
                 `<span style="white-space:nowrap;">실적 <b>${JUN_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')}천원</b></span>` +
-                `<br><span style="font-size:0.76rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">(계획 ${JUN_PLAN_ACTUAL_AMT.toLocaleString('ko-KR')} + 계획외 ${JUN_EXTRA_ACTUAL_AMT.toLocaleString('ko-KR')}천원)</span>` +
+                `<br><span style="font-size:0.74rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">(계획 ${JUN_PLAN_ACTUAL_AMT.toLocaleString('ko-KR')} + 계획외 ${JUN_EXTRA_ACTUAL_AMT.toLocaleString('ko-KR')}천원)</span>` +
                 `<br><span style="white-space:nowrap;">목표 <b>${JUN_TOTAL_PLAN_AMT.toLocaleString('ko-KR')}천원</b></span>` +
-                `<br><span style="font-size:0.73rem;color:#aab8c6;white-space:nowrap;">최신화 ${JUN_DATA_UPDATED}</span>`;
+                `<br><span style="font-size:0.71rem;color:#aab8c6;white-space:nowrap;">최신화 ${JUN_DATA_UPDATED}</span>`;
         }
     }
+
+    // ═══════════════════════════ 진행중 공사 지도 ═══════════════════════════
+
+    function setMapPlaceholder(text, show) {
+        const ph = document.getElementById('mapPlaceholder');
+        const txt = document.getElementById('mapPlaceholderText');
+        if (txt && text != null) txt.textContent = text;
+        if (ph) ph.classList.toggle('d-none', !show);
+    }
+
+    // 공사명 → 지오코딩 후보 쿼리(우선순위 순)
+    function buildGeocodeQueries(name) {
+        const raw = String(name || '')
+            .replace(/_\d+\b/g, ' ')      // 끝 코드 _3206
+            .replace(/\([^)]*\)/g, ' ')   // 괄호 내용
+            .trim();
+        const out = [];
+        const seen = new Set();
+        const push = (mode, query) => {
+            const q = String(query || '').trim();
+            if (!q || q.length < 2) return;
+            const key = mode + '|' + q;
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push({ mode, query: q });
+        };
+
+        // 1) 지번 주소: ○○동/리/가 + 번지
+        const jibun = raw.match(/([가-힣]+(?:동|리|가))\s*(\d+(?:-\d+)?)/);
+        if (jibun) {
+            push('address', `${jibun[1]} ${jibun[2]}`);
+            push('keyword', `${jibun[1]} ${jibun[2]}`);
+        }
+
+        // 2) 랜드마크 키워드: 공법/규격/용도 단어 제거 후 앞쪽 토큰
+        const cleaned = raw
+            .replace(/\d+(?:,\d+)?\s*k?w/gi, ' ')
+            .replace(/지중화공사|지중공사|교체공사|보수공사|복구공사|설치공사|신설공사|증설공사|보강공사|정비|조성사업|전기공사/g, ' ')
+            .replace(/지중케이블|노후변압기선로|지상개폐기|배전간선|불량개소|특정제원|수명만료|경과지|맨홀|관로|계통|외상고장|저압접속/g, ' ')
+            .replace(/일반용|주택용|상가용|가로등|고압|저압|임시|상용|신설|증설|교체|보수|복구|설치|노후|경과|불량|지중/g, ' ')
+            .replace(/[A-Za-z()㈜,·\d]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const tokens = cleaned.split(' ').filter((t) => t.length >= 2);
+        if (tokens.length) {
+            push('keyword', tokens.slice(0, 2).join(' '));
+            push('keyword', tokens[0]);
+        }
+
+        // 3) 최후: 동 이름만으로 대략 중심
+        const dong = raw.match(/[가-힣]+동/);
+        if (dong) push('keyword', dong[0]);
+
+        return out;
+    }
+
+    // 항목별 지오코딩 후보: 주소(addr)가 있으면 정확 검색을 앞에 두고, 없으면 공사명 추출
+    function buildQueriesForItem(item) {
+        const addr = String((item && item.addr) || '').trim();
+        const out = [];
+        if (addr) {
+            out.push({ mode: 'address', query: addr });
+            out.push({ mode: 'keyword', query: addr });
+        }
+        return out.concat(buildGeocodeQueries(item.name));
+    }
+
+    // 서버에서 지도 데이터(진행중 공사 목록)를 받아온다.
+    async function loadProgressSites() {
+        try {
+            const res = await fetch('/api/progress-sites');
+            if (!res.ok) return [];
+            const data = await res.json();
+            return Array.isArray(data.sites) ? data.sites : [];
+        } catch (_e) {
+            return [];
+        }
+    }
+
+    function loadGeoCache() {
+        try { return JSON.parse(localStorage.getItem(GEO_CACHE_KEY)) || {}; }
+        catch (_e) { return {}; }
+    }
+
+    function saveGeoCache(cache) {
+        try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(cache)); }
+        catch (_e) { /* 용량 초과 등 무시 */ }
+    }
+
+    // 카카오 지오코더/장소검색을 순차 시도해 첫 성공 좌표 반환
+    function geocodeQueries(geocoder, places, queries, centerLatLng) {
+        return new Promise((resolve) => {
+            let idx = 0;
+            const tryNext = () => {
+                if (idx >= queries.length) { resolve(null); return; }
+                const { mode, query } = queries[idx++];
+                if (mode === 'address') {
+                    geocoder.addressSearch(query, (res, status) => {
+                        if (status === kakao.maps.services.Status.OK && res && res[0]) {
+                            resolve({ lat: Number(res[0].y), lng: Number(res[0].x) });
+                        } else { tryNext(); }
+                    });
+                } else {
+                    places.keywordSearch(query, (res, status) => {
+                        if (status === kakao.maps.services.Status.OK && res && res[0]) {
+                            resolve({ lat: Number(res[0].y), lng: Number(res[0].x) });
+                        } else { tryNext(); }
+                    }, { location: centerLatLng, radius: 20000 });
+                }
+            };
+            tryNext();
+        });
+    }
+
+    function pinImageSrc(style) {
+        const svg =
+            `<svg xmlns='http://www.w3.org/2000/svg' width='40' height='48' viewBox='0 0 40 48'>` +
+            `<path d='M20 47C20 47 36 28 36 16.5A16 16 0 1 0 4 16.5C4 28 20 47 20 47Z' fill='${style.color}' stroke='#ffffff' stroke-width='2.5'/>` +
+            `<text x='20' y='21' text-anchor='middle' font-family='Malgun Gothic,AppleSDGothicNeo,sans-serif' font-size='11' font-weight='700' fill='#ffffff'>${style.short}</text>` +
+            `</svg>`;
+        return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+
+    function closeActiveTooltip() {
+        if (activeTooltipOverlay) {
+            activeTooltipOverlay.setMap(null);
+            activeTooltipOverlay = null;
+        }
+    }
+
+    function openTooltip(map, marker, item) {
+        closeActiveTooltip();
+        const style = managerStyle(item.manager);
+        const pct = Number(item.percent) || 0;
+        const bar = Math.max(0, Math.min(100, pct));
+        const box = document.createElement('div');
+        box.className = 'map-tip';
+        box.innerHTML =
+            `<button type="button" class="map-tip-close" aria-label="닫기">×</button>` +
+            `<div class="tt-name">${escapeHtml(item.name)}</div>` +
+            `<div class="tt-row"><span>담당자</span><b>${escapeHtml(item.manager || '-')}</b></div>` +
+            `<div class="tt-row"><span>공번</span><b>${escapeHtml(item.no || '-')}</b></div>` +
+            `<div class="tt-row"><span>공정률</span><span class="tt-pct">${pct}%</span></div>` +
+            `<div class="tt-bar"><div style="width:${bar}%;background:${style.color}"></div></div>`;
+        const overlay = new kakao.maps.CustomOverlay({
+            content: box,
+            position: marker.getPosition(),
+            yAnchor: 1.42,
+            zIndex: 1000,
+            clickable: true,
+        });
+        box.querySelector('.map-tip-close').addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeActiveTooltip();
+        });
+        overlay.setMap(map);
+        activeTooltipOverlay = overlay;
+        // 가장자리 핀의 툴팁이 지도 밖으로 잘리지 않도록, 클릭한 핀을 중앙으로 이동
+        if (typeof map.panTo === 'function') {
+            map.panTo(marker.getPosition());
+        }
+    }
+
+    function loadKakaoSdk() {
+        return new Promise((resolve, reject) => {
+            if (window.kakao && window.kakao.maps) { resolve(); return; }
+            const existing = document.getElementById('kakao-maps-sdk');
+            if (existing) {
+                existing.addEventListener('load', () => resolve());
+                existing.addEventListener('error', () => reject(new Error('sdk load error')));
+                return;
+            }
+            const script = document.createElement('script');
+            script.id = 'kakao-maps-sdk';
+            script.async = true;
+            script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(kakaoMapJsKey)}&autoload=false&libraries=services,clusterer`;
+            script.addEventListener('load', () => resolve());
+            script.addEventListener('error', () => reject(new Error('sdk load error')));
+            document.head.appendChild(script);
+        });
+    }
+
+    async function renderProgressMap() {
+        const mapEl = document.getElementById('progressMap');
+        if (!mapEl) return;
+
+        const center = new kakao.maps.LatLng(ANYANG_CENTER.lat, ANYANG_CENTER.lng);
+        mapInstance = new kakao.maps.Map(mapEl, { center, level: 7 });
+        mapInstance.setMaxLevel(11);
+        kakao.maps.event.addListener(mapInstance, 'click', closeActiveTooltip);
+
+        MONTHLY_PROGRESS_DATA = await loadProgressSites();
+
+        const geocoder = new kakao.maps.services.Geocoder();
+        const places = new kakao.maps.services.Places();
+        const cache = loadGeoCache();
+        let cacheDirty = false;
+
+        const markers = [];
+        const bounds = new kakao.maps.LatLngBounds();
+        const imageCache = {};
+
+        for (const item of MONTHLY_PROGRESS_DATA) {
+            let coord = null;
+            if (item.lat != null && item.lng != null) {
+                // 관리 페이지에서 지정한 위치 — 지오코딩 없이 그대로 사용(울산 튐 방지)
+                coord = { lat: Number(item.lat), lng: Number(item.lng) };
+            } else {
+                const cacheKey = (item.name || '') + '|' + (item.addr || '');
+                coord = cache[cacheKey];
+                if (coord === undefined) {
+                    coord = await geocodeQueries(geocoder, places, buildQueriesForItem(item), center);
+                    cache[cacheKey] = coord; // 실패(null)도 캐시해 재시도 폭주 방지
+                    cacheDirty = true;
+                }
+            }
+            if (!coord) continue;
+
+            const style = managerStyle(item.manager);
+            if (!imageCache[style.color]) {
+                imageCache[style.color] = new kakao.maps.MarkerImage(
+                    pinImageSrc(style),
+                    new kakao.maps.Size(40, 48),
+                    { offset: new kakao.maps.Point(20, 47) }
+                );
+            }
+            const position = new kakao.maps.LatLng(coord.lat, coord.lng);
+            const marker = new kakao.maps.Marker({ position, image: imageCache[style.color], title: item.name });
+            kakao.maps.event.addListener(marker, 'click', () => openTooltip(mapInstance, marker, item));
+            markers.push(marker);
+            bounds.extend(position);
+        }
+
+        if (cacheDirty) saveGeoCache(cache);
+
+        const clusterer = new kakao.maps.MarkerClusterer({
+            map: mapInstance,
+            averageCenter: true,
+            minLevel: 6,
+            gridSize: 60,
+            disableClickZoom: false,
+            styles: [{
+                width: '46px', height: '46px',
+                background: 'rgba(33, 86, 156, 0.88)',
+                borderRadius: '23px',
+                color: '#fff', textAlign: 'center', lineHeight: '46px',
+                fontWeight: '800', fontSize: '15px',
+                border: '3px solid rgba(255,255,255,0.92)',
+            }],
+        });
+        clusterer.addMarkers(markers);
+
+        const badge = document.getElementById('mapCountBadge');
+        if (badge) badge.textContent = `표시 ${markers.length}건 · 자동`;
+
+        if (markers.length > 0) {
+            mapInstance.setBounds(bounds);
+            setMapPlaceholder('', false);
+        } else {
+            setMapPlaceholder('표시할 공사 위치를 찾지 못했습니다.', true);
+        }
+    }
+
+    async function fetchPublicConfig() {
+        try {
+            const res = await fetch('/api/public-config');
+            if (!res.ok) return;
+            const cfg = await res.json();
+            kakaoMapJsKey = cfg.kakaoMapJsKey || '';
+        } catch (_e) {
+            // noop — 키 없으면 아래에서 안내 플레이스홀더 표시
+        }
+    }
+
+    async function initMapHome() {
+        await fetchPublicConfig();
+        if (!kakaoMapJsKey) {
+            setMapPlaceholder('카카오맵 JavaScript 키가 설정되지 않았습니다. 서버 .env의 KAKAO_MAP_JS_KEY를 설정하면 지도가 표시됩니다.', true);
+            return;
+        }
+        setMapPlaceholder('지도를 불러오는 중...', true);
+        try {
+            await loadKakaoSdk();
+        } catch (_e) {
+            setMapPlaceholder('카카오맵 SDK 로드 실패 — JS 키/도메인 등록을 확인해 주세요.', true);
+            return;
+        }
+        kakao.maps.load(() => {
+            renderProgressMap().catch(() => {
+                setMapPlaceholder('지도 렌더링 중 오류가 발생했습니다.', true);
+            });
+        });
+    }
+
+    // ═══════════════════════════ 현장 날씨 ═══════════════════════════
+
+    const WEATHER_ICONS = { clear: '☀️', cloudy: '⛅', overcast: '☁️', rain: '🌧️', snow: '❄️', shower: '🌦️' };
+
+    function renderWeather(w) {
+        const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        setText('weatherCity', w.city || '안양');
+        setText('weatherIcon', WEATHER_ICONS[w.icon] || '⛅');
+        setText('weatherTemp', (w.temp != null ? `${w.temp}°` : '--°'));
+        setText('weatherCond', w.condition || '-');
+        setText('weatherPop', (w.pop != null ? `${w.pop}%` : '--'));
+        setText('weatherWind', (w.wind != null ? `${w.wind}m/s` : '--'));
+        setText('weatherHumidity', (w.humidity != null ? `${w.humidity}%` : '--'));
+
+        const fc = document.getElementById('weatherForecast');
+        if (fc) {
+            const days = Array.isArray(w.forecast) ? w.forecast.slice(0, 4) : [];
+            fc.innerHTML = days.map((d) => (
+                `<div class="wf-day">` +
+                `<div class="d">${escapeHtml(d.day || '-')}</div>` +
+                `<div class="i">${WEATHER_ICONS[d.icon] || '⛅'}</div>` +
+                `<div class="t">${d.high != null ? d.high + '°' : '--'}<small> / ${d.low != null ? d.low + '°' : '--'}</small></div>` +
+                `</div>`
+            )).join('');
+        }
+
+        const alertEl = document.getElementById('weatherAlert');
+        if (alertEl) alertEl.textContent = w.alert || '';
+    }
+
+    function renderWeatherPlaceholder() {
+        const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        setText('weatherTemp', '--°');
+        setText('weatherCond', '현장 날씨 API 연동 후 표시됩니다');
+        setText('weatherPop', '--');
+        setText('weatherWind', '--');
+        setText('weatherHumidity', '--');
+        const fc = document.getElementById('weatherForecast');
+        if (fc) {
+            fc.innerHTML = ['', '', '', ''].map(() => (
+                `<div class="wf-day"><div class="d">-</div><div class="i">⛅</div><div class="t">--<small> / --</small></div></div>`
+            )).join('');
+        }
+        const alertEl = document.getElementById('weatherAlert');
+        if (alertEl) alertEl.textContent = '';
+    }
+
+    async function loadWeatherHome() {
+        try {
+            const res = await fetch(WEATHER_API_BASE);
+            if (!res.ok) throw new Error('weather unavailable');
+            const data = await res.json();
+            renderWeather(data);
+        } catch (_e) {
+            renderWeatherPlaceholder();
+        }
+    }
+
+    // ═══════════════════════════ 바로가기 ═══════════════════════════
 
     function renderShortcutGridHome(rows) {
         const box = document.getElementById('homeFrequentSiteList');
@@ -405,29 +574,7 @@
         }
     }
 
-    async function loadOverview() {
-        const today = formatLocalDateYYYYMMDD();
-        try {
-            const [scheduleRes, statusRes] = await Promise.all([
-                fetch(`/api/schedules/today?date=${encodeURIComponent(today)}`),
-                fetch('/api/schedules/worker-status'),
-            ]);
-            const scheduleJson = await scheduleRes.json().catch(() => ({}));
-            const statusJson = await statusRes.json().catch(() => ({}));
-
-            const schedules = Array.isArray(scheduleJson.data) ? scheduleJson.data : [];
-            const statuses = Array.isArray(statusJson.data) ? statusJson.data : [];
-
-            const nightCount = schedules.filter((row) => normalizeShiftType(row.shift_type || '') === '야간').length;
-            const outingCount = statuses.filter((row) => String(row.status || '') === '외출').length;
-
-            document.getElementById('kpiTodaySchedules').textContent = String(schedules.length);
-            document.getElementById('kpiNightSchedules').textContent = String(nightCount);
-            document.getElementById('kpiOutingStaff').textContent = String(outingCount);
-        } catch (_e) {
-            // noop
-        }
-    }
+    // ═══════════════════════════ 외출/행선표 ═══════════════════════════
 
     async function saveWorkerStatusPatch(userName, patch) {
         const currentRowsRes = await fetch('/api/schedules/worker-status');
@@ -525,7 +672,7 @@
         const decodedStatus = decodeURIComponent(currentStatus || '사무실');
         const ok = await saveWorkerStatusPatch(decodedName, { status: nextStatus(decodedStatus) });
         if (!ok) return;
-        await Promise.all([loadWorkerStatusHome(), loadOverview()]);
+        await loadWorkerStatusHome();
     }
 
     async function handleWorkerLocationClickHome(userName, currentLocation) {
@@ -535,7 +682,7 @@
         if (next === null) return;
         const ok = await saveWorkerStatusPatch(decodedName, { location: next.trim() });
         if (!ok) return;
-        await Promise.all([loadWorkerStatusHome(), loadOverview()]);
+        await loadWorkerStatusHome();
     }
 
     async function handleWorkerUntilClickHome(userName, currentUntil) {
@@ -577,7 +724,7 @@
         const ok = await saveWorkerStatusPatch(target, { until_time: nextUntil });
         if (!ok) return;
         if (workerReturnTimeModal) workerReturnTimeModal.hide();
-        await Promise.all([loadWorkerStatusHome(), loadOverview()]);
+        await loadWorkerStatusHome();
     }
 
     async function clearWorkerReturnTimeHome() {
@@ -586,7 +733,7 @@
         const ok = await saveWorkerStatusPatch(target, { until_time: '' });
         if (!ok) return;
         if (workerReturnTimeModal) workerReturnTimeModal.hide();
-        await Promise.all([loadWorkerStatusHome(), loadOverview()]);
+        await loadWorkerStatusHome();
     }
 
     async function loadFrequentSitesHome() {
@@ -631,15 +778,15 @@
         updateWorkerReturnTimePreviewHome();
         updateNowLabel();
         await fetchMeAndPaint();
-        renderProjectProgressHome();
         renderTotalProgressChartHome();
-        renderSalesProfitChartHome();
-        await Promise.all([loadOverview(), loadWorkerStatusHome(), loadFrequentSitesHome()]);
+        renderWeatherPlaceholder();
+        initMapHome();
+        await Promise.all([loadWorkerStatusHome(), loadFrequentSitesHome(), loadWeatherHome()]);
         setInterval(() => {
             updateNowLabel();
-            loadOverview();
             loadWorkerStatusHome();
             loadFrequentSitesHome();
+            loadWeatherHome();
         }, 60000);
     }
 

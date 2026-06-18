@@ -1,5 +1,5 @@
 # app/main.py
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
@@ -14,9 +14,11 @@ from app.api import schedules
 from app.api import vision
 from app.api import auth
 from app.api import admin
+from app.api import progress_map
 from app.db.migrations import run_migrations
 from app.services.export_service import DailyExportService
 from app.core.config import settings
+from app.core.auth import require_session
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +96,25 @@ app.include_router(schedules.router)
 app.include_router(vision.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(progress_map.router)
+
+
+@app.get("/api/public-config", summary="프런트 공개 설정값(지도 키 등)", tags=["Pages"])
+async def public_config(_session=Depends(require_session)):
+    """로그인 세션에 한해 프런트가 필요로 하는 공개 설정값을 내려준다.
+    카카오맵 JS 키는 도메인 제한이 걸린 공개 키이며, 코드/깃에 하드코딩하지 않기 위해 env에서 주입한다."""
+    return {"kakaoMapJsKey": settings.KAKAO_MAP_JS_KEY}
+
+
+@app.get("/api/weather/current", summary="현장 날씨(기상청 단기예보)", tags=["Pages"])
+async def weather_current(_session=Depends(require_session)):
+    """홈 화면 현장 날씨 위젯용. 키 미설정/상류 오류 시 503 → 프런트는 플레이스홀더 표시."""
+    from app.services.weather_service import get_current_weather
+    try:
+        return await get_current_weather()
+    except Exception as e:
+        logger.warning(f"날씨 조회 실패: {e}")
+        raise HTTPException(status_code=503, detail="날씨 정보를 불러오지 못했습니다.")
 
 
 @app.get("/", summary="기본 운영 홈 화면", tags=["Pages"])
@@ -115,6 +136,14 @@ async def serve_index():
 @app.get("/admin.html", summary="관리자 화면", tags=["Pages"])
 async def serve_admin():
     return FileResponse("web/admin.html")
+
+@app.get("/map-admin.html", summary="진행중 공사 지도 관리 화면", tags=["Pages"])
+async def serve_map_admin():
+    return FileResponse("web/map-admin.html")
+
+@app.get("/map-admin.js", summary="공사 지도 관리 스크립트", tags=["Pages"])
+async def serve_map_admin_js():
+    return FileResponse("web/map-admin.js", media_type="application/javascript")
 
 @app.get("/board.html", summary="레거시 경로 → 상황판 리다이렉트", tags=["Pages"])
 async def serve_board():

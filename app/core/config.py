@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     KAKAO_REST_API_KEY: str = ""
     KAKAO_CLIENT_SECRET: str = ""
     KAKAO_REDIRECT_URI: str = ""
+    # 카카오맵 JavaScript 키 (프런트 지도 SDK용 — 도메인 제한이 걸린 공개 키)
+    KAKAO_MAP_JS_KEY: str = ""
+    # 기상청 API허브(apihub.kma.go.kr) 인증키 — 현장 날씨 위젯용
+    WEATHER_KMA_AUTH_KEY: str = ""
+    # 날씨 조회 격자 좌표(기본: 안양 nx=59, ny=123)
+    WEATHER_GRID_NX: int = 59
+    WEATHER_GRID_NY: int = 123
+    WEATHER_CITY_NAME: str = "안양"
     # 허용 카카오 사용자 목록 JSON 경로 (프로젝트 루트 기준 기본값)
     KAKAO_WHITELIST_PATH: str = "kakao_whitelist.json"
     # HTTPS 리버스 프록시 뒤에서 true (쿠키 Secure)
