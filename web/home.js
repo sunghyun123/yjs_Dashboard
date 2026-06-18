@@ -7,6 +7,8 @@
     //  WEATHER_API_BASE: 날씨는 CORS/키 보호를 위해 백엔드 프록시(`/api/weather/current`) 경유.
     //    백엔드 엔드포인트가 준비되면 자동으로 실데이터가 표시됩니다.
     const WEATHER_API_BASE = '/api/weather/current';
+    const ERP_MONTHLY_KPI_API = '/api/erp/monthly-kpi';
+    const MONTHLY_PROGRESS_CONFIG_API = '/api/erp/monthly-progress-config';
     let kakaoMapJsKey = ''; // /api/public-config에서 런타임 주입
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -23,6 +25,17 @@
     const JUN_EXTRA_ACTUAL_AMT  = 14958;  // 천원 — 계획 외 공사 실적
     const JUN_TOTAL_ACTUAL_AMT  = 149320; // 천원 — 합계
     const JUN_TOTAL_PLAN_AMT    = 429250; // 천원 — 계획 목표금액
+    const totalProgressState = {
+        label: '6월',
+        totalProgress: JUN_TOTAL_PROGRESS,
+        actualAmountThousand: JUN_TOTAL_ACTUAL_AMT,
+        actualFromErp: false,
+        actualText: `${JUN_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')}천원`,
+        actualDetailText: `(계획 ${JUN_PLAN_ACTUAL_AMT.toLocaleString('ko-KR')} + 계획외 ${JUN_EXTRA_ACTUAL_AMT.toLocaleString('ko-KR')}천원)`,
+        targetAmountThousand: JUN_TOTAL_PLAN_AMT,
+        updatedAt: JUN_DATA_UPDATED,
+        sourceLabel: '',
+    };
     // ─────────────────────────────────────────────────────────────────────────
 
     // 담당자별 핀 색상/약칭 (메모리 project-home-renewal 확정값)
@@ -137,24 +150,111 @@
     }
 
     function renderTotalProgressChartHome() {
-        const progress = Math.max(0, Math.min(100, JUN_TOTAL_PROGRESS));
+        const progress = getTotalProgressPercent();
         const remain = Math.round((Math.max(0, 100 - progress)) * 10) / 10;
         const donutEl = document.getElementById('totalProgressDonut');
         const valueEl = document.getElementById('totalProgressValue');
         const doneEl = document.getElementById('totalProgressLegendDone');
         const remainEl = document.getElementById('totalProgressLegendRemain');
         const amtEl = document.getElementById('totalProgressAmount');
+        const titleEl = document.getElementById('totalProgressTitle');
+        const subEl = document.getElementById('totalProgressSub');
         if (!donutEl || !valueEl || !doneEl || !remainEl) return;
+        const label = totalProgressState.label || '6월';
+        if (titleEl) titleEl.textContent = `${label} 총 공정률`;
+        if (subEl) subEl.textContent = `${label} 총 공정률`;
         donutEl.style.setProperty('--progress', String(progress));
         valueEl.textContent = `${progress}%`;
         doneEl.textContent = `진행 ${progress}%`;
         remainEl.textContent = `미달성 ${remain}%`;
         if (amtEl) {
+            const detailHtml = totalProgressState.actualDetailText
+                ? `<br><span style="font-size:0.74rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">${escapeHtml(totalProgressState.actualDetailText)}</span>`
+                : '';
+            const sourceText = totalProgressState.sourceLabel ? ` ${totalProgressState.sourceLabel}` : '';
             amtEl.innerHTML =
-                `<span style="white-space:nowrap;">실적 <b>${JUN_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')}천원</b></span>` +
-                `<br><span style="font-size:0.74rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">(계획 ${JUN_PLAN_ACTUAL_AMT.toLocaleString('ko-KR')} + 계획외 ${JUN_EXTRA_ACTUAL_AMT.toLocaleString('ko-KR')}천원)</span>` +
-                `<br><span style="white-space:nowrap;">목표 <b>${JUN_TOTAL_PLAN_AMT.toLocaleString('ko-KR')}천원</b></span>` +
-                `<br><span style="font-size:0.71rem;color:#aab8c6;white-space:nowrap;">최신화 ${JUN_DATA_UPDATED}</span>`;
+                `<span style="white-space:nowrap;">실적 <b>${escapeHtml(totalProgressState.actualText)}</b></span>` +
+                detailHtml +
+                `<br><span style="white-space:nowrap;">목표 <b>${Number(totalProgressState.targetAmountThousand || 0).toLocaleString('ko-KR')}천원</b></span>` +
+                `<br><span style="font-size:0.71rem;color:#aab8c6;white-space:nowrap;">최신화${sourceText} ${escapeHtml(totalProgressState.updatedAt)}</span>`;
+        }
+    }
+
+    function getTotalProgressPercent() {
+        const actual = Number(totalProgressState.actualAmountThousand);
+        const target = Number(totalProgressState.targetAmountThousand);
+        if (totalProgressState.actualFromErp && Number.isFinite(actual) && Number.isFinite(target) && target > 0) {
+            return Math.max(0, Math.min(100, Math.round((actual / target) * 1000) / 10));
+        }
+        return Math.max(0, Math.min(100, Number(totalProgressState.totalProgress) || 0));
+    }
+
+    function formatKpiUpdatedAt(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return JUN_DATA_UPDATED;
+        const dt = new Date(raw);
+        if (Number.isNaN(dt.getTime())) return raw;
+        const yyyy = dt.getFullYear();
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getDate()).padStart(2, '0');
+        const hh = String(dt.getHours()).padStart(2, '0');
+        const min = String(dt.getMinutes()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+    }
+
+    function applyErpMonthlyKpi(data) {
+        if (!data || typeof data !== 'object') return false;
+        const formatted = data.formatted || {};
+        const amounts = data.amounts || {};
+        const amount = Number(amounts.monthlyRevenue);
+        const actualAmountThousand = Number.isFinite(amount) ? Math.round(amount / 1000) : null;
+        const actualText = actualAmountThousand !== null
+            ? `${actualAmountThousand.toLocaleString('ko-KR')}천원`
+            : String(formatted.monthlyRevenue || '').trim();
+        if (!actualText) return false;
+
+        totalProgressState.label = String(data.label || totalProgressState.label || '6월').trim();
+        if (actualAmountThousand !== null) {
+            totalProgressState.actualAmountThousand = actualAmountThousand;
+            totalProgressState.actualFromErp = true;
+        }
+        totalProgressState.actualText = actualText;
+        totalProgressState.actualDetailText = '';
+        totalProgressState.updatedAt = formatKpiUpdatedAt(data.updatedAt);
+        totalProgressState.sourceLabel = '(ERP)';
+        return true;
+    }
+
+    function applyMonthlyProgressConfig(data) {
+        const cfg = data && data.data ? data.data : data;
+        if (!cfg || typeof cfg !== 'object') return false;
+        const progress = Number(cfg.total_progress);
+        const target = Number(cfg.target_amount_thousand);
+        if (cfg.label) totalProgressState.label = String(cfg.label).trim();
+        if (Number.isFinite(progress)) totalProgressState.totalProgress = progress;
+        if (Number.isFinite(target)) totalProgressState.targetAmountThousand = Math.max(0, Math.round(target));
+        return true;
+    }
+
+    async function loadMonthlyProgressConfigHome() {
+        try {
+            const res = await fetch(MONTHLY_PROGRESS_CONFIG_API);
+            if (!res.ok) throw new Error('monthly progress config unavailable');
+            const data = await res.json();
+            if (applyMonthlyProgressConfig(data)) renderTotalProgressChartHome();
+        } catch (_e) {
+            // Keep built-in fallback config.
+        }
+    }
+
+    async function loadErpMonthlyKpiHome() {
+        try {
+            const res = await fetch(ERP_MONTHLY_KPI_API);
+            if (!res.ok) throw new Error('ERP monthly KPI unavailable');
+            const data = await res.json();
+            if (applyErpMonthlyKpi(data)) renderTotalProgressChartHome();
+        } catch (_e) {
+            // Keep the initial hardcoded fallback when ERP is unavailable.
         }
     }
 
@@ -772,11 +872,15 @@
         updateNowLabel();
         await fetchMeAndPaint();
         renderTotalProgressChartHome();
+        loadMonthlyProgressConfigHome();
+        loadErpMonthlyKpiHome();
         renderWeatherPlaceholder();
         initMapHome();
         await Promise.all([loadWorkerStatusHome(), loadFrequentSitesHome(), loadWeatherHome()]);
         setInterval(() => {
             updateNowLabel();
+            loadMonthlyProgressConfigHome();
+            loadErpMonthlyKpiHome();
             loadWorkerStatusHome();
             loadFrequentSitesHome();
             loadWeatherHome();

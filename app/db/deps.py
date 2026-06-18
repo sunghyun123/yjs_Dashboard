@@ -7,6 +7,7 @@ from app.db.repos.user import UserRepository
 from app.db.repos.admin import AdminRepository
 from app.db.repos.worker import WorkerRepository
 from app.db.repos.export import ExportRepository
+from app.db.repos.monthly_progress import MonthlyProgressRepository
 
 
 def get_db_path() -> str:
@@ -31,3 +32,7 @@ def get_worker_repo(db_path: str = Depends(get_db_path)) -> WorkerRepository:
 
 def get_export_repo(db_path: str = Depends(get_db_path)) -> ExportRepository:
     return ExportRepository(db_path)
+
+
+def get_monthly_progress_repo(db_path: str = Depends(get_db_path)) -> MonthlyProgressRepository:
+    return MonthlyProgressRepository(db_path)

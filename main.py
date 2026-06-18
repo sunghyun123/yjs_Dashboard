@@ -15,6 +15,7 @@ from app.api import vision
 from app.api import auth
 from app.api import admin
 from app.api import progress_map
+from app.api import erp
 from app.db.migrations import run_migrations
 from app.services.export_service import DailyExportService
 from app.core.config import settings
@@ -97,6 +98,7 @@ app.include_router(vision.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(progress_map.router)
+app.include_router(erp.router)
 
 
 @app.get("/api/public-config", summary="프런트 공개 설정값(지도 키 등)", tags=["Pages"])

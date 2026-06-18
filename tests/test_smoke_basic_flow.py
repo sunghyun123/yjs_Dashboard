@@ -85,6 +85,91 @@ def test_auth_login_me_logout_flow(client, monkeypatch, tmp_path):
     assert unauthorized_me.status_code == 401
 
 
+def test_erp_monthly_kpi_proxy_requires_session(client):
+    res = client.get("/api/erp/monthly-kpi")
+    assert res.status_code == 401
+
+
+def test_erp_monthly_kpi_proxy_returns_normalized_payload(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+
+    import app.api.erp as erp_api
+
+    monkeypatch.setattr(settings, "ERP_MONTHLY_KPI_URL", "https://erp.example.test/kpi")
+    monkeypatch.setattr(settings, "ERP_DASHBOARD_API_KEY", "test-token")
+
+    class _FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "label": "6월",
+                "amounts": {
+                    "monthlyRevenue": 123456000,
+                    "monthlyInput": 100000000,
+                    "monthlyProfit": 23456000,
+                },
+                "formatted": {
+                    "monthlyRevenue": "123,456,000원",
+                    "monthlyInput": "100,000,000원",
+                    "monthlyProfit": "23,456,000원",
+                },
+                "updatedAt": "2026-06-18T12:34:56+09:00",
+            }
+
+    class _FakeAsyncClient:
+        def __init__(self, timeout):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, url, headers):
+            assert url == "https://erp.example.test/kpi"
+            assert headers["Authorization"] == "Bearer test-token"
+            return _FakeResponse()
+
+    monkeypatch.setattr(erp_api.httpx, "AsyncClient", _FakeAsyncClient)
+
+    res = client.get("/api/erp/monthly-kpi")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["label"] == "6월"
+    assert body["amounts"]["monthlyRevenue"] == 123456000
+    assert body["formatted"]["monthlyRevenue"] == "123,456,000원"
+    assert body["updatedAt"] == "2026-06-18T12:34:56+09:00"
+
+
+def test_monthly_progress_config_admin_save_and_home_read(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+
+    save_res = client.put(
+        "/api/admin/monthly-progress-config",
+        json={
+            "month": "2026-07",
+            "label": "7월",
+            "total_progress": 12.3,
+            "target_amount_thousand": 555000,
+        },
+    )
+    assert save_res.status_code == 200
+    saved = save_res.json()["data"]
+    assert saved["month"] == "2026-07"
+    assert saved["label"] == "7월"
+    assert saved["total_progress"] == 12.3
+    assert saved["target_amount_thousand"] == 555000
+
+    home_res = client.get("/api/erp/monthly-progress-config?month=2026-07")
+    assert home_res.status_code == 200
+    cfg = home_res.json()["data"]
+    assert cfg["label"] == "7월"
+    assert cfg["target_amount_thousand"] == 555000
+
+
 def test_kakao_login_pending_then_admin_approve_flow(client, monkeypatch, tmp_path):
     login_as_admin(client, monkeypatch, tmp_path)
 

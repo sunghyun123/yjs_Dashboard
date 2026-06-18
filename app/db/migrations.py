@@ -170,6 +170,16 @@ def run_migrations(db_path: str) -> None:
                 )
             """)
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS monthly_progress_config (
+                    month TEXT PRIMARY KEY,
+                    label TEXT NOT NULL,
+                    total_progress REAL NOT NULL DEFAULT 34.8,
+                    target_amount_thousand INTEGER NOT NULL DEFAULT 429250,
+                    updated_by TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     entity_type TEXT NOT NULL,

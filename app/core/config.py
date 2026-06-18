@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     # Firebase Firestore 연동 (포트폴리오용 일별 운영지표 분석 파이프라인)
     # 서비스 계정 키 JSON 파일 경로. 비어 있으면 Firestore 동기화 비활성화.
     FIREBASE_CREDENTIALS_FILE: str = ""
+    ERP_MONTHLY_KPI_URL: str = "https://erp.yjsboard.com/api/kpi/monthly-performance"
+    ERP_DASHBOARD_API_KEY: str = ""
 
     # 예전 .env 값이 남아 있어도 기동되게 무시
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

@@ -179,6 +179,35 @@
     </div>
 
     <div class="card mb-3 queue-card">
+        <div class="card-header py-2">월별 총 공정률 목표 관리</div>
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">대상 월</label>
+                    <input id="monthlyProgressMonthInput" class="form-control form-control-sm" type="month">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">표시 라벨</label>
+                    <input id="monthlyProgressLabelInput" class="form-control form-control-sm" placeholder="예: 7월">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-0">ERP 장애시 공정률(%)</label>
+                    <input id="monthlyProgressRateInput" class="form-control form-control-sm" type="number" min="0" max="100" step="0.1">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-0">목표금액(천원)</label>
+                    <input id="monthlyProgressTargetInput" class="form-control form-control-sm" type="number" min="0" step="1">
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-50" onclick="loadMonthlyProgressConfigAdmin()">조회</button>
+                    <button type="button" class="btn btn-sm btn-primary w-50" onclick="saveMonthlyProgressConfigAdmin()">저장</button>
+                </div>
+            </div>
+            <div id="monthlyProgressConfigStatus" class="mt-2 small text-muted">불러오는 중...</div>
+        </div>
+    </div>
+
+    <div class="card mb-3 queue-card">
         <div class="card-header py-2">카카오 로그인 승인 대기</div>
         <div class="card-body py-2">
             <div class="small text-muted mb-2">처음 로그인한 카카오 계정은 여기에서 승인하면 즉시 접속할 수 있습니다.</div>
@@ -467,6 +496,84 @@
             return;
         }
         await loadFrequentSiteAdmin();
+    }
+
+    function currentMonthValue() {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    function defaultMonthLabel(month) {
+        const parts = String(month || '').split('-');
+        const mm = Number(parts[1]);
+        return Number.isFinite(mm) && mm >= 1 && mm <= 12 ? `${mm}월` : '';
+    }
+
+    function paintMonthlyProgressConfig(cfg) {
+        const monthInput = document.getElementById('monthlyProgressMonthInput');
+        const labelInput = document.getElementById('monthlyProgressLabelInput');
+        const rateInput = document.getElementById('monthlyProgressRateInput');
+        const targetInput = document.getElementById('monthlyProgressTargetInput');
+        const status = document.getElementById('monthlyProgressConfigStatus');
+        monthInput.value = cfg.month || monthInput.value || currentMonthValue();
+        labelInput.value = cfg.label || defaultMonthLabel(monthInput.value);
+        rateInput.value = cfg.total_progress ?? '';
+        targetInput.value = cfg.target_amount_thousand ?? '';
+        const targetText = Number(cfg.target_amount_thousand || 0).toLocaleString('ko-KR');
+        status.innerHTML = `현재 설정: <b>${escapeHtml(labelInput.value)}</b> / 목표 <b>${targetText}천원</b> / ERP 장애시 공정률 <b>${escapeHtml(rateInput.value)}%</b>` +
+            (cfg.updated_at ? ` <span class="text-muted">(최신화 ${escapeHtml(cfg.updated_at)})</span>` : '');
+    }
+
+    async function loadMonthlyProgressConfigAdmin() {
+        const monthInput = document.getElementById('monthlyProgressMonthInput');
+        if (!monthInput.value) monthInput.value = currentMonthValue();
+        const status = document.getElementById('monthlyProgressConfigStatus');
+        status.textContent = '불러오는 중...';
+        const res = await fetch(`/api/admin/monthly-progress-config?month=${encodeURIComponent(monthInput.value)}`);
+        const data = await res.json();
+        if (!res.ok) {
+            status.innerHTML = `<span class="text-danger">${escapeHtml(data.detail || '설정을 불러오지 못했습니다.')}</span>`;
+            return;
+        }
+        paintMonthlyProgressConfig(data.data || {});
+    }
+
+    async function saveMonthlyProgressConfigAdmin() {
+        const monthInput = document.getElementById('monthlyProgressMonthInput');
+        const labelInput = document.getElementById('monthlyProgressLabelInput');
+        const rateInput = document.getElementById('monthlyProgressRateInput');
+        const targetInput = document.getElementById('monthlyProgressTargetInput');
+        const month = monthInput.value || currentMonthValue();
+        const payload = {
+            month,
+            label: labelInput.value.trim() || defaultMonthLabel(month),
+            total_progress: Number(rateInput.value),
+            target_amount_thousand: Number(targetInput.value)
+        };
+        if (!payload.month) {
+            alert('대상 월을 선택하세요.');
+            return;
+        }
+        if (!Number.isFinite(payload.total_progress) || payload.total_progress < 0 || payload.total_progress > 100) {
+            alert('총 공정률은 0~100 사이 숫자로 입력하세요.');
+            return;
+        }
+        if (!Number.isFinite(payload.target_amount_thousand) || payload.target_amount_thousand < 0) {
+            alert('목표금액(천원)을 0 이상의 숫자로 입력하세요.');
+            return;
+        }
+        const res = await fetch('/api/admin/monthly-progress-config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '저장 실패');
+            return;
+        }
+        paintMonthlyProgressConfig(data.data || payload);
+        alert('월별 총 공정률 목표 설정을 저장했습니다.');
     }
 
     async function deleteOutingStaff(id) {
@@ -1005,6 +1112,7 @@
         loadFieldStaffAdmin();
         loadOutingStaffAdmin();
         loadFrequentSiteAdmin();
+        loadMonthlyProgressConfigAdmin();
         loadLoginAccessRequests();
     });
 </script>

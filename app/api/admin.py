@@ -13,7 +13,8 @@ from app.db.repos.admin import AdminRepository
 from app.db.repos.worker import WorkerRepository
 from app.db.repos.user import UserRepository
 from app.db.repos.export import ExportRepository
-from app.db.deps import get_schedule_repo, get_admin_repo, get_worker_repo, get_user_repo, get_export_repo
+from app.db.repos.monthly_progress import MonthlyProgressRepository
+from app.db.deps import get_schedule_repo, get_admin_repo, get_worker_repo, get_user_repo, get_export_repo, get_monthly_progress_repo
 from app.services.export_service import DailyExportService
 from app.services.erp_sync_service import sync_constructions
 from app.api.schedules import reload_construction_list
@@ -49,6 +50,13 @@ class LoginAccessReviewRequest(BaseModel):
     decision: str = Field(..., description="approve 또는 reject")
     role: str = Field(default="worker", description="approve 시 부여할 역할(admin/worker)")
     note: str = Field(default="", description="관리자 메모")
+
+
+class MonthlyProgressConfigSave(BaseModel):
+    month: str = Field(..., min_length=7, max_length=7, description="YYYY-MM")
+    label: str = Field(default="", description="표시 월 라벨")
+    total_progress: float = Field(default=34.8, ge=0, le=100, description="총 공정률")
+    target_amount_thousand: int = Field(default=429250, ge=0, description="목표금액(천원)")
 
 
 @router.get("/requests")
@@ -339,6 +347,34 @@ def delete_frequent_site(
     if not worker_repo.delete_frequent_site(site_id):
         raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다.")
     return {"status": "success", "message": "삭제되었습니다."}
+
+
+@router.get("/monthly-progress-config")
+def admin_get_monthly_progress_config(
+    month: str = "",
+    _admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    return {"status": "success", "data": repo.get_config(month or None)}
+
+
+@router.put("/monthly-progress-config")
+def admin_save_monthly_progress_config(
+    payload: MonthlyProgressConfigSave,
+    admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    try:
+        saved = repo.upsert_config(
+            month=payload.month,
+            label=payload.label,
+            total_progress=payload.total_progress,
+            target_amount_thousand=payload.target_amount_thousand,
+            updated_by=admin.get("user_id", "admin"),
+        )
+        return {"status": "success", "data": saved}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/export/daily")
