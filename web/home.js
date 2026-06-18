@@ -47,13 +47,6 @@
         return MANAGER_STYLE[String(name || '').trim()] || DEFAULT_MANAGER_STYLE;
     }
 
-    function normalizeShiftType(raw) {
-        const val = String(raw || '').trim();
-        if (val === '주간') return '주간';
-        if (val === '야간' || val === '심야') return '야간';
-        return '';
-    }
-
     function statusLabelText(status) {
         if (status === '야간작업') return '야간 작업';
         return status || '사무실';
