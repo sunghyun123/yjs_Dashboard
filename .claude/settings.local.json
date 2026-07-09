@@ -63,7 +63,9 @@
       "Bash(python -m py_compile app/services/progress_sites_service.py app/api/progress_map.py main.py)",
       "Bash(python -c \"import json;json.load\\(open\\('data/progress_sites.json',encoding='utf-8'\\)\\);print\\('JSON_OK'\\)\")",
       "Bash(python -c \"import main; paths=[r.path for r in main.app.routes]; print\\('PUT/GET progress-sites:', '/api/progress-sites' in paths\\); print\\('map-admin page:', '/map-admin.html' in paths\\); print\\('map-admin js:', '/map-admin.js' in paths\\)\")",
-      "Bash(xargs wc -l)"
+      "Bash(xargs wc -l)",
+      "Bash(python3 -c ' *)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)"
     ]
   }
 }
