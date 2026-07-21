@@ -272,33 +272,23 @@
             height: 100%;
         }
 
-        .map-overlay-label {
-            position: absolute;
-            top: 12px;
-            left: 12px;
-            background: rgba(255, 255, 255, 0.86);
-            border: 1px solid #d3e0ec;
-            border-radius: 8px;
-            padding: 5px 10px;
-            font-size: 0.76rem;
-            font-weight: 700;
-            color: #2c4a6b;
-            z-index: 6;
-            pointer-events: none;
-        }
-
+        /* 우측 좁은 칸으로 이동하면서 가로 한 줄 범례로 — 지도를 덜 가리게 */
         .map-legend {
             position: absolute;
-            bottom: 12px;
-            left: 12px;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 10px;
             background: rgba(255, 255, 255, 0.92);
             border: 1px solid #d3e0ec;
             border-radius: 10px;
-            padding: 7px 11px;
-            font-size: 0.73rem;
+            padding: 5px 10px;
+            font-size: 0.72rem;
             color: #45586c;
             z-index: 6;
-            line-height: 1.65;
+            line-height: 1.4;
             pointer-events: none;
         }
 
@@ -444,8 +434,9 @@
 
         /* ── 바로가기 ── */
         .mini-link-grid {
+            /* 지도 하단 가로 배치로 이동 — 칸 수를 폭에 맞춰 자동 조절 */
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
             gap: 8px;
             overflow-y: auto;
             min-height: 0;
@@ -486,6 +477,268 @@
             line-height: 1;
         }
 
+        /* ── 자재 현황 (중앙 메인 · ERP 자재관리 실시간 연동) ──
+           전자칠판 1~2m 시청 전제: 선종·수량은 크게, 드럼 상세 칩은 근접 확인용으로만 작게 */
+        .mat-seg {
+            display: inline-flex;
+            gap: 3px;
+            background: #eef3f9;
+            border: 1px solid var(--y-border);
+            border-radius: 999px;
+            padding: 3px;
+        }
+
+        .mat-seg button {
+            border: none;
+            background: transparent;
+            border-radius: 999px;
+            padding: 4px 16px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--y-text-subtle);
+        }
+
+        .mat-seg button.active {
+            background: var(--y-primary);
+            color: #fff;
+        }
+
+        .mat-tab {
+            display: none;
+            flex: 1 1 auto;
+            min-height: 0;
+            flex-direction: column;
+        }
+
+        .mat-tab.active { display: flex; }
+
+        .cable-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+            flex: 0 0 auto;
+        }
+
+        .cable-stat {
+            border: 1px solid #e3ebf4;
+            border-radius: 10px;
+            background: #f9fbff;
+            padding: 4px 12px;
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .cable-stat .lb { font-size: 0.8rem; font-weight: 700; color: var(--y-text-subtle); }
+
+        .cable-stat .v {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #1f3045;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .cable-stat .v small { font-size: 0.78rem; font-weight: 700; color: var(--y-text-subtle); margin-left: 1px; }
+
+        .cable-scrollwrap {
+            overflow-y: auto;
+            min-height: 0;
+            flex: 1 1 auto;
+            padding-right: 2px;
+        }
+
+        .cable-scrollwrap::-webkit-scrollbar { width: 8px; }
+        .cable-scrollwrap::-webkit-scrollbar-thumb { background: #c9d7e6; border-radius: 999px; }
+
+        /* 2단 신문 배치 — 접기 없이 전 선종 상시 노출, 높이는 두 단으로 자동 균형 */
+        .cable-cols {
+            column-count: 2;
+            column-gap: 14px;
+        }
+
+        .cable-group-title {
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--y-text-subtle);
+            letter-spacing: 0.06em;
+            margin: 0 1px 4px;
+            break-inside: avoid;
+            break-after: avoid;
+        }
+
+        .cable-group-title .gd {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+            background: #2f6fed;
+            display: inline-block;
+            margin-right: 5px;
+            transform: translateY(1px);
+        }
+
+        .cable-group-title.lv .gd { background: #2f9e44; }
+
+        .cable-row {
+            border: 1px solid #e3ebf4;
+            border-radius: 10px;
+            background: #fbfdff;
+            padding: 6px 10px 7px;
+            margin-bottom: 5px;
+            break-inside: avoid;
+        }
+
+        .cable-row-top {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .cable-code { font-size: 1.06rem; font-weight: 800; color: #1f3045; }
+
+        .cable-flag {
+            font-size: 0.66rem;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: 1px 8px;
+            background: #fef3c7;
+            color: #b45309;
+            white-space: nowrap;
+        }
+
+        .cable-flag.muted { background: #eef2f7; color: #64748b; }
+
+        .cable-total {
+            margin-left: auto;
+            font-size: 0.78rem;
+            color: var(--y-text-subtle);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .cable-total b { color: #1f3045; font-size: 0.98rem; }
+
+        /* 막대 하나 = 드럼 하나, 길이 = 남은 미터수 비율 (목업 drumbar 축소판) */
+        .cable-drumbar {
+            display: flex;
+            gap: 2px;
+            height: 7px;
+            margin-top: 5px;
+        }
+
+        .cable-drumbar span {
+            flex-grow: var(--w);
+            border-radius: 2px;
+            background: var(--bar, #2f6fed);
+            min-width: 3px;
+        }
+
+        .cable-drumbar span.rem { opacity: 0.35; }
+        .cable-row.lv .cable-drumbar span { --bar: #2f9e44; }
+
+        /* 드럼 묶음 칩 — 상시 노출(접기 없음), 근접 확인용 */
+        .cable-drums {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 5px;
+        }
+
+        .cable-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #f1f6fb;
+            border: 1px solid #dde9f3;
+            border-radius: 999px;
+            padding: 1px 8px;
+            font-size: 0.68rem;
+            color: #44607a;
+            white-space: nowrap;
+        }
+
+        .cable-chip b { color: #1f3045; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .cable-chip.rem { border-style: dashed; }
+
+        .cable-chip .rtag {
+            font-size: 0.58rem;
+            font-weight: 700;
+            color: #b45309;
+            background: #fef3c7;
+            border-radius: 999px;
+            padding: 0 5px;
+        }
+
+        /* 출고중(현재 반출) — 창고 재고 타일엔 안 잡히므로 잔재와 다른 표식으로 구분 */
+        .cable-chip.shipping { border-style: dotted; }
+
+        .cable-chip .stag {
+            font-size: 0.58rem;
+            font-weight: 700;
+            color: #1d6fa5;
+            background: #e0f2fe;
+            border-radius: 999px;
+            padding: 0 5px;
+        }
+
+        .cable-drumbar span.shipping { opacity: 0.7; background: transparent; box-shadow: inset 0 0 0 1px var(--bar, #2f6fed); }
+
+        /* ── 기타 자재 탭 — 그룹 4단, 전 품목 상시 노출 ── */
+        .etc-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            align-content: start;
+            overflow-y: auto;
+            min-height: 0;
+            flex: 1 1 auto;
+        }
+
+        .etc-group {
+            border: 1px solid #e3ebf4;
+            border-radius: 10px;
+            background: #fbfdff;
+            padding: 2px 12px 6px;
+            align-self: start;
+        }
+
+        .etc-group h3 {
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: #1f3045;
+            margin: 9px 0 3px;
+        }
+
+        .etc-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 6px 0;
+        }
+
+        .etc-row + .etc-row { border-top: 1px solid #e9f0f7; }
+
+        .etc-row .n { font-size: 0.85rem; color: #33465c; min-width: 0; }
+
+        .etc-row .c {
+            font-size: 1.12rem;
+            font-weight: 800;
+            color: #1f3045;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .etc-row .c small { font-size: 0.7rem; font-weight: 700; color: var(--y-text-subtle); margin-left: 1px; }
+
+        .cable-foot {
+            font-size: 0.7rem;
+            color: var(--y-text-subtle);
+            margin-top: 6px;
+            flex: 0 0 auto;
+        }
+
         .login-card {
             width: min(420px, 92vw);
             border-radius: 12px;
@@ -524,6 +777,9 @@
             }
             .home-row, .home-row > [class^="col"] { height: auto; }
             .map-card-body { min-height: 380px; }
+            /* 좁은 화면: 케이블 2단 → 1단, 기타 자재 4단 → 2단 */
+            .cable-cols { column-count: 1; }
+            .etc-grid { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
@@ -599,37 +855,52 @@
                 </div>
             </div>
 
-            <!-- 중앙: 진행중 공사 지도 -->
+            <!-- 중앙: 자재 현황 (주시 빈도 1순위 예정 — 접기 없이 전부 노출) + 바로가기 -->
             <div class="col-12 col-xl-6">
-                <div class="home-card p-3 d-flex flex-column h-100">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div class="section-title">진행중 공사 지도</div>
-                        <div class="d-flex align-items-center gap-2">
-                            <a href="/map-admin.html" class="badge text-bg-light border text-decoration-none" title="공사 목록·위치 관리">⚙ 위치 관리</a>
-                            <span id="mapCountBadge" class="badge text-bg-light border">자동 표시</span>
+                <div class="d-flex flex-column gap-2 h-100">
+                    <!-- 자재 현황 — yjs_erp 자재관리 실시간 연동 (/api/erp/materials, home.js가 렌더) -->
+                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 76%; min-height: 0;">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                <div class="section-title">자재 현황</div>
+                                <div class="mat-seg" role="tablist" aria-label="자재 분류 전환">
+                                    <button type="button" class="active" data-mat-tab="matTabCable">케이블</button>
+                                    <button type="button" data-mat-tab="matTabEtc">기타 자재</button>
+                                </div>
+                            </div>
+                            <span id="matSource" class="text-muted" style="font-size:0.72rem;white-space:nowrap;">불러오는 중…</span>
+                        </div>
+
+                        <!-- 탭 1 · 케이블 재고 -->
+                        <div id="matTabCable" class="mat-tab active">
+                            <div class="cable-stats" id="matCableStats"></div>
+
+                            <div class="cable-scrollwrap">
+                                <div class="cable-cols" id="matCableCols"></div>
+                            </div>
+
+                            <div class="cable-foot">막대 하나 = 드럼 하나 · 길이 = 남은 미터수 · 흐린 표시 = 잔재 · ERP 자재관리 실시간 연동</div>
+                        </div>
+
+                        <!-- 탭 2 · 기타 자재 (접속재·개폐기·변압기 — 자재관리 목업의 기타 자재 탭 축소판) -->
+                        <div id="matTabEtc" class="mat-tab">
+                            <div class="etc-grid" id="matEtcGrid"></div>
+
+                            <div class="cable-foot">접속재·개폐기·변압기 수량 — ERP 자재관리 입·출고 기록 실시간 연동</div>
                         </div>
                     </div>
-                    <div class="map-card-body">
-                        <div id="progressMap"></div>
-                        <div class="map-overlay-label">📍 경기 안양·군포·과천·광명 일대</div>
-                        <div class="map-legend">
-                            <div><span class="legend-dot" style="background:#2f6fed"></span>김무선</div>
-                            <div><span class="legend-dot" style="background:#e8590c"></span>김상훈</div>
-                            <div><span class="legend-dot" style="background:#2f9e44"></span>이재규</div>
-                            <div><span class="legend-dot" style="background:#ae3ec9"></span>김단후</div>
+
+                    <!-- 바로가기 (id 유지로 home.js 렌더링 그대로 동작) -->
+                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 24%; min-height: 0;">
+                        <div class="section-title mb-2">바로가기 모음</div>
+                        <div id="homeFrequentSiteList" class="mini-link-grid">
+                            <div class="text-muted small">불러오는 중...</div>
                         </div>
-                        <div id="mapPlaceholder" class="map-placeholder">
-                            <div class="ph-icon">🗺️</div>
-                            <div id="mapPlaceholderText">지도를 불러오는 중...</div>
-                        </div>
-                    </div>
-                    <div class="text-muted mt-2" style="font-size:0.74rem;">
-                        ※ 월간 공사 계획 기준
                     </div>
                 </div>
             </div>
 
-            <!-- 우: 총 공정률 + 바로가기 -->
+            <!-- 우: 총 공정률 + 진행중 공사 지도(축소) -->
             <div class="col-12 col-xl-3">
                 <div class="d-flex flex-column gap-2 h-100">
                     <div class="home-card p-3" style="flex: 0 0 auto;">
@@ -650,11 +921,29 @@
                         <div id="totalProgressAmount" class="total-progress-caption" style="margin-top:6px;font-weight:700;color:#1f3045;font-size:0.84rem;line-height:1.6;"></div>
                     </div>
 
+                    <!-- 진행중 공사 지도 — 자재 현황이 중앙으로 오면서 축소 이동 (id 유지로 home.js 그대로 동작) -->
                     <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 auto; min-height: 0;">
-                        <div class="section-title mb-2">바로가기 모음</div>
-                        <div id="homeFrequentSiteList" class="mini-link-grid">
-                            <div class="text-muted small">불러오는 중...</div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="section-title">진행중 공사 지도</div>
+                            <div class="d-flex align-items-center gap-2">
+                                <a href="/map-admin.html" class="badge text-bg-light border text-decoration-none" title="공사 목록·위치 관리">⚙ 위치 관리</a>
+                                <span id="mapCountBadge" class="badge text-bg-light border">자동 표시</span>
+                            </div>
                         </div>
+                        <div class="map-card-body">
+                            <div id="progressMap"></div>
+                            <div class="map-legend">
+                                <div><span class="legend-dot" style="background:#2f6fed"></span>김무선</div>
+                                <div><span class="legend-dot" style="background:#e8590c"></span>김상훈</div>
+                                <div><span class="legend-dot" style="background:#2f9e44"></span>이재규</div>
+                                <div><span class="legend-dot" style="background:#ae3ec9"></span>김단후</div>
+                            </div>
+                            <div id="mapPlaceholder" class="map-placeholder">
+                                <div class="ph-icon">🗺️</div>
+                                <div id="mapPlaceholderText">지도를 불러오는 중...</div>
+                            </div>
+                        </div>
+                        <div class="text-muted mt-2" style="font-size:0.72rem;">※ 월간 공사 계획 기준</div>
                     </div>
                 </div>
             </div>
@@ -712,6 +1001,19 @@
         </div>
     </div>
 
+    <script>
+        // 자재 현황 — 케이블/기타 자재 탭 전환 (정적 목업 전용이라 home.js 대신 인라인)
+        (function () {
+            const seg = document.querySelector('.mat-seg');
+            if (!seg) return;
+            seg.addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-mat-tab]');
+                if (!btn || btn.classList.contains('active')) return;
+                seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === btn));
+                document.querySelectorAll('.mat-tab').forEach((p) => p.classList.toggle('active', p.id === btn.dataset.matTab));
+            });
+        })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>

@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     # 서비스 계정 키 JSON 파일 경로. 비어 있으면 Firestore 동기화 비활성화.
     FIREBASE_CREDENTIALS_FILE: str = ""
     ERP_MONTHLY_KPI_URL: str = "https://erp.yjsboard.com/api/kpi/monthly-performance"
+    # 자재 요약: KPI와 같은 호스트·같은 Bearer 키, 경로만 다른 형제 엔드포인트
+    ERP_MATERIALS_URL: str = "https://erp.yjsboard.com/api/materials/summary"
     ERP_DASHBOARD_API_KEY: str = ""
 
     # 예전 .env 값이 남아 있어도 기동되게 무시

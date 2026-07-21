@@ -8,6 +8,7 @@
     //    백엔드 엔드포인트가 준비되면 자동으로 실데이터가 표시됩니다.
     const WEATHER_API_BASE = '/api/weather/current';
     const ERP_MONTHLY_KPI_API = '/api/erp/monthly-kpi';
+    const ERP_MATERIALS_API = '/api/erp/materials';
     const MONTHLY_PROGRESS_CONFIG_API = '/api/erp/monthly-progress-config';
     let kakaoMapJsKey = ''; // /api/public-config에서 런타임 주입
     // ═══════════════════════════════════════════════════════════════════════
@@ -255,6 +256,121 @@
             if (applyErpMonthlyKpi(data)) renderTotalProgressChartHome();
         } catch (_e) {
             // Keep the initial hardcoded fallback when ERP is unavailable.
+        }
+    }
+
+    // ═══════════════════════════ 자재 현황 (ERP 실시간) ═══════════════════════════
+    // 계약: /api/erp/materials → { cable:{stats, groups[]}, etc:{groups[]}, updatedAt }
+    // 재고 타일은 stats(창고 실재고, 출고중 제외)를 그대로 쓴다. lines/chips는 출고중 포함이라
+    // 타일과 합이 다를 수 있음(ERP가 명시한 의도된 차이) — lines에서 재집계하지 않는다.
+    let materialsEverLoaded = false;
+
+    function matStatTile(label, value, unit) {
+        return `<div class="cable-stat"><div class="lb">${label}</div>` +
+            `<div class="v">${Number(value || 0).toLocaleString('ko-KR')}<small>${unit}</small></div></div>`;
+    }
+
+    function matCableChip(chip) {
+        // 잔재(창고 복귀 잔여) / 출고중(현재 반출)은 배타적 상태 — 각자 다른 태그
+        const tag = chip.remnant ? '<span class="rtag">잔재</span>'
+            : chip.shipping ? '<span class="stag">출고중</span>' : '';
+        const cls = 'cable-chip' + (chip.remnant ? ' rem' : chip.shipping ? ' shipping' : '');
+        const maker = chip.maker ? escapeHtml(chip.maker) : '';
+        return `<span class="${cls}"><b>${Number(chip.remaining || 0).toLocaleString('ko-KR')}m ×${Number(chip.count || 0)}</b>${maker}${tag}</span>`;
+    }
+
+    function matCableBars(chip) {
+        // 칩 하나 = 드럼 count개 → 막대 count개, 길이 --w = 남은 미터수
+        const cls = chip.remnant ? ' class="rem"' : chip.shipping ? ' class="shipping"' : '';
+        const w = Number(chip.remaining || 0);
+        const n = Number(chip.count || 0);
+        let out = '';
+        for (let i = 0; i < n; i++) out += `<span style="--w:${w}"${cls}></span>`;
+        return out;
+    }
+
+    function matCableLine(line, isLv) {
+        const chips = Array.isArray(line.chips) ? line.chips : [];
+        // "잔재만 남음" = 이 선종의 남은 드럼이 전부 잔재일 때(대시보드가 chips로 자체 판정)
+        const allRemnant = chips.length > 0 && chips.every((c) => c.remnant);
+        const flag = allRemnant ? '<span class="cable-flag">잔재만 남음</span>' : '';
+        return `<div class="cable-row${isLv ? ' lv' : ''}">` +
+            `<div class="cable-row-top"><span class="cable-code">${escapeHtml(line.code || '')}</span>${flag}` +
+            `<span class="cable-total"><b>${Number(line.totalRemaining || 0).toLocaleString('ko-KR')}m</b> · ${Number(line.drumCount || 0)}드럼</span></div>` +
+            `<div class="cable-drumbar">${chips.map(matCableBars).join('')}</div>` +
+            `<div class="cable-drums">${chips.map(matCableChip).join('')}</div>` +
+            `</div>`;
+    }
+
+    function renderMaterials(data) {
+        const statsEl = document.getElementById('matCableStats');
+        const colsEl = document.getElementById('matCableCols');
+        const etcEl = document.getElementById('matEtcGrid');
+        const srcEl = document.getElementById('matSource');
+        if (!statsEl || !colsEl || !etcEl) return;
+
+        const cable = data.cable || {};
+        const stats = cable.stats || {};
+        const groups = Array.isArray(cable.groups) ? cable.groups : [];
+        const etcGroups = data.etc && Array.isArray(data.etc.groups) ? data.etc.groups : [];
+
+        statsEl.innerHTML =
+            matStatTile('고압 재고', stats.highVoltageStock, 'm') +
+            matStatTile('저압 재고', stats.lowVoltageStock, 'm') +
+            matStatTile('잔재 드럼', stats.remnantDrums, '개');
+
+        // 케이블: 전압 그룹 제목 + 선종 행. 저압은 lv 스타일. 순서는 ERP가 이미 정렬해 보냄.
+        const hasCable = groups.some((g) => Array.isArray(g.lines) && g.lines.length);
+        if (hasCable) {
+            colsEl.innerHTML = groups.map((g) => {
+                const lines = Array.isArray(g.lines) ? g.lines : [];
+                if (!lines.length) return '';
+                const isLv = g.voltage === '저압';
+                const title = `<div class="cable-group-title${isLv ? ' lv' : ''}"><span class="gd"></span>${escapeHtml(g.voltage || '')}</div>`;
+                return title + lines.map((l) => matCableLine(l, isLv)).join('');
+            }).join('');
+        } else {
+            colsEl.innerHTML = '<div class="text-muted small" style="padding:12px 2px;">케이블 재고가 없습니다.</div>';
+        }
+
+        // 기타 자재: 분류 그룹별. 수량 0 품목은 ERP가 이미 제외해서 보냄.
+        if (etcGroups.length) {
+            etcEl.innerHTML = etcGroups.map((grp) => {
+                const items = Array.isArray(grp.items) ? grp.items : [];
+                const rows = items.map((it) =>
+                    `<div class="etc-row"><span class="n">${escapeHtml(it.name || '')}</span>` +
+                    `<span class="c">${Number(it.count || 0).toLocaleString('ko-KR')}<small>${escapeHtml(it.unit || '')}</small></span></div>`
+                ).join('');
+                return `<div class="etc-group"><h3>${escapeHtml(grp.category || '')}</h3>${rows}</div>`;
+            }).join('');
+        } else {
+            etcEl.innerHTML = '<div class="text-muted small" style="padding:12px 2px;">기타 자재 재고가 없습니다.</div>';
+        }
+
+        if (srcEl) srcEl.textContent = `ERP 실시간 · 최신화 ${formatKpiUpdatedAt(data.updatedAt)}`;
+        materialsEverLoaded = true;
+    }
+
+    function setMaterialsError() {
+        const colsEl = document.getElementById('matCableCols');
+        const etcEl = document.getElementById('matEtcGrid');
+        const srcEl = document.getElementById('matSource');
+        const msg = '<div class="text-danger small" style="padding:12px 2px;">자재 데이터를 불러오지 못했습니다.</div>';
+        if (colsEl) colsEl.innerHTML = msg;
+        if (etcEl) etcEl.innerHTML = msg;
+        if (srcEl) srcEl.textContent = 'ERP 연동 오류';
+    }
+
+    async function loadMaterialsHome() {
+        try {
+            const res = await fetch(ERP_MATERIALS_API);
+            if (!res.ok) throw new Error('ERP materials unavailable');
+            const data = await res.json();
+            renderMaterials(data);
+        } catch (_e) {
+            // 첫 로드 실패는 정직하게 오류 표시. 이미 한 번 그렸으면 60초 갱신의
+            // 일시 실패이므로 마지막 정상 데이터를 유지한다(도넛과 같은 방침).
+            if (!materialsEverLoaded) setMaterialsError();
         }
     }
 
@@ -874,6 +990,7 @@
         renderTotalProgressChartHome();
         loadMonthlyProgressConfigHome();
         loadErpMonthlyKpiHome();
+        loadMaterialsHome();
         renderWeatherPlaceholder();
         initMapHome();
         await Promise.all([loadWorkerStatusHome(), loadFrequentSitesHome(), loadWeatherHome()]);
@@ -881,6 +998,7 @@
             updateNowLabel();
             loadMonthlyProgressConfigHome();
             loadErpMonthlyKpiHome();
+            loadMaterialsHome();
             loadWorkerStatusHome();
             loadFrequentSitesHome();
             loadWeatherHome();
