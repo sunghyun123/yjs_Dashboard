@@ -355,17 +355,7 @@
                 return acc;
             }, {});
             Object.keys(groupedData).forEach((dateKey) => {
-                groupedData[dateKey].sort((a, b) => {
-                    const ap = categoryPriority(a.category);
-                    const bp = categoryPriority(b.category);
-                    if (ap !== bp) return ap - bp;
-                    if (ap === 1) {
-                        const as = constructionShiftPriority(a);
-                        const bs = constructionShiftPriority(b);
-                        if (as !== bs) return as - bs;
-                    }
-                    return String(a.task || '').localeCompare(String(b.task || ''), 'ko');
-                });
+                groupedData[dateKey].sort(compareSchedulesForBoard);
             });
 
             let sortedDates = [];
@@ -493,6 +483,28 @@
         if (shiftType === '주간') return 1;
         if (shiftType === '야간') return 2;
         return 3;
+    }
+
+    function compareSchedulesForBoard(a, b) {
+        const ap = categoryPriority(a.category);
+        const bp = categoryPriority(b.category);
+        if (ap !== bp) return ap - bp;
+
+        if (ap === 1) {
+            const as = constructionShiftPriority(a);
+            const bs = constructionShiftPriority(b);
+            if (as !== bs) return as - bs;
+        }
+
+        const managerCompare = primaryPersonName(a.person || '')
+            .localeCompare(primaryPersonName(b.person || ''), 'ko', { numeric: true, sensitivity: 'base' });
+        if (managerCompare !== 0) return managerCompare;
+
+        const taskCompare = String(displayScheduleTaskTitle(a.task) || '')
+            .localeCompare(String(displayScheduleTaskTitle(b.task) || ''), 'ko', { numeric: true, sensitivity: 'base' });
+        if (taskCompare !== 0) return taskCompare;
+
+        return Number(a.id || 0) - Number(b.id || 0);
     }
 
     function compactCategoryClass(category) {
