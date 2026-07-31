@@ -2,6 +2,9 @@
 import asyncio
 import json
 import os.path
+import time
+
+import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query, UploadFile, File
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Dict, Any, Literal, List
@@ -25,26 +28,72 @@ router = APIRouter(prefix="/api/schedules", tags=["Schedules"])
 ai_svc = GeminiService(api_key=settings.GEMINI_API_KEY)
 
 # ── 수주대장 자동완성 캐시 ──────────────────────────────────────────────────
+# 원본은 ERP의 수주 테이블이고, 여기서는 ERP 프로듀서 API로 받아 TTL 캐시에 담는다.
+# xlsx는 폴백 전용(ERP 장애 + 캐시 없음)으로만 남는다.
+_CACHE_TTL_SECONDS = 600
+# 조회 실패 시 다음 시도까지 기다리는 시간. 실패마다 매 요청 재시도하면 자동완성이 매번 10초씩 멈춘다.
+_RETRY_INTERVAL_SECONDS = 60
+
 _construction_list_cache: List[Dict[str, str]] = []
-_construction_list_loaded: bool = False
+_next_refresh_at: float = 0.0  # time.monotonic() 기준 갱신 예정 시각
+_construction_list_source: str = ""  # "erp" | "xlsx" — 지금 캐시가 어디서 온 것인지
+
 
 def reload_construction_list() -> int:
-    """캐시를 초기화하고 xlsx를 다시 로드한다. 로드된 건수를 반환."""
-    global _construction_list_cache, _construction_list_loaded
-    _construction_list_loaded = False
-    _construction_list_cache = []
+    """캐시 유효기간을 즉시 만료시켜 다음 로드가 ERP를 다시 조회하게 한다. 보유 건수를 반환.
+
+    캐시를 비우지는 않는다 — 재조회가 실패했을 때 멀쩡한 옛 목록까지 잃을 이유가 없다.
+    """
+    global _next_refresh_at
+    _next_refresh_at = 0.0
     _load_construction_list()
     return len(_construction_list_cache)
 
 
-def _load_construction_list() -> List[Dict[str, str]]:
-    global _construction_list_cache, _construction_list_loaded
-    if _construction_list_loaded:
-        return _construction_list_cache
+def _fetch_from_erp() -> List[Dict[str, str]]:
+    """ERP 수주 테이블에서 공사 목록을 받아온다. 실패·빈 응답은 예외로 알린다."""
+    url = (settings.ERP_CONSTRUCTIONS_URL or "").strip()
+    token = (settings.ERP_DASHBOARD_API_KEY or "").strip()
+    if not url or not token:
+        raise RuntimeError("ERP 공사목록 API가 설정되지 않았습니다.")
+
+    # 이 함수를 호출하는 경로 함수들이 async가 아니라 def이므로 FastAPI가 스레드풀에서 돌린다.
+    # 따라서 동기 httpx 호출이 이벤트 루프를 막지 않는다(erp_sync_service.py와 같은 방식).
+    with httpx.Client(timeout=10.0) as client:
+        resp = client.get(url, headers={"Authorization": f"Bearer {token}"})
+    resp.raise_for_status()
+
+    body = resp.json()
+    items = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(items, list):
+        raise ValueError("ERP 공사목록 응답 형식이 올바르지 않습니다.")
+
+    result: List[Dict[str, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        code = str(item.get("code") or "").strip()
+        name = str(item.get("name") or "").strip()
+        if not (code and name):
+            continue
+        result.append({
+            "code": code,
+            "name": name,
+            "work_type": str(item.get("work_type") or "").strip(),
+            "manager": str(item.get("manager") or "").strip(),
+        })
+
+    # 빈 목록을 성공으로 취급해 캐싱하면 자동완성이 에러 없이 조용히 죽는다 → 실패로 알린다.
+    if not result:
+        raise ValueError("ERP 공사목록이 비어 있습니다.")
+    return result
+
+
+def _load_from_xlsx() -> List[Dict[str, str]]:
+    """폴백: 프로젝트 루트의 수주대장조회.xlsx를 읽는다(수동 내려받기라 낡을 수 있음)."""
     xlsx_path = "수주대장조회.xlsx"
     if not os.path.exists(xlsx_path):
         logger.warning("수주대장조회.xlsx 파일을 찾을 수 없습니다.")
-        _construction_list_loaded = True
         return []
     try:
         import openpyxl
@@ -59,11 +108,43 @@ def _load_construction_list() -> List[Dict[str, str]]:
             if code and name:
                 result.append({"code": code, "name": name, "work_type": work_type, "manager": manager})
         wb.close()
-        _construction_list_cache = result
-        logger.info(f"수주대장 {len(result)}건 로드 완료")
+        return result
     except Exception as e:
-        logger.error(f"수주대장 로드 실패: {e}")
-    _construction_list_loaded = True
+        logger.error(f"수주대장 xlsx 로드 실패: {e}")
+        return []
+
+
+def _load_construction_list() -> List[Dict[str, str]]:
+    global _construction_list_cache, _next_refresh_at, _construction_list_source
+    now = time.monotonic()
+    if _construction_list_cache and now < _next_refresh_at:
+        return _construction_list_cache
+
+    try:
+        items = _fetch_from_erp()
+        _construction_list_cache = items
+        _construction_list_source = "erp"
+        _next_refresh_at = now + _CACHE_TTL_SECONDS
+        logger.info("수주대장 %d건 ERP에서 로드 완료", len(items))
+        return _construction_list_cache
+    except Exception as exc:
+        logger.error("ERP 공사목록 조회 실패: %s", exc)
+
+    # 폴백 1: 낡은 캐시라도 계속 쓴다 — 자동완성이 빈 목록이 되는 것보다 낫다.
+    if _construction_list_cache:
+        # "erp"가 아니라 "erp-stale": 응답 내용은 ERP 것이지만 지금 ERP와 일치한다는 보장은 없다.
+        _construction_list_source = "erp-stale" if _construction_list_source.startswith("erp") else _construction_list_source
+        _next_refresh_at = now + _RETRY_INTERVAL_SECONDS
+        logger.warning("ERP 조회 실패 — 기존 캐시 %d건 유지", len(_construction_list_cache))
+        return _construction_list_cache
+
+    # 폴백 2: 캐시가 아예 없으면(기동 직후 ERP 장애) xlsx라도 읽는다.
+    items = _load_from_xlsx()
+    if items:
+        _construction_list_cache = items
+        _construction_list_source = "xlsx"
+        logger.warning("ERP 조회 실패 — xlsx 폴백 %d건 사용", len(items))
+    _next_refresh_at = now + _RETRY_INTERVAL_SECONDS
     return _construction_list_cache
 
 
@@ -339,17 +420,19 @@ async def execute_action(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/construction-list", summary="수주대장 공사 목록 (자동완성용)")
+@router.get("/construction-list", summary="공사 목록 (자동완성용 — 원본은 ERP 수주 테이블)")
 def get_construction_list(
     q: str = Query(default="", description="검색어 (공사코드 또는 공사명 부분 일치)"),
     _user_session=Depends(require_session),
 ):
+    # 이 경로 함수는 def(=스레드풀 실행)라 ERP 조회가 막혀도 이벤트 루프는 멈추지 않는다.
     items = _load_construction_list()
     if q:
         q_lower = q.lower()
         items = [i for i in items if q_lower in i["code"].lower() or q_lower in i["name"].lower()]
         items = items[:50]
-    return {"data": items, "total": len(items)}
+    # source: 지금 응답이 ERP 원본인지 xlsx 폴백인지 (프런트는 안 쓰고, 장애 진단용)
+    return {"data": items, "total": len(items), "source": _construction_list_source}
 
 
 @router.get("/field-staff", summary="현장직 이름 목록 (작업 인원 선택)")
