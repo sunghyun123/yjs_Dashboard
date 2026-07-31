@@ -60,6 +60,17 @@
         }
         .app-top-nav .btn { border-radius: 999px; font-size: 0.76rem; padding: 4px 10px; line-height: 1.2; min-width: 74px; font-weight: 700; }
         .app-top-nav .btn:hover { transform: translateY(-1px); }
+        .staff-color-input {
+            width: 42px;
+            height: 30px;
+            padding: 2px;
+            border-radius: 7px;
+            cursor: pointer;
+        }
+        .staff-color-code {
+            min-width: 68px;
+            font-size: 0.72rem;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -85,11 +96,12 @@
 <div class="container py-4 admin-shell">
 
     <div class="card mb-3 admin-card">
-        <div class="card-header py-2">현장직 이름 (상황판 «작업 인원 추가» 목록)</div>
+        <div class="card-header py-2">담당자 관리 (상황판 공사 이력 카드)</div>
         <div class="card-body py-2">
+            <div class="small text-muted mb-2">담당자 색상은 등록할 때 자동 생성되며, 아래 색상표를 누르면 변경 즉시 저장됩니다.</div>
             <div class="row g-2 align-items-end">
                 <div class="col-md-6">
-                    <label class="form-label small mb-0">이름 추가</label>
+                    <label class="form-label small mb-0">담당자 이름 추가</label>
                     <input id="fieldStaffNameInput" class="form-control form-control-sm" placeholder="예: 홍길동">
                 </div>
                 <div class="col-md-3">
@@ -238,9 +250,22 @@
             return;
         }
         box.innerHTML = rows.map((r) => `
-            <div class="d-flex justify-content-between align-items-center border rounded px-2 py-1 mb-1">
+            <div class="d-flex justify-content-between align-items-center border rounded px-2 py-1 mb-1 gap-2">
                 <span>${escapeHtml(r.name)}</span>
-                <button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="deleteFieldStaff(${r.id})">삭제</button>
+                <div class="d-flex align-items-center gap-2 ms-auto flex-wrap justify-content-end">
+                    <label class="visually-hidden" for="fieldStaffColor-${r.id}">${escapeHtml(r.name)} 카드 색상</label>
+                    <input
+                        id="fieldStaffColor-${r.id}"
+                        class="form-control form-control-color staff-color-input"
+                        type="color"
+                        value="${escapeHtml(r.color || '#64748b')}"
+                        title="${escapeHtml(r.name)} 카드 색상 변경"
+                        onchange="updateFieldStaffColor(${r.id}, this.value)"
+                    >
+                    <code id="fieldStaffColorCode-${r.id}" class="staff-color-code text-muted">${escapeHtml(r.color || '#64748b')}</code>
+                    <span id="fieldStaffColorStatus-${r.id}" class="small text-muted" aria-live="polite"></span>
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="deleteFieldStaff(${r.id})">삭제</button>
+                </div>
             </div>
         `).join('');
     }
@@ -295,6 +320,38 @@
             return;
         }
         await loadFieldStaffAdmin();
+    }
+
+    async function updateFieldStaffColor(id, color) {
+        const status = document.getElementById(`fieldStaffColorStatus-${id}`);
+        const code = document.getElementById(`fieldStaffColorCode-${id}`);
+        if (status) {
+            status.className = 'small text-muted';
+            status.textContent = '저장 중...';
+        }
+        const res = await fetch(`/api/admin/field-staff/${id}/color`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ color })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            if (status) {
+                status.className = 'small text-danger';
+                status.textContent = data.detail || '저장 실패';
+            }
+            await loadFieldStaffAdmin();
+            return;
+        }
+        const savedColor = data.data?.color || color;
+        if (code) code.textContent = savedColor;
+        if (status) {
+            status.className = 'small text-success';
+            status.textContent = '저장됨';
+            window.setTimeout(() => {
+                if (status.textContent === '저장됨') status.textContent = '';
+            }, 1600);
+        }
     }
 
     async function addOutingStaff() {

@@ -1,6 +1,7 @@
 # app/db/repos/worker.py
 import json
 import logging
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -8,6 +9,46 @@ from zoneinfo import ZoneInfo
 from app.db.connection import get_conn
 
 logger = logging.getLogger(__name__)
+
+FIELD_STAFF_COLOR_PALETTE = (
+    "#c07900",
+    "#4d9f0c",
+    "#176bd6",
+    "#d6335c",
+    "#008a8a",
+    "#7b3fc5",
+    "#789600",
+    "#c75a12",
+    "#4b55d9",
+    "#64748b",
+)
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _stable_text_hash(value: str) -> int:
+    """dashboard.schedule.js의 32비트 문자열 해시와 같은 값을 만든다."""
+    hash_value = 0
+    utf16 = str(value or "").strip().encode("utf-16-le")
+    for idx in range(0, len(utf16), 2):
+        code_unit = utf16[idx] | (utf16[idx + 1] << 8)
+        hash_value = ((hash_value << 5) - hash_value + code_unit) & 0xFFFFFFFF
+    if hash_value & 0x80000000:
+        hash_value -= 0x100000000
+    return abs(hash_value)
+
+
+def default_field_staff_color(name: str) -> str:
+    key = str(name or "").strip()
+    if not key:
+        return FIELD_STAFF_COLOR_PALETTE[-1]
+    return FIELD_STAFF_COLOR_PALETTE[_stable_text_hash(key) % len(FIELD_STAFF_COLOR_PALETTE)]
+
+
+def normalize_field_staff_color(color: str) -> str:
+    value = str(color or "").strip()
+    if not _HEX_COLOR_RE.fullmatch(value):
+        raise ValueError("색상은 #RRGGBB 형식이어야 합니다.")
+    return value.lower()
 
 
 def _parse_local_datetime(value: str) -> Optional[datetime]:
@@ -126,16 +167,47 @@ class WorkerRepository:
 
     def list_field_staff(self) -> List[Dict[str, Any]]:
         with get_conn(self._db_path) as conn:
-            return [dict(r) for r in conn.execute("SELECT id, name, sort_order FROM field_staff ORDER BY sort_order ASC, name ASC").fetchall()]
+            rows = conn.execute(
+                "SELECT id, name, sort_order, color FROM field_staff ORDER BY sort_order ASC, name ASC"
+            ).fetchall()
+            result = []
+            for row in rows:
+                item = dict(row)
+                try:
+                    item["color"] = normalize_field_staff_color(item.get("color"))
+                except ValueError:
+                    item["color"] = default_field_staff_color(item.get("name", ""))
+                result.append(item)
+            return result
 
     def add_field_staff(self, name: str, sort_order: int = 0) -> int:
         n = (name or "").strip()
         if not n:
             raise ValueError("이름이 필요합니다.")
+        color = default_field_staff_color(n)
         with get_conn(self._db_path) as conn:
             with conn:
-                cursor = conn.execute("INSERT INTO field_staff (name, sort_order) VALUES (?,?)", (n, sort_order))
+                cursor = conn.execute(
+                    "INSERT INTO field_staff (name, sort_order, color) VALUES (?,?,?)",
+                    (n, sort_order, color),
+                )
                 return int(cursor.lastrowid)
+
+    def update_field_staff_color(self, staff_id: int, color: str) -> Optional[Dict[str, Any]]:
+        normalized = normalize_field_staff_color(color)
+        with get_conn(self._db_path) as conn:
+            with conn:
+                cursor = conn.execute(
+                    "UPDATE field_staff SET color=? WHERE id=?",
+                    (normalized, staff_id),
+                )
+                if cursor.rowcount < 1:
+                    return None
+                row = conn.execute(
+                    "SELECT id, name, sort_order, color FROM field_staff WHERE id=?",
+                    (staff_id,),
+                ).fetchone()
+                return dict(row) if row else None
 
     def delete_field_staff(self, staff_id: int) -> bool:
         with get_conn(self._db_path) as conn:

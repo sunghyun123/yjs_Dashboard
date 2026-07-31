@@ -13,6 +13,8 @@
         { bg: '#dde0ff', border: '#4b55d9', ring: '#a5a9f4', text: '#30358f' },
         { bg: '#f1f5f9', border: '#64748b', ring: '#cbd5e1', text: '#334155' },
     ];
+    const managerColorByName = new Map();
+    let fieldStaffRowsCache = [];
 
     const ERP_SCHEMA = [
         { label: '상용직',   dayKey: 'regular_day',   nightKey: 'regular_night' },
@@ -335,7 +337,10 @@
             } else {
                 url = `/api/schedules/today?range_start=${encodeURIComponent(monthlyRange.start)}&range_end=${encodeURIComponent(monthlyRange.end)}`;
             }
-            const response = await fetch(url);
+            const [response] = await Promise.all([
+                fetch(url),
+                refreshFieldStaffColors(),
+            ]);
             const data = await response.json();
             const rows = Array.isArray(data.data) ? data.data : [];
             let filteredRows = keyword
@@ -447,11 +452,43 @@
         return Math.abs(hash);
     }
 
+    function normalizeHexColor(value) {
+        const raw = String(value || '').trim();
+        return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw.toLowerCase() : '';
+    }
+
+    function mixHexColors(first, second, firstWeight) {
+        const a = normalizeHexColor(first);
+        const b = normalizeHexColor(second);
+        if (!a || !b) return a || b || '#64748b';
+        const weight = Math.max(0, Math.min(1, Number(firstWeight)));
+        const channel = (start) => {
+            const av = parseInt(a.slice(start, start + 2), 16);
+            const bv = parseInt(b.slice(start, start + 2), 16);
+            return Math.round((av * weight) + (bv * (1 - weight))).toString(16).padStart(2, '0');
+        };
+        return `#${channel(1)}${channel(3)}${channel(5)}`;
+    }
+
+    function managerPaletteFromAccent(accent) {
+        const normalized = normalizeHexColor(accent);
+        const preset = MANAGER_COLOR_PALETTE.find((item) => item.border.toLowerCase() === normalized);
+        if (preset) return preset;
+        return {
+            bg: mixHexColors(normalized, '#ffffff', 0.16),
+            border: normalized,
+            ring: mixHexColors(normalized, '#ffffff', 0.48),
+            text: mixHexColors(normalized, '#000000', 0.68),
+        };
+    }
+
     function managerColor(name) {
         const key = String(name || '').trim();
         if (!key) {
             return { bg: '#f8f9fc', border: '#9cb6da', ring: '#e1e8f1', text: '#334155' };
         }
+        const savedColor = managerColorByName.get(key);
+        if (savedColor) return managerPaletteFromAccent(savedColor);
         return MANAGER_COLOR_PALETTE[stableHashText(key) % MANAGER_COLOR_PALETTE.length];
     }
 
@@ -614,17 +651,31 @@
         });
     }
 
-    async function fetchFieldStaffNames() {
+    async function refreshFieldStaffColors() {
         try {
             const res = await fetch('/api/schedules/field-staff');
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) return [];
-            return (data.data || [])
-                .map((r) => String(r.name || '').trim())
-                .filter(Boolean);
+            if (!res.ok) return fieldStaffRowsCache;
+            fieldStaffRowsCache = Array.isArray(data.data) ? data.data : [];
+            managerColorByName.clear();
+            fieldStaffRowsCache.forEach((row) => {
+                const name = String(row.name || '').trim();
+                const color = normalizeHexColor(row.color);
+                if (name && color) managerColorByName.set(name, color);
+            });
+            return fieldStaffRowsCache;
         } catch (_e) {
-            return [];
+            return fieldStaffRowsCache;
         }
+    }
+
+    async function fetchFieldStaffNames() {
+        const rows = fieldStaffRowsCache.length
+            ? fieldStaffRowsCache
+            : await refreshFieldStaffColors();
+        return rows
+            .map((r) => String(r.name || '').trim())
+            .filter(Boolean);
     }
 
     async function populateManagerSelect(selectId, selectedName) {
