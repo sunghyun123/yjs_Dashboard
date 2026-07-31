@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     ERP_MONTHLY_KPI_URL: str = "https://erp.yjsboard.com/api/kpi/monthly-performance"
     # 자재 요약: KPI와 같은 호스트·같은 Bearer 키, 경로만 다른 형제 엔드포인트
     ERP_MATERIALS_URL: str = "https://erp.yjsboard.com/api/materials/summary"
+    # 공사 목록(자동완성): ERP 수주 테이블이 원본. 비우면 수주대장조회.xlsx 폴백으로 동작한다.
+    ERP_CONSTRUCTIONS_URL: str = "https://erp.yjsboard.com/api/constructions/list"
     ERP_DASHBOARD_API_KEY: str = ""
 
     # 예전 .env 값이 남아 있어도 기동되게 무시
