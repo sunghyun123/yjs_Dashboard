@@ -2,15 +2,15 @@
     const DAY_COLLAPSE_LIMIT = 4;
     const quickAddSelectedPersonNames = new Set();
     const MANAGER_COLOR_PALETTE = [
-        { bg: '#fff4de', border: '#d89016', ring: '#f2d198', text: '#7a4b00' },
-        { bg: '#e9f8ef', border: '#24905d', ring: '#a9dfc2', text: '#145c3b' },
-        { bg: '#eaf4ff', border: '#2b73c8', ring: '#aacbf1', text: '#174c8d' },
-        { bg: '#fff0f3', border: '#cf4f6f', ring: '#efb7c4', text: '#8a243d' },
-        { bg: '#edf7f7', border: '#2d8c93', ring: '#abdce0', text: '#17616a' },
-        { bg: '#f6f0ff', border: '#8352c7', ring: '#d1b8f2', text: '#573395' },
-        { bg: '#f4f7e8', border: '#748c1f', ring: '#d4df9d', text: '#4f6114' },
-        { bg: '#fff1e8', border: '#c76324', ring: '#edc0a5', text: '#7d3c14' },
-        { bg: '#eef2ff', border: '#5368d6', ring: '#b9c4f5', text: '#324193' },
+        { bg: '#fff0bf', border: '#c07900', ring: '#efc760', text: '#694100' },
+        { bg: '#ddfac8', border: '#4d9f0c', ring: '#aee879', text: '#2f6504' },
+        { bg: '#d7e8ff', border: '#176bd6', ring: '#8dbbff', text: '#0f4a9b' },
+        { bg: '#ffdce6', border: '#d6335c', ring: '#f198ad', text: '#84213a' },
+        { bg: '#d5fbf6', border: '#008a8a', ring: '#80ddd7', text: '#006064' },
+        { bg: '#eadcff', border: '#7b3fc5', ring: '#c29cf0', text: '#4f2488' },
+        { bg: '#eef7b6', border: '#789600', ring: '#cfdf57', text: '#4e6100' },
+        { bg: '#ffe1ca', border: '#c75a12', ring: '#efa777', text: '#7d3408' },
+        { bg: '#dde0ff', border: '#4b55d9', ring: '#a5a9f4', text: '#30358f' },
         { bg: '#f1f5f9', border: '#64748b', ring: '#cbd5e1', text: '#334155' },
     ];
 
