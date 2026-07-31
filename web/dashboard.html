@@ -680,8 +680,161 @@
         .schedule-view-options {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 8px;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .schedule-view-options .form-check-label {
+            font-weight: 700;
+            color: #344b63;
+        }
+
+        .schedule-view-hint {
+            color: #718096;
+            font-size: 0.74rem;
+        }
+
+        .calendar-overview-week-header,
+        .calendar-overview-grid {
+            display: none;
+        }
+
+        @media (min-width: 769px) {
+            body.calendar-overview-mode .dashboard-header {
+                display: none !important;
+            }
+
+            body.calendar-overview-mode .dashboard-shell {
+                padding-top: 12px;
+            }
+
+            body.calendar-overview-mode .toolbar-card {
+                margin-bottom: 10px;
+                padding: 10px 14px;
+            }
+
+            body.calendar-overview-mode #scheduleBoard {
+                max-height: calc(100dvh - 158px) !important;
+                padding: 12px;
+            }
+
+            body.calendar-overview-mode .calendar-overview-week-header {
+                display: grid;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 9px;
+                margin-bottom: 9px;
+            }
+
+            body.calendar-overview-mode .calendar-overview-grid {
+                display: flex;
+                min-height: 0;
+                flex-direction: column;
+                gap: 9px;
+            }
+
+            body.calendar-overview-mode .calendar-overview-week {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            body.calendar-overview-mode .calendar-overview-weekdays {
+                display: grid;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 9px;
+            }
+
+            body.calendar-overview-mode .calendar-overview-weekdays .calendar-cell {
+                min-height: 126px;
+                padding: 8px 9px;
+            }
+
+            body.calendar-overview-mode .calendar-overview-weekend-row {
+                display: grid;
+                grid-template-columns: 92px minmax(0, 1fr);
+                align-items: stretch;
+                gap: 8px;
+                padding: 6px;
+                border: 1px solid #d9e4f0;
+                border-radius: 9px;
+                background: #f4f8fc;
+            }
+
+            body.calendar-overview-mode .calendar-overview-weekend-label {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 7px;
+                background: #e8f0f9;
+                color: #375a7e;
+                font-size: 0.8rem;
+                font-weight: 800;
+                text-align: center;
+            }
+
+            body.calendar-overview-mode .calendar-overview-weekend-days {
+                display: grid;
+                grid-template-columns: repeat(var(--weekend-count, 1), minmax(0, 1fr));
+                gap: 8px;
+            }
+
+            body.calendar-overview-mode .calendar-overview-weekend-days .calendar-cell {
+                min-height: 88px;
+                padding: 7px 9px;
+            }
+
+            body.calendar-overview-mode .calendar-weekday {
+                font-size: 0.9rem;
+            }
+
+            body.calendar-overview-mode .calendar-date-label {
+                margin-bottom: 6px;
+                padding-bottom: 5px;
+                font-size: 1rem;
+            }
+
+            body.calendar-overview-mode .day-count-badge {
+                padding: 2px 7px;
+                font-size: 0.72rem;
+            }
+
+            body.calendar-overview-mode .schedule-compact-item {
+                margin-bottom: 5px;
+                padding: 6px 9px 6px 10px;
+            }
+
+            body.calendar-overview-mode .schedule-compact-task {
+                font-size: 1.02rem;
+                line-height: 1.28;
+            }
+
+            body.calendar-overview-mode .schedule-compact-person {
+                font-size: 0.86rem !important;
+                line-height: 1.25;
+            }
+
+            body.calendar-overview-mode .schedule-compact-detail-preview {
+                font-size: 0.84rem;
+                line-height: 1.3;
+            }
+
+            body.calendar-overview-mode .schedule-person-badge,
+            body.calendar-overview-mode .schedule-category-badge,
+            body.calendar-overview-mode .schedule-shift-badge,
+            body.calendar-overview-mode .schedule-workcode-badge,
+            body.calendar-overview-mode .schedule-meta-badges .schedule-source-badge {
+                font-size: 0.76rem;
+            }
+
+            body.calendar-overview-mode .calendar-empty-line::after {
+                content: '공사 일정 없음';
+                color: #a2acb7;
+                font-size: 0.78rem;
+            }
+
+            body.calendar-overview-mode .calendar-overview-day-items.collapsed .schedule-compact-item:nth-child(n + 4) {
+                display: none;
+            }
         }
 
         .side-panel-header-btn {
@@ -1219,46 +1372,17 @@
 
             <div class="col-12" id="mainBoardColumn">
                 <div class="toolbar-card">
-                    <div class="row g-2 align-items-center">
-                        <div class="col-12 col-md-4 col-lg-3">
-                            <input id="scheduleSearchKeyword" class="form-control form-control-sm"
-                                placeholder="현장/작업 검색">
-                        </div>
-                        <div class="col-6 col-md-3 col-lg-2">
-                            <input id="scheduleTargetDate" class="form-control form-control-sm" type="date">
-                        </div>
-                        <div class="col-6 col-md-2 col-lg-2">
-                            <div class="form-check mt-1">
-                                <input class="form-check-input" type="checkbox" id="todayOnlyCheck">
-                                <label class="form-check-label small" for="todayOnlyCheck">오늘만</label>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-3 col-lg-2 d-grid">
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                onclick="openPersonFilterModal()">인원 검색</button>
-                        </div>
-                        <div class="col-6 col-md-12 col-lg-3 d-grid">
-                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadSchedules()">필터
-                                적용</button>
-                        </div>
-                    </div>
                     <div class="schedule-view-options small">
                         <div class="form-check m-0">
-                            <input class="form-check-input" type="checkbox" id="viewShowPerson">
-                            <label class="form-check-label" for="viewShowPerson">작업 인원</label>
-                        </div>
-                        <div class="form-check m-0">
                             <input class="form-check-input" type="checkbox" id="viewShowDetails">
-                            <label class="form-check-label" for="viewShowDetails">상세 정보</label>
+                            <label class="form-check-label" for="viewShowDetails">상세 정보 표시</label>
                         </div>
                         <div class="form-check m-0">
-                            <input class="form-check-input" type="checkbox" id="viewShowWorkCode">
-                            <label class="form-check-label" for="viewShowWorkCode">작업 코드</label>
+                            <input class="form-check-input" type="checkbox" id="viewOverviewMode">
+                            <label class="form-check-label" for="viewOverviewMode">한눈에 보기</label>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
-                            onclick="resetScheduleViewOptions()">기본값으로 되돌리기</button>
+                        <span class="schedule-view-hint">평일은 모두 유지하고 공사 일정만 크게 표시하며, 실제 공사가 있는 주말만 추가합니다.</span>
                     </div>
-                    <div class="small text-muted mt-1" id="personFilterSummary" style="display: none;"></div>
                 </div>
                 <div class="card h-100">
                     <div class="card-header flex-column align-items-stretch gap-2 py-3">
@@ -1274,8 +1398,6 @@
                                         onclick="shiftBoardMonth(1)">다음달 ▶</button>
                                 </div>
                                 <span id="currentBoardMonthLabel" class="badge text-bg-primary">-</span>
-                                <span id="boardViewModeLabel" class="badge rounded-pill board-mode-badge">조회 모드:
-                                    -</span>
                                 <span id="dashboardNotice"
                                     class="badge rounded-pill text-bg-light text-dark border small fw-normal text-wrap text-start"
                                     style="max-width: 100%;">공지: 중요 안내는 관리자에게 문의하세요.</span>
@@ -1404,28 +1526,6 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
                     <button type="button" class="btn btn-sm btn-primary" onclick="submitDirectEdit()">즉시 수정</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="personFilterModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">인원 검색 필터</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="small text-muted mb-2">관리자가 등록한 현장직 이름을 복수 선택한 뒤 필터 적용 시, 해당 인원이 작업 인원에 포함된 일정만 표시합니다.</p>
-                    <div id="personFilterStaffList" class="d-flex flex-wrap gap-2"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearPersonFilter()">필터
-                        해제</button>
-                    <button type="button" class="btn btn-sm btn-primary" onclick="applyPersonFilterFromModal()">필터
-                        적용</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
                 </div>
             </div>
         </div>
@@ -1563,20 +1663,16 @@
         const scheduleMap = new Map();
         let editRequestModal = null;
         let fieldStaffModal = null;
-        let personFilterModal = null;
         let detailPreviewModal = null;
         let quickAddScheduleModal = null;
         let dashboardLoginModal = null;
         const fieldStaffNameById = {};
         const selectedFieldStaffIds = new Set();
         let fieldStaffTargetScheduleId = null;
-        const personFilterSelectedNames = new Set();
-        let personFilterAppliedNames = [];
         let currentBoardMonth = '';
         let scheduleViewOptions = {
-            showPerson: false,
             showDetails: false,
-            showWorkCode: false,
+            overviewMode: false,
         };
         let rightPanelState = {
             board: false,
@@ -1594,71 +1690,41 @@
             return LEGACY_WORK_CATEGORIES.includes(c);
         }
 
-        function personTokens(personRaw) {
-            return String(personRaw || '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
-        }
-
-        function scheduleMatchesAppliedPersonFilter(item) {
-            if (!personFilterAppliedNames.length) return true;
-            const tokens = new Set(personTokens(item.person));
-            return personFilterAppliedNames.some((name) => tokens.has(name));
-        }
-
-        function updatePersonFilterSummary() {
-            const el = document.getElementById('personFilterSummary');
-            if (!personFilterAppliedNames.length) {
-                el.style.display = 'none';
-                el.textContent = '';
-                return;
-            }
-            el.style.display = 'block';
-            el.textContent = `인원 필터 적용 중: ${personFilterAppliedNames.join(', ')}`;
-        }
-
         function loadScheduleViewOptions() {
             try {
                 const raw = localStorage.getItem('yjs_schedule_view_options_v1');
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     scheduleViewOptions = {
-                        showPerson: Boolean(parsed.showPerson),
                         showDetails: Boolean(parsed.showDetails),
-                        showWorkCode: Boolean(parsed.showWorkCode),
+                        overviewMode: Boolean(parsed.overviewMode),
                     };
                 }
             } catch (_e) { }
-            document.getElementById('viewShowPerson').checked = scheduleViewOptions.showPerson;
             document.getElementById('viewShowDetails').checked = scheduleViewOptions.showDetails;
-            document.getElementById('viewShowWorkCode').checked = scheduleViewOptions.showWorkCode;
+            document.getElementById('viewOverviewMode').checked = scheduleViewOptions.overviewMode;
+            applyScheduleOverviewMode();
+        }
+
+        function applyScheduleOverviewMode() {
+            document.body.classList.toggle('calendar-overview-mode', scheduleViewOptions.overviewMode);
+            if (scheduleViewOptions.overviewMode) toggleAppDrawer(false);
         }
 
         function bindScheduleViewOptions() {
             const map = [
-                ['viewShowPerson', 'showPerson'],
                 ['viewShowDetails', 'showDetails'],
-                ['viewShowWorkCode', 'showWorkCode'],
+                ['viewOverviewMode', 'overviewMode'],
             ];
             map.forEach(([id, key]) => {
                 const el = document.getElementById(id);
                 el.addEventListener('change', () => {
                     scheduleViewOptions[key] = Boolean(el.checked);
                     localStorage.setItem('yjs_schedule_view_options_v1', JSON.stringify(scheduleViewOptions));
+                    applyScheduleOverviewMode();
                     loadSchedules();
                 });
             });
-        }
-
-        function resetScheduleViewOptions() {
-            scheduleViewOptions = {
-                showPerson: false,
-                showDetails: false,
-                showWorkCode: false,
-            };
-            localStorage.setItem('yjs_schedule_view_options_v1', JSON.stringify(scheduleViewOptions));
-            document.getElementById('viewShowPerson').checked = false;
-            document.getElementById('viewShowDetails').checked = false;
-            document.getElementById('viewShowWorkCode').checked = false;
-            loadSchedules();
         }
 
         function loadRightPanelState() {
@@ -1756,65 +1822,6 @@
             else rightColumnMode = 'full';
             localStorage.setItem('yjs_right_column_mode_v2', rightColumnMode);
             applyRightColumnState();
-        }
-
-        async function openPersonFilterModal() {
-            personFilterSelectedNames.clear();
-            personFilterAppliedNames.forEach((n) => personFilterSelectedNames.add(n));
-            const box = document.getElementById('personFilterStaffList');
-            box.innerHTML = '<div class="text-muted small">불러오는 중...</div>';
-            personFilterModal.show();
-            try {
-                const res = await fetch('/api/schedules/field-staff');
-                const data = await res.json();
-                if (!res.ok) {
-                    box.innerHTML = `<div class="text-danger small">${escapeHtml(data.detail || '목록을 불러오지 못했습니다.')}</div>`;
-                    return;
-                }
-                const rows = data.data || [];
-                if (rows.length === 0) {
-                    box.innerHTML = '<div class="text-muted small">등록된 현장직이 없습니다. 관리자 화면에서 이름을 추가하세요.</div>';
-                    return;
-                }
-                box.innerHTML = rows.map((r) => {
-                    const name = String(r.name || '').trim();
-                    if (!name) return '';
-                    const active = personFilterSelectedNames.has(name);
-                    const cls = active ? 'btn-primary' : 'btn-outline-primary';
-                    return `<button type="button" class="btn btn-sm ${cls} person-filter-name-btn" data-name="${encodeURIComponent(name)}">${escapeHtml(name)}</button>`;
-                }).join('');
-                box.querySelectorAll('.person-filter-name-btn').forEach((btn) => {
-                    const name = decodeURIComponent(btn.getAttribute('data-name') || '');
-                    btn.addEventListener('click', () => {
-                        if (personFilterSelectedNames.has(name)) {
-                            personFilterSelectedNames.delete(name);
-                            btn.classList.remove('btn-primary');
-                            btn.classList.add('btn-outline-primary');
-                        } else {
-                            personFilterSelectedNames.add(name);
-                            btn.classList.remove('btn-outline-primary');
-                            btn.classList.add('btn-primary');
-                        }
-                    });
-                });
-            } catch (e) {
-                box.innerHTML = '<div class="text-danger small">목록을 불러오지 못했습니다.</div>';
-            }
-        }
-
-        function applyPersonFilterFromModal() {
-            personFilterAppliedNames = Array.from(personFilterSelectedNames);
-            personFilterModal.hide();
-            updatePersonFilterSummary();
-            loadSchedules();
-        }
-
-        function clearPersonFilter() {
-            personFilterSelectedNames.clear();
-            personFilterAppliedNames = [];
-            updatePersonFilterSummary();
-            personFilterModal.hide();
-            loadSchedules();
         }
 
         function displayCategoryLabel(category) {
@@ -1988,21 +1995,11 @@
         function shiftBoardMonth(offset) {
             currentBoardMonth = addMonths(currentBoardMonth || getMonthStart(formatLocalDateYYYYMMDD()), offset);
             updateCurrentBoardMonthLabel();
-            const todayOnly = document.getElementById('todayOnlyCheck');
-            const targetDate = document.getElementById('scheduleTargetDate');
-            todayOnly.checked = false;
-            targetDate.disabled = false;
-            targetDate.value = '';
             loadSchedules();
         }
 
         function jumpToCurrentMonth() {
             setCurrentBoardMonth(formatLocalDateYYYYMMDD());
-            const todayOnly = document.getElementById('todayOnlyCheck');
-            const targetDate = document.getElementById('scheduleTargetDate');
-            todayOnly.checked = false;
-            targetDate.disabled = false;
-            targetDate.value = '';
             loadSchedules();
         }
 
@@ -2066,7 +2063,6 @@
             editRequestModal = new bootstrap.Modal(document.getElementById('editRequestModal'));
             window.editRequestModal = editRequestModal;
             fieldStaffModal = new bootstrap.Modal(document.getElementById('fieldStaffModal'));
-            personFilterModal = new bootstrap.Modal(document.getElementById('personFilterModal'));
             detailPreviewModal = new bootstrap.Modal(document.getElementById('detailPreviewModal'));
             window.detailPreviewModal = detailPreviewModal;
             quickAddScheduleModal = new bootstrap.Modal(document.getElementById('quickAddScheduleModal'));
@@ -2080,24 +2076,7 @@
             bindDashboardNoticeEditor();
             loadScheduleViewOptions();
             bindScheduleViewOptions();
-            updatePersonFilterSummary();
             bindCompactItemActions();
-            document.getElementById('todayOnlyCheck').addEventListener('change', () => {
-                const targetInput = document.getElementById('scheduleTargetDate');
-                const isTodayOnly = document.getElementById('todayOnlyCheck').checked;
-                targetInput.disabled = isTodayOnly;
-                if (isTodayOnly) {
-                    targetInput.value = formatLocalDateYYYYMMDD();
-                    setCurrentBoardMonth(targetInput.value);
-                } else {
-                    targetInput.value = '';
-                }
-            });
-            document.getElementById('scheduleTargetDate').addEventListener('change', (e) => {
-                const picked = String(e.target.value || '').trim();
-                if (picked) setCurrentBoardMonth(picked);
-            });
-            document.getElementById('todayOnlyCheck').dispatchEvent(new Event('change'));
             loadSchedules();
 
             // 60초마다 자동 갱신. 탭이 백그라운드면 건너뛰어 불필요한 호출/충전 방지.
@@ -2125,7 +2104,7 @@
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
     <script src="/dashboard.sidebar.js?v=20260429"></script>
-    <script src="/dashboard.schedule.js?v=20260731c"></script>
+    <script src="/dashboard.schedule.js?v=20260731d"></script>
 </body>
 
 </html>

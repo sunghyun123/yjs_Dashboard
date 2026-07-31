@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YJS 월간 달력 한눈에 보기 목업</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --navy: #063765;
+            --navy-strong: #002b55;
+            --blue: #1f6fe5;
+            --blue-soft: #edf5ff;
+            --ink: #1d2a39;
+            --muted: #6d7c8f;
+            --line: #dce4ee;
+            --surface: #ffffff;
+            --canvas: #f3f6fa;
+            --danger: #d64045;
+            --shadow: 0 10px 30px rgba(25, 51, 82, 0.09);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            min-width: 1024px;
+            overflow: hidden;
+            background: var(--canvas);
+            color: var(--ink);
+            font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+        }
+
+        button {
+            font: inherit;
+        }
+
+        .app {
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .topbar {
+            min-height: 62px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            padding: 0 24px;
+            color: #fff;
+            background:
+                radial-gradient(circle at 18% -60%, rgba(70, 147, 229, 0.55), transparent 38%),
+                linear-gradient(100deg, var(--navy-strong), var(--navy));
+            box-shadow: 0 4px 18px rgba(0, 31, 63, 0.2);
+            flex: 0 0 auto;
+        }
+
+        .brand-area,
+        .topbar-meta,
+        .month-title,
+        .toolbar-actions,
+        .legend,
+        .date-heading,
+        .event-row,
+        .panel-title-row {
+            display: flex;
+            align-items: center;
+        }
+
+        .brand-area {
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .brand {
+            margin: 0;
+            color: #ff6654;
+            font-size: 21px;
+            font-weight: 900;
+            font-style: italic;
+            letter-spacing: 0.12em;
+            text-shadow: 0 0 14px rgba(255, 102, 84, 0.35);
+        }
+
+        .brand-divider {
+            width: 1px;
+            height: 22px;
+            background: rgba(255, 255, 255, 0.28);
+        }
+
+        .screen-title {
+            overflow: hidden;
+            color: rgba(255, 255, 255, 0.93);
+            font-size: 15px;
+            font-weight: 700;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .topbar-meta {
+            gap: 10px;
+            color: rgba(255, 255, 255, 0.74);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .live-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border: 1px solid rgba(130, 255, 184, 0.38);
+            border-radius: 999px;
+            background: rgba(40, 180, 102, 0.14);
+            color: #d9ffe8;
+            font-weight: 700;
+        }
+
+        .live-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #6ef0a5;
+            box-shadow: 0 0 0 3px rgba(110, 240, 165, 0.15);
+        }
+
+        main {
+            min-height: 0;
+            padding: 16px 20px 18px;
+            flex: 1 1 auto;
+        }
+
+        .calendar-shell {
+            height: 100%;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #e1e7ef;
+            border-radius: 16px;
+            background: var(--surface);
+            box-shadow: var(--shadow);
+        }
+
+        .toolbar {
+            min-height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #e6ebf2;
+            flex: 0 0 auto;
+        }
+
+        .month-title {
+            gap: 10px;
+        }
+
+        .month-title h1 {
+            min-width: 138px;
+            margin: 0;
+            font-size: 21px;
+            line-height: 1.2;
+        }
+
+        .nav-button,
+        .view-button,
+        .today-button,
+        .close-button,
+        .more-button {
+            cursor: pointer;
+            border: 1px solid #cfd9e5;
+            background: #fff;
+            color: #36516e;
+        }
+
+        .nav-button,
+        .today-button {
+            min-height: 34px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .nav-button {
+            width: 34px;
+            padding: 0;
+        }
+
+        .today-button {
+            padding: 0 12px;
+        }
+
+        .nav-button:hover,
+        .today-button:hover,
+        .view-button:hover {
+            border-color: #8db3e5;
+            background: #f3f8ff;
+            color: #0f55aa;
+        }
+
+        .toolbar-actions {
+            gap: 12px;
+        }
+
+        .view-switch {
+            display: inline-flex;
+            padding: 3px;
+            border: 1px solid #d9e1ec;
+            border-radius: 10px;
+            background: #f2f5f9;
+        }
+
+        .view-button {
+            min-height: 32px;
+            padding: 0 13px;
+            border-color: transparent;
+            border-radius: 7px;
+            background: transparent;
+            color: #68798d;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .view-button.active {
+            border-color: #c5d9f3;
+            background: #fff;
+            color: #115db9;
+            box-shadow: 0 2px 7px rgba(45, 79, 118, 0.1);
+        }
+
+        .legend {
+            gap: 8px;
+            color: var(--muted);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .legend-dot,
+        .event-dot {
+            flex: 0 0 auto;
+            border-radius: 50%;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+        }
+
+        .legend-dot.day {
+            background: #c22a32;
+        }
+
+        .legend-dot.night {
+            margin-left: 4px;
+            background: #225d91;
+        }
+
+        .overview-note {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            min-height: 40px;
+            padding: 7px 14px;
+            border-bottom: 1px solid #d9e8fb;
+            background: linear-gradient(90deg, #f2f7ff, #f8fbff);
+            color: #34577d;
+            font-size: 12px;
+            flex: 0 0 auto;
+        }
+
+        .overview-note strong {
+            color: #174f91;
+        }
+
+        .note-right {
+            color: #68819e;
+            white-space: nowrap;
+        }
+
+        .calendar-area {
+            min-height: 0;
+            display: flex;
+            flex: 1 1 auto;
+            flex-direction: column;
+            padding: 8px 10px 10px;
+        }
+
+        .week-header,
+        .month-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+
+        .week-header {
+            gap: 6px;
+            min-height: 27px;
+            color: #58697c;
+            font-size: 12px;
+            font-weight: 800;
+            flex: 0 0 auto;
+        }
+
+        .weekday {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .weekday:first-child {
+            color: #cf333b;
+        }
+
+        .weekday:last-child {
+            color: #2768b4;
+        }
+
+        .month-grid {
+            --week-count: 5;
+            min-height: 0;
+            grid-template-rows: repeat(var(--week-count), minmax(0, 1fr));
+            gap: 6px;
+            flex: 1 1 auto;
+        }
+
+        .day-cell {
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 6px 7px;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            background: #fff;
+            cursor: pointer;
+            transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+        }
+
+        .day-cell:hover,
+        .day-cell:focus-visible {
+            z-index: 1;
+            outline: none;
+            border-color: #7ea9df;
+            box-shadow: 0 4px 14px rgba(49, 100, 159, 0.13);
+            transform: translateY(-1px);
+        }
+
+        .day-cell.outside {
+            border-color: #e9edf2;
+            background: #f6f8fa;
+            color: #9da7b3;
+        }
+
+        .day-cell.today {
+            padding: 5px 6px;
+            border: 2px solid var(--blue);
+            background: linear-gradient(145deg, #ffffff 35%, #f1f7ff);
+        }
+
+        .date-heading {
+            min-height: 23px;
+            justify-content: space-between;
+            gap: 6px;
+            margin-bottom: 4px;
+            border-bottom: 1px solid #edf1f5;
+            flex: 0 0 auto;
+        }
+
+        .date-number {
+            font-size: 14px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .day-cell.sunday .date-number {
+            color: #cd353d;
+        }
+
+        .day-cell.saturday .date-number {
+            color: #2768b4;
+        }
+
+        .today-label {
+            margin-left: 4px;
+            color: var(--blue);
+            font-size: 10px;
+            font-weight: 800;
+        }
+
+        .count-badge {
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: #edf3fb;
+            color: #4d6684;
+            font-size: 10px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .event-list {
+            min-height: 0;
+            display: flex;
+            flex: 1 1 auto;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .event-row {
+            min-width: 0;
+            min-height: 25px;
+            gap: 5px;
+            padding: 3px 6px;
+            border: 1px solid var(--event-line);
+            border-left: 3px solid var(--event-color);
+            border-radius: 5px;
+            background: var(--event-bg);
+            color: #233244;
+            flex: 0 0 auto;
+        }
+
+        .event-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--event-color);
+        }
+
+        .event-title {
+            min-width: 0;
+            overflow: hidden;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.25;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1 1 auto;
+        }
+
+        .manager {
+            max-width: 44px;
+            overflow: hidden;
+            color: var(--event-color);
+            font-size: 10px;
+            font-weight: 800;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+
+        .more-button {
+            align-self: flex-start;
+            min-height: 19px;
+            margin-top: auto;
+            padding: 1px 7px;
+            border-color: transparent;
+            border-radius: 999px;
+            background: #eef3f8;
+            color: #526b88;
+            font-size: 10px;
+            font-weight: 800;
+        }
+
+        .more-button:hover {
+            background: #dceafd;
+            color: #1459ad;
+        }
+
+        .empty-message {
+            margin: auto;
+            color: #b1bac4;
+            font-size: 11px;
+        }
+
+        .calendar-shell.detail-mode .overview-note {
+            border-bottom-color: #f1dfbd;
+            background: #fff9ed;
+            color: #7a5b23;
+        }
+
+        .calendar-shell.detail-mode .month-grid {
+            overflow-y: auto;
+            grid-auto-rows: minmax(132px, auto);
+            grid-template-rows: none;
+            padding-right: 3px;
+        }
+
+        .calendar-shell.detail-mode .day-cell {
+            overflow: visible;
+        }
+
+        .calendar-shell.detail-mode .event-row {
+            min-height: 36px;
+            align-items: flex-start;
+            padding-top: 5px;
+            padding-bottom: 5px;
+        }
+
+        .calendar-shell.detail-mode .event-title {
+            overflow: visible;
+            white-space: normal;
+        }
+
+        .calendar-shell.detail-mode .manager {
+            max-width: none;
+            padding: 2px 5px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.72);
+        }
+
+        .calendar-shell.detail-mode .more-button {
+            display: none;
+        }
+
+        .panel-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            visibility: hidden;
+            background: rgba(5, 24, 45, 0.28);
+            opacity: 0;
+            transition: opacity 0.18s ease, visibility 0.18s ease;
+        }
+
+        .panel-backdrop.open {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .detail-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: min(390px, 34vw);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid #d9e2ec;
+            background: #fff;
+            box-shadow: -18px 0 45px rgba(13, 44, 78, 0.2);
+            transform: translateX(100%);
+            transition: transform 0.2s ease;
+        }
+
+        .panel-backdrop.open .detail-panel {
+            transform: translateX(0);
+        }
+
+        .panel-header {
+            padding: 20px 20px 15px;
+            border-bottom: 1px solid #e3e9f0;
+            background: linear-gradient(150deg, #f7fbff, #eef5ff);
+        }
+
+        .panel-title-row {
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .panel-header h2 {
+            margin: 0;
+            font-size: 19px;
+        }
+
+        .panel-summary {
+            margin: 7px 0 0;
+            color: #64788e;
+            font-size: 12px;
+        }
+
+        .close-button {
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            border-radius: 8px;
+            color: #53697f;
+            font-size: 18px;
+        }
+
+        .panel-events {
+            overflow-y: auto;
+            padding: 15px;
+            flex: 1 1 auto;
+        }
+
+        .panel-event {
+            margin-bottom: 10px;
+            padding: 12px;
+            border: 1px solid var(--event-line);
+            border-left: 4px solid var(--event-color);
+            border-radius: 8px;
+            background: var(--event-bg);
+        }
+
+        .panel-event-title {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+
+        .panel-event-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .meta-chip {
+            padding: 3px 7px;
+            border: 1px solid rgba(61, 86, 112, 0.16);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.72);
+            color: #53687d;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .panel-empty {
+            margin: 34px 0;
+            color: #8290a0;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        @media (max-height: 720px) {
+            .topbar {
+                min-height: 54px;
+            }
+
+            main {
+                padding-top: 10px;
+                padding-bottom: 10px;
+            }
+
+            .toolbar {
+                min-height: 56px;
+            }
+
+            .overview-note {
+                min-height: 34px;
+            }
+
+            .event-row {
+                min-height: 22px;
+                padding-top: 2px;
+                padding-bottom: 2px;
+            }
+
+            .date-heading {
+                min-height: 20px;
+                margin-bottom: 3px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div class="brand-area">
+                <p class="brand">YJS</p>
+                <span class="brand-divider" aria-hidden="true"></span>
+                <span class="screen-title">현장 일정 대시보드 · 월간 목업</span>
+            </div>
+            <div class="topbar-meta">
+                <span class="live-pill"><span class="live-dot" aria-hidden="true"></span>실시간 연결</span>
+                <span>마지막 동기화 14:32</span>
+            </div>
+        </header>
+
+        <main>
+            <section class="calendar-shell" id="calendarShell">
+                <div class="toolbar">
+                    <div class="month-title">
+                        <button class="nav-button" id="previousMonth" type="button" aria-label="이전 달">‹</button>
+                        <h1 id="monthLabel">2026년 7월</h1>
+                        <button class="nav-button" id="nextMonth" type="button" aria-label="다음 달">›</button>
+                        <button class="today-button" id="mockToday" type="button">이번 달</button>
+                    </div>
+                    <div class="toolbar-actions">
+                        <div class="legend" aria-label="일정 구분">
+                            <span class="legend-dot day" aria-hidden="true"></span>주간
+                            <span class="legend-dot night" aria-hidden="true"></span>야간
+                        </div>
+                        <div class="view-switch" role="group" aria-label="달력 표시 방식">
+                            <button class="view-button active" type="button" data-mode="overview">한눈에 보기</button>
+                            <button class="view-button" type="button" data-mode="detail">상세 보기 비교</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-note" id="overviewNote">
+                    <span><strong>한눈에 보기:</strong> 글씨는 13px로 유지하고, 하루 2건까지만 한 줄로 표시합니다. 날짜를 누르면 전체 일정이 열립니다.</span>
+                    <span class="note-right">현재 표시: 일정명 · 담당자</span>
+                </div>
+
+                <div class="calendar-area">
+                    <div class="week-header" aria-hidden="true">
+                        <div class="weekday">일</div>
+                        <div class="weekday">월</div>
+                        <div class="weekday">화</div>
+                        <div class="weekday">수</div>
+                        <div class="weekday">목</div>
+                        <div class="weekday">금</div>
+                        <div class="weekday">토</div>
+                    </div>
+                    <div class="month-grid" id="monthGrid" aria-label="월간 일정 달력"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="panel-backdrop" id="panelBackdrop" aria-hidden="true">
+        <aside class="detail-panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+            <div class="panel-header">
+                <div class="panel-title-row">
+                    <h2 id="panelTitle">2026년 7월 31일</h2>
+                    <button class="close-button" id="closePanel" type="button" aria-label="상세 패널 닫기">×</button>
+                </div>
+                <p class="panel-summary" id="panelSummary">금요일 · 전체 일정 0건</p>
+            </div>
+            <div class="panel-events" id="panelEvents"></div>
+        </aside>
+    </div>
+
+    <script>
+        const weekdays = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+        const eventTemplates = [
+            { title: '판교 데이터센터 전기공사', manager: '김성현', shift: '주간', color: '#b52d35', bg: '#fff1f1', line: '#f1c7ca' },
+            { title: '원주 혁신도시 통신 배선 점검', manager: '이정민', shift: '주간', color: '#a76308', bg: '#fff7df', line: '#f0dbab' },
+            { title: '강남 사옥 UPS 교체 작업', manager: '박준호', shift: '야간', color: '#235f94', bg: '#edf6ff', line: '#c8deef' },
+            { title: '평택 물류센터 현장 실사', manager: '최유진', shift: '주간', color: '#3b7d45', bg: '#eff9ef', line: '#c9e5cc' },
+            { title: '용인 연구소 자재 반입', manager: '한지훈', shift: '주간', color: '#6c4aaa', bg: '#f5f0ff', line: '#dcd0f2' },
+            { title: '수원 공장 네트워크 절체', manager: '오세진', shift: '야간', color: '#225d91', bg: '#eaf4fb', line: '#bed8ea' },
+            { title: '본사 주간 공정 회의', manager: '조성현', shift: '일정', color: '#4d647c', bg: '#f2f5f8', line: '#d5dce4' },
+            { title: '안양 현장 준공 서류 검토', manager: '김성현', shift: '주간', color: '#b52d35', bg: '#fff1f1', line: '#f1c7ca' }
+        ];
+
+        const fixedCounts = {
+            '2026-07-01': 3,
+            '2026-07-02': 2,
+            '2026-07-03': 4,
+            '2026-07-06': 2,
+            '2026-07-07': 5,
+            '2026-07-09': 3,
+            '2026-07-13': 4,
+            '2026-07-14': 2,
+            '2026-07-16': 3,
+            '2026-07-20': 5,
+            '2026-07-21': 2,
+            '2026-07-23': 4,
+            '2026-07-24': 3,
+            '2026-07-27': 2,
+            '2026-07-28': 4,
+            '2026-07-29': 3,
+            '2026-07-31': 5
+        };
+
+        const state = {
+            year: 2026,
+            month: 6,
+            mode: 'overview',
+            selectedDateKey: ''
+        };
+
+        const shell = document.getElementById('calendarShell');
+        const grid = document.getElementById('monthGrid');
+        const monthLabel = document.getElementById('monthLabel');
+        const overviewNote = document.getElementById('overviewNote');
+        const panelBackdrop = document.getElementById('panelBackdrop');
+        const panelTitle = document.getElementById('panelTitle');
+        const panelSummary = document.getElementById('panelSummary');
+        const panelEvents = document.getElementById('panelEvents');
+
+        function pad(value) {
+            return String(value).padStart(2, '0');
+        }
+
+        function dateKey(date) {
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+        }
+
+        function hashNumber(input) {
+            let hash = 0;
+            for (let index = 0; index < input.length; index += 1) {
+                hash = ((hash << 5) - hash) + input.charCodeAt(index);
+                hash |= 0;
+            }
+            return Math.abs(hash);
+        }
+
+        function eventsForDate(key, inCurrentMonth) {
+            if (!inCurrentMonth) return [];
+            const day = Number(key.slice(-2));
+            const weekday = new Date(`${key}T00:00:00`).getDay();
+            let count = fixedCounts[key];
+
+            if (typeof count !== 'number') {
+                if (weekday === 0) count = 0;
+                else if (weekday === 6) count = day % 3 === 0 ? 1 : 0;
+                else count = (hashNumber(key) % 4 === 0) ? 2 : 1;
+            }
+
+            return Array.from({ length: count }, (_, index) => {
+                const templateIndex = (hashNumber(key) + index * 3) % eventTemplates.length;
+                return eventTemplates[templateIndex];
+            });
+        }
+
+        function eventStyle(event) {
+            return `--event-color:${event.color};--event-bg:${event.bg};--event-line:${event.line};`;
+        }
+
+        function renderEventRow(event) {
+            return `
+                <div class="event-row" style="${eventStyle(event)}" title="${event.title} · ${event.manager}">
+                    <span class="event-dot" aria-hidden="true"></span>
+                    <span class="event-title">${event.title}</span>
+                    <span class="manager">${event.manager}</span>
+                </div>
+            `;
+        }
+
+        function renderCalendar() {
+            monthLabel.textContent = `${state.year}년 ${state.month + 1}월`;
+            grid.innerHTML = '';
+
+            const firstDay = new Date(state.year, state.month, 1);
+            const lastDay = new Date(state.year, state.month + 1, 0);
+            const start = new Date(state.year, state.month, 1 - firstDay.getDay());
+            const endOffset = 6 - lastDay.getDay();
+            const end = new Date(state.year, state.month, lastDay.getDate() + endOffset);
+            const totalDays = Math.round((end - start) / 86400000) + 1;
+            const weekCount = totalDays / 7;
+
+            grid.style.setProperty('--week-count', weekCount);
+
+            for (let index = 0; index < totalDays; index += 1) {
+                const date = new Date(start);
+                date.setDate(start.getDate() + index);
+                const key = dateKey(date);
+                const inCurrentMonth = date.getMonth() === state.month;
+                const events = eventsForDate(key, inCurrentMonth);
+                const today = inCurrentMonth && key === '2026-07-31';
+                const classes = [
+                    'day-cell',
+                    inCurrentMonth ? '' : 'outside',
+                    date.getDay() === 0 ? 'sunday' : '',
+                    date.getDay() === 6 ? 'saturday' : '',
+                    today ? 'today' : ''
+                ].filter(Boolean).join(' ');
+
+                const visibleEvents = state.mode === 'overview' ? events.slice(0, 2) : events;
+                const hiddenCount = Math.max(events.length - visibleEvents.length, 0);
+                const cell = document.createElement('article');
+                cell.className = classes;
+                cell.tabIndex = inCurrentMonth ? 0 : -1;
+                cell.dataset.dateKey = key;
+                cell.setAttribute('aria-label', `${state.year}년 ${state.month + 1}월 ${date.getDate()}일, 일정 ${events.length}건`);
+                cell.innerHTML = `
+                    <div class="date-heading">
+                        <span class="date-number">${date.getDate()}${today ? '<span class="today-label">오늘</span>' : ''}</span>
+                        ${inCurrentMonth && events.length ? `<span class="count-badge">${events.length}건</span>` : ''}
+                    </div>
+                    <div class="event-list">
+                        ${visibleEvents.map(renderEventRow).join('')}
+                        ${inCurrentMonth && events.length === 0 ? '<span class="empty-message">일정 없음</span>' : ''}
+                        ${hiddenCount > 0 ? `<button class="more-button" type="button">+${hiddenCount}건 더보기</button>` : ''}
+                    </div>
+                `;
+
+                if (inCurrentMonth) {
+                    cell.addEventListener('click', () => openDayPanel(key, events));
+                    cell.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openDayPanel(key, events);
+                        }
+                    });
+                }
+                grid.appendChild(cell);
+            }
+        }
+
+        function openDayPanel(key, events) {
+            const date = new Date(`${key}T00:00:00`);
+            state.selectedDateKey = key;
+            panelTitle.textContent = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+            panelSummary.textContent = `${weekdays[date.getDay()]} · 전체 일정 ${events.length}건`;
+
+            if (!events.length) {
+                panelEvents.innerHTML = '<p class="panel-empty">등록된 일정이 없습니다.</p>';
+            } else {
+                panelEvents.innerHTML = events.map((event) => `
+                    <article class="panel-event" style="${eventStyle(event)}">
+                        <h3 class="panel-event-title">${event.title}</h3>
+                        <div class="panel-event-meta">
+                            <span class="meta-chip">담당 ${event.manager}</span>
+                            <span class="meta-chip">${event.shift}</span>
+                            <span class="meta-chip">상세 정보 보기</span>
+                        </div>
+                    </article>
+                `).join('');
+            }
+
+            panelBackdrop.classList.add('open');
+            panelBackdrop.setAttribute('aria-hidden', 'false');
+            document.getElementById('closePanel').focus();
+        }
+
+        function closeDayPanel() {
+            panelBackdrop.classList.remove('open');
+            panelBackdrop.setAttribute('aria-hidden', 'true');
+            const selectedCell = grid.querySelector(`[data-date-key="${state.selectedDateKey}"]`);
+            if (selectedCell) selectedCell.focus();
+        }
+
+        function changeMonth(offset) {
+            const target = new Date(state.year, state.month + offset, 1);
+            state.year = target.getFullYear();
+            state.month = target.getMonth();
+            closeDayPanel();
+            renderCalendar();
+        }
+
+        document.querySelectorAll('.view-button').forEach((button) => {
+            button.addEventListener('click', () => {
+                state.mode = button.dataset.mode;
+                shell.classList.toggle('detail-mode', state.mode === 'detail');
+                document.querySelectorAll('.view-button').forEach((item) => {
+                    item.classList.toggle('active', item === button);
+                });
+
+                overviewNote.innerHTML = state.mode === 'overview'
+                    ? '<span><strong>한눈에 보기:</strong> 글씨는 13px로 유지하고, 하루 2건까지만 한 줄로 표시합니다. 날짜를 누르면 전체 일정이 열립니다.</span><span class="note-right">현재 표시: 일정명 · 담당자</span>'
+                    : '<span><strong>상세 보기 비교:</strong> 모든 일정을 여러 줄로 펼치기 때문에 달력 내부 스크롤이 필요합니다.</span><span class="note-right">기존 화면과 가까운 정보 밀도</span>';
+                renderCalendar();
+            });
+        });
+
+        document.getElementById('previousMonth').addEventListener('click', () => changeMonth(-1));
+        document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
+        document.getElementById('mockToday').addEventListener('click', () => {
+            state.year = 2026;
+            state.month = 6;
+            renderCalendar();
+        });
+        document.getElementById('closePanel').addEventListener('click', closeDayPanel);
+        panelBackdrop.addEventListener('click', (event) => {
+            if (event.target === panelBackdrop) closeDayPanel();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && panelBackdrop.classList.contains('open')) closeDayPanel();
+        });
+
+        renderCalendar();
+    </script>
+</body>
+
+</html>
