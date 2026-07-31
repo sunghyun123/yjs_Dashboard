@@ -182,6 +182,9 @@ def test_monthly_progress_config_admin_save_and_home_read(client, monkeypatch, t
 def test_kakao_login_pending_then_admin_approve_flow(client, monkeypatch, tmp_path):
     login_as_admin(client, monkeypatch, tmp_path)
 
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "ERP_DASHBOARD_API_KEY", "test-sync-key")
     monkeypatch.setattr(kakao_oauth, "fetch_kakao_user_id", lambda token: "111222333")
     login_res = client.get("/api/auth/kakao/login?next=/dashboard.html", follow_redirects=False)
     assert login_res.status_code == 302
@@ -202,6 +205,32 @@ def test_kakao_login_pending_then_admin_approve_flow(client, monkeypatch, tmp_pa
     )
     assert approve_res.status_code == 200
     assert approve_res.json().get("status") == "success"
+
+    unauthorized_check = client.post(
+        "/api/auth/erp-access-check",
+        json={"kakao_id": "111222333"},
+    )
+    assert unauthorized_check.status_code == 401
+
+    approved_check = client.post(
+        "/api/auth/erp-access-check",
+        headers={"Authorization": "Bearer test-sync-key"},
+        json={"kakao_id": "111222333"},
+    )
+    assert approved_check.status_code == 200
+    assert approved_check.json() == {
+        "allowed": True,
+        "user_name": "kakao_111222333",
+        "role": "worker",
+    }
+
+    unknown_check = client.post(
+        "/api/auth/erp-access-check",
+        headers={"Authorization": "Bearer test-sync-key"},
+        json={"kakao_id": "000000000"},
+    )
+    assert unknown_check.status_code == 200
+    assert unknown_check.json() == {"allowed": False}
 
     login_res2 = client.get("/api/auth/kakao/login?next=/dashboard.html", follow_redirects=False)
     assert login_res2.status_code == 302

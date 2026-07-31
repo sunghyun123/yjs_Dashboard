@@ -4,6 +4,7 @@ from typing import Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
@@ -25,6 +26,10 @@ KAKAO_NEXT_COOKIE = "yjs_kakao_oauth_next"
 KAKAO_OAUTH_COOKIE_MAX_AGE = 600
 
 
+class ErpAccessCheckRequest(BaseModel):
+    kakao_id: str = Field(..., min_length=1, max_length=100)
+
+
 def _kakao_config_ok() -> bool:
     return bool((settings.KAKAO_REST_API_KEY or "").strip() and (settings.KAKAO_REDIRECT_URI or "").strip())
 
@@ -36,6 +41,47 @@ def _sanitize_next(raw: Optional[str]) -> str:
     if not s.startswith("/") or s.startswith("//"):
         return "/dashboard.html"
     return s
+
+
+def _find_approved_kakao_user(kakao_id: str, user_repo: UserRepository) -> Optional[dict[str, str]]:
+    entry = find_whitelisted_user(kakao_id)
+    if entry:
+        return entry
+
+    access_row = user_repo.get_login_access_by_kakao_id(kakao_id)
+    if not access_row or access_row.get("status") != "approved":
+        return None
+    return {
+        "user_id": str(access_row.get("user_id") or f"kakao_{kakao_id}"),
+        "user_name": str(access_row.get("user_name") or f"kakao_{kakao_id}"),
+        "role": str(access_row.get("role") or "worker"),
+    }
+
+
+@router.post("/erp-access-check")
+def erp_access_check(
+    payload: ErpAccessCheckRequest,
+    request: Request,
+    user_repo: UserRepository = Depends(get_user_repo),
+):
+    api_key = (settings.ERP_DASHBOARD_API_KEY or "").strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="ERP 연동 API 키가 설정되지 않았습니다.")
+
+    expected = f"Bearer {api_key}"
+    provided = request.headers.get("authorization") or ""
+    if not secrets.compare_digest(provided, expected):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    kakao_id = payload.kakao_id.strip()
+    entry = _find_approved_kakao_user(kakao_id, user_repo)
+    if not entry:
+        return {"allowed": False}
+    return {
+        "allowed": True,
+        "user_name": entry["user_name"],
+        "role": entry["role"],
+    }
 
 
 @router.get("/kakao/login")
@@ -88,19 +134,11 @@ def kakao_callback(
     except KakaoOAuthError as e:
         return _fail_redirect(f"?kakao_error={quote(str(e), safe='')}")
 
-    entry = find_whitelisted_user(kakao_id)
+    entry = _find_approved_kakao_user(kakao_id, user_repo)
     if not entry:
-        access_row = user_repo.get_login_access_by_kakao_id(kakao_id)
-        if access_row and access_row.get("status") == "approved":
-            entry = {
-                "user_id": str(access_row.get("user_id") or f"kakao_{kakao_id}"),
-                "user_name": str(access_row.get("user_name") or f"kakao_{kakao_id}"),
-                "role": str(access_row.get("role") or "worker"),
-            }
-        else:
-            user_repo.upsert_login_access_request(kakao_id, note="카카오 로그인 승인 대기")
-            logger.info("카카오 로그인 승인 대기 등록: kakao_id=%s", kakao_id)
-            return _fail_redirect("?kakao_denied=pending")
+        user_repo.upsert_login_access_request(kakao_id, note="카카오 로그인 승인 대기")
+        logger.info("카카오 로그인 승인 대기 등록: kakao_id=%s", kakao_id)
+        return _fail_redirect("?kakao_denied=pending")
 
     try:
         user_repo.ensure_oauth_user(entry["user_id"], entry["user_name"], entry["role"])
