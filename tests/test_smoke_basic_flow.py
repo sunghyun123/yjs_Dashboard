@@ -52,7 +52,7 @@ def test_static_pages_are_served(client):
         "/": ["YJS 운영 홈", "외출/행선표"],
         "/index.html": ["사진 카테고리 선택", "요청 접수"],
         "/dashboard.html": ["일정 수정", "오늘만"],
-        "/admin.html": ["요청 반려", "백업데이터 생성 실행"],
+        "/admin.html": ["카카오 로그인 승인 대기", "백업데이터 생성 실행"],
     }
 
     for path in ["/", "/index.html", "/dashboard.html", "/admin.html"]:
@@ -62,6 +62,15 @@ def test_static_pages_are_served(client):
         body = res.text
         for marker in page_markers[path]:
             assert marker in body
+
+    admin_body = client.get("/admin.html").text
+    for removed_marker in [
+        "수주대장 리로드",
+        'id="filterStatus"',
+        'id="requestList"',
+        'id="rejectModal"',
+    ]:
+        assert removed_marker not in admin_body
 
     board_redirect = client.get("/board.html", follow_redirects=False)
     assert board_redirect.status_code == 307

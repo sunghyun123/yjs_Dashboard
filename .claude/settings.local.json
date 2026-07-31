@@ -65,7 +65,10 @@
       "Bash(python -c \"import main; paths=[r.path for r in main.app.routes]; print\\('PUT/GET progress-sites:', '/api/progress-sites' in paths\\); print\\('map-admin page:', '/map-admin.html' in paths\\); print\\('map-admin js:', '/map-admin.js' in paths\\)\")",
       "Bash(xargs wc -l)",
       "Bash(python3 -c ' *)",
-      "Bash(./.venv/Scripts/python.exe -c ' *)"
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(python -m http.server 8791)",
+      "PowerShell($conn = Get-NetTCPConnection -LocalPort 8791 -State Listen -ErrorAction SilentlyContinue; if \\($conn\\) { Stop-Process -Id $conn.OwningProcess -Force -Confirm:$false; \"killed\" } else { \"not running\" })",
+      "Bash(python -m py_compile app/api/erp.py app/core/config.py)"
     ]
   }
 }
