@@ -40,6 +40,10 @@ class FieldStaffCreate(BaseModel):
     sort_order: int = Field(default=0, description="정렬 순서")
 
 
+class FieldStaffColorUpdate(BaseModel):
+    color: str = Field(..., pattern=r"^#[0-9a-fA-F]{6}$", description="담당자 카드 색상 (#RRGGBB)")
+
+
 class FrequentSiteCreate(BaseModel):
     title: str = Field(..., min_length=1, description="사이트 이름")
     url: str = Field(..., min_length=1, description="사이트 URL")
@@ -287,6 +291,22 @@ def delete_field_staff(
     if not worker_repo.delete_field_staff(staff_id):
         raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다.")
     return {"status": "success", "message": "삭제되었습니다."}
+
+
+@router.put("/field-staff/{staff_id}/color")
+def update_field_staff_color(
+    staff_id: int,
+    payload: FieldStaffColorUpdate,
+    _admin=Depends(require_admin),
+    worker_repo: WorkerRepository = Depends(get_worker_repo),
+):
+    try:
+        updated = worker_repo.update_field_staff_color(staff_id, payload.color)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if updated is None:
+        raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다.")
+    return {"status": "success", "data": updated}
 
 
 @router.post("/outing-staff")

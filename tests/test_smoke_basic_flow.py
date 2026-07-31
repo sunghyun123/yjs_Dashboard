@@ -94,6 +94,41 @@ def test_auth_login_me_logout_flow(client, monkeypatch, tmp_path):
     assert unauthorized_me.status_code == 401
 
 
+def test_field_staff_color_is_generated_and_admin_can_update_it(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+
+    create_res = client.post(
+        "/api/admin/field-staff",
+        json={"name": "색상담당자", "sort_order": 0},
+    )
+    assert create_res.status_code == 200
+    staff_id = create_res.json()["id"]
+
+    list_res = client.get("/api/schedules/field-staff")
+    assert list_res.status_code == 200
+    created = next(row for row in list_res.json()["data"] if row["id"] == staff_id)
+    assert created["name"] == "색상담당자"
+    assert created["color"].startswith("#")
+    assert len(created["color"]) == 7
+
+    update_res = client.put(
+        f"/api/admin/field-staff/{staff_id}/color",
+        json={"color": "#12ABEF"},
+    )
+    assert update_res.status_code == 200
+    assert update_res.json()["data"]["color"] == "#12abef"
+
+    updated_rows = client.get("/api/schedules/field-staff").json()["data"]
+    updated = next(row for row in updated_rows if row["id"] == staff_id)
+    assert updated["color"] == "#12abef"
+
+    invalid_res = client.put(
+        f"/api/admin/field-staff/{staff_id}/color",
+        json={"color": "#fff"},
+    )
+    assert invalid_res.status_code == 422
+
+
 def test_erp_monthly_kpi_proxy_requires_session(client):
     res = client.get("/api/erp/monthly-kpi")
     assert res.status_code == 401

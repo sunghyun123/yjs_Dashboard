@@ -150,9 +150,13 @@ def run_migrations(db_path: str) -> None:
                 CREATE TABLE IF NOT EXISTS field_staff (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL UNIQUE,
-                    sort_order INTEGER DEFAULT 0
+                    sort_order INTEGER DEFAULT 0,
+                    color TEXT
                 )
             """)
+            field_staff_cols = {row[1] for row in conn.execute("PRAGMA table_info(field_staff)").fetchall()}
+            if "color" not in field_staff_cols:
+                conn.execute("ALTER TABLE field_staff ADD COLUMN color TEXT")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS outing_staff (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
