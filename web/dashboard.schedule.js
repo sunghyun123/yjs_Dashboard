@@ -287,32 +287,6 @@
         }
     }
 
-    function getScheduleFilters() {
-        const todayOnly = document.getElementById('todayOnlyCheck').checked;
-        const selectedDate = document.getElementById('scheduleTargetDate').value;
-        const keyword = document.getElementById('scheduleSearchKeyword').value.trim().toLowerCase();
-        return { todayOnly, selectedDate, keyword };
-    }
-
-    function updateBoardViewModeLabel(todayOnly, selectedDate) {
-        const el = document.getElementById('boardViewModeLabel');
-        if (!el) return;
-        if (todayOnly) {
-            el.textContent = '조회 모드: 오늘만';
-            return;
-        }
-        if (selectedDate) {
-            el.textContent = `조회 모드: 특정일(${selectedDate})`;
-            return;
-        }
-        const d = new Date(`${currentBoardMonth}T00:00:00`);
-        if (Number.isNaN(d.getTime())) {
-            el.textContent = '조회 모드: 월 전체';
-            return;
-        }
-        el.textContent = `조회 모드: ${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 전체`;
-    }
-
     let _loadSchedulesInflight = false;
     let _loadSchedulesPending = false;
     async function loadSchedules() {
@@ -323,37 +297,22 @@
         }
         _loadSchedulesInflight = true;
         const board = document.getElementById('scheduleBoard');
-        const { todayOnly, selectedDate, keyword } = getScheduleFilters();
         const todayStr = formatLocalDateYYYYMMDD();
         const monthlyRange = getMonthRange(currentBoardMonth || getMonthStart(todayStr));
-        const queryDate = todayOnly ? todayStr : (selectedDate || '');
         const prevActiveScheduleId = getActiveScheduleCardId();
-        updateBoardViewModeLabel(todayOnly, selectedDate);
 
         try {
-            let url = '/api/schedules/today';
-            if (queryDate) {
-                url = `/api/schedules/today?date=${encodeURIComponent(queryDate)}`;
-            } else {
-                url = `/api/schedules/today?range_start=${encodeURIComponent(monthlyRange.start)}&range_end=${encodeURIComponent(monthlyRange.end)}`;
-            }
+            const url = `/api/schedules/today?range_start=${encodeURIComponent(monthlyRange.start)}&range_end=${encodeURIComponent(monthlyRange.end)}`;
             const [response] = await Promise.all([
                 fetch(url),
                 refreshFieldStaffColors(),
             ]);
             const data = await response.json();
             const rows = Array.isArray(data.data) ? data.data : [];
-            let filteredRows = keyword
-                ? rows.filter((item) => {
-                    const merged = `${item.task || ''} ${item.person || ''} ${item.details || ''} ${item.work_code || ''}`.toLowerCase();
-                    return merged.includes(keyword);
-                })
-                : rows;
-            filteredRows = filteredRows.filter(scheduleMatchesAppliedPersonFilter);
             scheduleMap.clear();
-            filteredRows.forEach((item) => scheduleMap.set(String(item.id), item));
+            rows.forEach((item) => scheduleMap.set(String(item.id), item));
 
-            const groupedData = filteredRows.reduce((acc, item) => {
+            const groupedData = rows.reduce((acc, item) => {
                 const dateKey = item.date || '날짜 미상';
                 if (!acc[dateKey]) acc[dateKey] = [];
                 acc[dateKey].push(item);
@@ -363,14 +322,7 @@
                 groupedData[dateKey].sort(compareSchedulesForBoard);
             });
 
-            let sortedDates = [];
-            if (todayOnly) {
-                sortedDates = [todayStr];
-            } else if (selectedDate) {
-                sortedDates = [selectedDate];
-            } else {
-                sortedDates = monthlyRange.dates;
-            }
+            const sortedDates = monthlyRange.dates;
 
             collectExpandedDayFoldKeys();
 
@@ -814,19 +766,21 @@
             `;
     }
 
-    function renderDayItemsSection(dateKey, dayItems) {
+    function renderDayItemsSection(dateKey, dayItems, collapseLimit = DAY_COLLAPSE_LIMIT) {
         const itemCount = dayItems.length;
         if (itemCount === 0) {
             return '<div class="calendar-empty-line"></div>';
         }
+        const safeCollapseLimit = Math.max(Number(collapseLimit) || DAY_COLLAPSE_LIMIT, 1);
         const encodedDate = encodeURIComponent(dateKey);
-        const needFold = itemCount > DAY_COLLAPSE_LIMIT;
-        const listClass = needFold ? 'calendar-day-items collapsed' : 'calendar-day-items';
+        const needFold = itemCount > safeCollapseLimit;
+        const overviewClass = safeCollapseLimit < DAY_COLLAPSE_LIMIT ? ' calendar-overview-day-items' : '';
+        const listClass = needFold ? `calendar-day-items${overviewClass} collapsed` : `calendar-day-items${overviewClass}`;
         const listHtml = dayItems.map((item) => renderCompactScheduleItem(item)).join('');
         const toggleHtml = needFold
-            ? `<button type="button" class="day-fold-toggle-btn" data-date-key="${encodedDate}" data-expanded="0">${dayFoldToggleLabel(itemCount - DAY_COLLAPSE_LIMIT, false)}</button>`
+            ? `<button type="button" class="day-fold-toggle-btn" data-date-key="${encodedDate}" data-expanded="0">${dayFoldToggleLabel(itemCount - safeCollapseLimit, false)}</button>`
             : '';
-        return `<div class="${listClass}" data-date-key="${encodedDate}">${listHtml}</div>${toggleHtml}`;
+        return `<div class="${listClass}" data-date-key="${encodedDate}" data-collapse-limit="${safeCollapseLimit}">${listHtml}</div>${toggleHtml}`;
     }
 
     function renderMobileCalendar(sortedDates, groupedData, todayStr) {
@@ -843,7 +797,99 @@
         return html;
     }
 
+    function isConstructionSchedule(item) {
+        return compactCategoryClass(item?.category || '') === 'cat-construction';
+    }
+
+    function renderOverviewCalendarCell(dateKey, inRange, dayItems, todayStr, extraClass = '') {
+        const date = new Date(`${dateKey}T00:00:00`);
+        const dayIdx = date.getDay();
+        const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+        const dayCls = dayIdx === 0 ? 'sun' : (dayIdx === 6 ? 'sat' : '');
+        const isToday = dateKey === todayStr;
+        const classes = `calendar-cell ${dayCls} ${extraClass} ${inRange ? '' : 'out-range'} ${isToday ? 'today' : ''}`.trim();
+        const constructionItems = inRange ? dayItems.filter(isConstructionSchedule) : [];
+        const count = constructionItems.length;
+        const addBtn = inRange ? dayAddButtonHtml(dateKey) : '';
+        const dateText = `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekDays[dayIdx]})`;
+
+        let html = `<div class="${classes}">`;
+        html += `<div class="calendar-date-label"><span class="calendar-date-main"><span>${escapeHtml(dateText)}${isToday ? ' [오늘]' : ''}</span>${addBtn}</span>${count ? `<span class="day-count-badge">${count}건</span>` : ''}</div>`;
+        if (inRange) {
+            html += renderDayItemsSection(dateKey, constructionItems, 3);
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function renderDesktopOverviewCalendar(sortedDates, groupedData, todayStr) {
+        const weekDays = ['월', '화', '수', '목', '금'];
+        let html = '<div class="calendar-overview-week-header">';
+        weekDays.forEach((day) => {
+            html += `<div class="calendar-weekday">${day}</div>`;
+        });
+        html += '</div>';
+
+        const firstDate = sortedDates[0];
+        const lastDate = sortedDates[sortedDates.length - 1];
+        const start = new Date(`${firstDate}T00:00:00`);
+        const end = new Date(`${lastDate}T00:00:00`);
+        start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+        end.setDate(end.getDate() + ((7 - end.getDay()) % 7));
+        const visibleSet = new Set(sortedDates);
+
+        html += '<div class="calendar-overview-grid">';
+        for (let weekStart = new Date(start); weekStart <= end; weekStart.setDate(weekStart.getDate() + 7)) {
+            const weekdays = [];
+            const scheduledWeekendDays = [];
+
+            for (let offset = 0; offset < 7; offset += 1) {
+                const date = new Date(weekStart);
+                date.setDate(weekStart.getDate() + offset);
+                const key = formatLocalDateYYYYMMDD(date);
+                const inRange = visibleSet.has(key);
+                const items = groupedData[key] || [];
+
+                if (offset < 5) {
+                    weekdays.push({ key, inRange, items });
+                    continue;
+                }
+                if (inRange && items.some(isConstructionSchedule)) {
+                    scheduledWeekendDays.push({ key, inRange, items });
+                }
+            }
+
+            const hasVisibleWeekday = weekdays.some((day) => day.inRange);
+            if (!hasVisibleWeekday && scheduledWeekendDays.length === 0) continue;
+
+            html += '<section class="calendar-overview-week">';
+            if (hasVisibleWeekday) {
+                html += '<div class="calendar-overview-weekdays">';
+                weekdays.forEach((day) => {
+                    html += renderOverviewCalendarCell(day.key, day.inRange, day.items, todayStr);
+                });
+                html += '</div>';
+            }
+
+            if (scheduledWeekendDays.length) {
+                html += '<div class="calendar-overview-weekend-row">';
+                html += '<div class="calendar-overview-weekend-label">주말 공사</div>';
+                html += `<div class="calendar-overview-weekend-days" style="--weekend-count:${scheduledWeekendDays.length}">`;
+                scheduledWeekendDays.forEach((day) => {
+                    html += renderOverviewCalendarCell(day.key, day.inRange, day.items, todayStr, 'calendar-overview-weekend-cell');
+                });
+                html += '</div></div>';
+            }
+            html += '</section>';
+        }
+        html += '</div>';
+        return html;
+    }
+
     function renderDesktopCalendar(sortedDates, groupedData, todayStr) {
+        if (scheduleViewOptions.overviewMode) {
+            return renderDesktopOverviewCalendar(sortedDates, groupedData, todayStr);
+        }
         const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
         let html = '<div class="calendar-week-header">';
         weekDays.forEach((d, idx) => {
@@ -906,7 +952,8 @@
                 if (!dayItemsWrap) return;
                 const isExpanded = dayItemsWrap.classList.toggle('collapsed') === false;
                 dayToggleBtn.setAttribute('data-expanded', isExpanded ? '1' : '0');
-                const hiddenCount = Math.max(dayItemsWrap.querySelectorAll('.schedule-compact-item').length - DAY_COLLAPSE_LIMIT, 0);
+                const collapseLimit = Math.max(Number(dayItemsWrap.getAttribute('data-collapse-limit')) || DAY_COLLAPSE_LIMIT, 1);
+                const hiddenCount = Math.max(dayItemsWrap.querySelectorAll('.schedule-compact-item').length - collapseLimit, 0);
                 dayToggleBtn.textContent = dayFoldToggleLabel(hiddenCount, isExpanded);
                 if (!isExpanded) {
                     dayItemsWrap.scrollIntoView({ block: 'nearest' });
@@ -1265,8 +1312,6 @@
         autoFitWorkerLocationText();
     }
 
-    window.getScheduleFilters = getScheduleFilters;
-    window.updateBoardViewModeLabel = updateBoardViewModeLabel;
     window.loadSchedules = loadSchedules;
     window.acknowledgePhotoPlanImport = acknowledgePhotoPlanImport;
     window.normalizeShiftType = normalizeShiftType;
@@ -1283,6 +1328,8 @@
     window.detailInlineHtml = detailInlineHtml;
     window.renderCompactScheduleItem = renderCompactScheduleItem;
     window.renderMobileCalendar = renderMobileCalendar;
+    window.isConstructionSchedule = isConstructionSchedule;
+    window.renderDesktopOverviewCalendar = renderDesktopOverviewCalendar;
     window.renderDesktopCalendar = renderDesktopCalendar;
     window.bindCompactItemActions = bindCompactItemActions;
     window.getActiveScheduleCardId = getActiveScheduleCardId;

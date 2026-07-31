@@ -51,7 +51,7 @@ def test_static_pages_are_served(client):
     page_markers = {
         "/": ["YJS 운영 홈", "외출/행선표"],
         "/index.html": ["사진 카테고리 선택", "요청 접수"],
-        "/dashboard.html": ["일정 수정", "오늘만"],
+        "/dashboard.html": ["일정 수정", "한눈에 보기"],
         "/admin.html": ["카카오 로그인 승인 대기", "백업데이터 생성 실행"],
     }
 
