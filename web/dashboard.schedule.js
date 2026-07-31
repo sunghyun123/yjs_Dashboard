@@ -1,6 +1,18 @@
 (function () {
     const DAY_COLLAPSE_LIMIT = 4;
     const quickAddSelectedPersonNames = new Set();
+    const MANAGER_COLOR_PALETTE = [
+        { bg: '#fff4de', border: '#d89016', ring: '#f2d198', text: '#7a4b00' },
+        { bg: '#e9f8ef', border: '#24905d', ring: '#a9dfc2', text: '#145c3b' },
+        { bg: '#eaf4ff', border: '#2b73c8', ring: '#aacbf1', text: '#174c8d' },
+        { bg: '#fff0f3', border: '#cf4f6f', ring: '#efb7c4', text: '#8a243d' },
+        { bg: '#edf7f7', border: '#2d8c93', ring: '#abdce0', text: '#17616a' },
+        { bg: '#f6f0ff', border: '#8352c7', ring: '#d1b8f2', text: '#573395' },
+        { bg: '#f4f7e8', border: '#748c1f', ring: '#d4df9d', text: '#4f6114' },
+        { bg: '#fff1e8', border: '#c76324', ring: '#edc0a5', text: '#7d3c14' },
+        { bg: '#eef2ff', border: '#5368d6', ring: '#b9c4f5', text: '#324193' },
+        { bg: '#f1f5f9', border: '#64748b', ring: '#cbd5e1', text: '#334155' },
+    ];
 
     const ERP_SCHEMA = [
         { label: '상용직',   dayKey: 'regular_day',   nightKey: 'regular_night' },
@@ -432,6 +444,37 @@
         return names.join(', ');
     }
 
+    function primaryPersonName(personRaw) {
+        return personTokens(personRaw)[0] || '';
+    }
+
+    function stableHashText(value) {
+        const text = String(value || '').trim();
+        let hash = 0;
+        for (let i = 0; i < text.length; i += 1) {
+            hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+        }
+        return Math.abs(hash);
+    }
+
+    function managerColor(name) {
+        const key = String(name || '').trim();
+        if (!key) {
+            return { bg: '#f8f9fc', border: '#9cb6da', ring: '#e1e8f1', text: '#334155' };
+        }
+        return MANAGER_COLOR_PALETTE[stableHashText(key) % MANAGER_COLOR_PALETTE.length];
+    }
+
+    function scheduleCardStyle(item) {
+        const color = managerColor(primaryPersonName(item?.person || ''));
+        return [
+            `--schedule-card-bg:${color.bg}`,
+            `--schedule-card-border:${color.border}`,
+            `--schedule-card-ring:${color.ring}`,
+            `--schedule-manager-text:${color.text}`,
+        ].join(';');
+    }
+
     function isMobileViewport() {
         return window.matchMedia('(max-width: 768px)').matches;
     }
@@ -559,6 +602,100 @@
         });
     }
 
+    async function fetchFieldStaffNames() {
+        try {
+            const res = await fetch('/api/schedules/field-staff');
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) return [];
+            return (data.data || [])
+                .map((r) => String(r.name || '').trim())
+                .filter(Boolean);
+        } catch (_e) {
+            return [];
+        }
+    }
+
+    async function populateManagerSelect(selectId, selectedName) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const selected = String(selectedName || select.value || '').trim();
+        select.innerHTML = '<option value="">담당자 미지정</option>';
+        const names = await fetchFieldStaffNames();
+        const merged = [...names];
+        if (selected && !merged.includes(selected)) merged.unshift(selected);
+        merged.forEach((name) => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            select.appendChild(opt);
+        });
+        select.value = selected;
+    }
+
+    function promotePersonInputToManagerSelect(inputId, shiftSelectId) {
+        const existing = document.getElementById(inputId);
+        const shiftSelect = document.getElementById(shiftSelectId);
+        if (!existing || !shiftSelect || existing.tagName === 'SELECT') return existing;
+
+        const oldValue = String(existing.value || '').trim();
+        const quickPeopleSection = existing.closest('#quickAddPeopleSection');
+        if (quickPeopleSection) {
+            quickPeopleSection.remove();
+        } else {
+            const oldField = existing.closest('.mb-2');
+            if (oldField) oldField.remove();
+            else existing.remove();
+        }
+
+        const row = document.createElement('div');
+        row.className = 'row g-2 schedule-manager-row';
+        const col = document.createElement('div');
+        col.className = 'col-12';
+        const label = document.createElement('label');
+        label.className = 'form-label small mb-1';
+        label.setAttribute('for', inputId);
+        label.textContent = '담당자';
+        const select = document.createElement('select');
+        select.id = inputId;
+        select.className = 'form-select form-select-sm';
+        col.appendChild(label);
+        col.appendChild(select);
+        row.appendChild(col);
+
+        const shiftRow = shiftSelect.closest('.row');
+        if (shiftRow) shiftRow.insertAdjacentElement('afterend', row);
+        populateManagerSelect(inputId, oldValue);
+        return select;
+    }
+
+    function moveErpSectionIntoFold(prefix, foldBody) {
+        if (!foldBody || foldBody.dataset.erpMoved === prefix) return;
+        const firstInput = document.getElementById(`${prefix}_regular_day`);
+        const tableWrap = firstInput ? firstInput.closest('.table-responsive') : null;
+        if (!tableWrap) return;
+        const title = tableWrap.previousElementSibling;
+        const erpDetails = document.createElement('details');
+        erpDetails.className = 'quick-add-fold mb-2';
+        erpDetails.innerHTML = '<summary>ERP 투입실적</summary><div class="quick-add-fold-body"></div>';
+        const body = erpDetails.querySelector('.quick-add-fold-body');
+        if (title) body.appendChild(title);
+        body.appendChild(tableWrap);
+        foldBody.insertBefore(erpDetails, foldBody.firstChild);
+        foldBody.dataset.erpMoved = prefix;
+    }
+
+    function setupScheduleManagerControls() {
+        promotePersonInputToManagerSelect('quickAddPerson', 'quickAddShiftType');
+        promotePersonInputToManagerSelect('editPerson', 'editShiftType');
+
+        const quickFoldBody = document.getElementById('quickAddOtherSection')?.querySelector('.quick-add-fold-body');
+        moveErpSectionIntoFold('qaErp', quickFoldBody);
+
+        const editCategory = document.getElementById('editCategory');
+        const editFoldBody = editCategory ? editCategory.closest('.quick-add-fold-body') : null;
+        moveErpSectionIntoFold('editErp', editFoldBody);
+    }
+
     function renderCompactScheduleItem(item) {
         const catClass = compactCategoryClass(item.category);
         const detailLine = String(item.details || '').trim();
@@ -568,6 +705,13 @@
         const workCode = String(item.work_code || '').trim();
         const taskLabel = `${escapeHtml(displayScheduleTaskTitle(item.task) || '공사명 미기재')}`;
         const badgeParts = [];
+        const managerName = primaryPersonName(item.person || '');
+        if (managerName) {
+            badgeParts.push(`<span class="schedule-person-badge">${escapeHtml(managerName)}</span>`);
+        }
+        if (catClass === 'cat-schedule') {
+            badgeParts.push(`<span class="schedule-category-badge">${escapeHtml(displayCategoryLabel(item.category || ''))}</span>`);
+        }
         if (shiftType) badgeParts.push(`<span class="schedule-shift-badge ${shiftClass}">${shiftType}</span>`);
         if (workCode) {
             badgeParts.push(`<span class="schedule-workcode-badge">${escapeHtml(workCode)}</span>`);
@@ -579,13 +723,14 @@
             ? `<span class="schedule-meta-badges">${badgeParts.join('')}</span>`
             : '';
         const shiftCardClass = constructionShiftCardClass(item);
+        const cardStyle = scheduleCardStyle(item);
         const photoPlanClass = isPhotoPlanPendingReview(item) ? ' schedule-item-photo-plan' : '';
         const erpSummary = erpDataSummaryLine(item.erp_data);
         const detailModalBtn = detailLine && detailLines >= 3
             ? `<button type="button" class="btn btn-sm btn-outline-dark mt-1" onclick="event.stopPropagation(); openScheduleDetailModal('${item.id}')">상세 정보</button>`
             : '';
         return `
-                <div class="schedule-compact-item ${catClass} ${shiftCardClass}${photoPlanClass}" data-id="${item.id}">
+                <div class="schedule-compact-item ${catClass} ${shiftCardClass}${photoPlanClass}" data-id="${item.id}" style="${cardStyle}">
                     <div class="schedule-compact-task"><span class="schedule-task-head"><span class="schedule-category-dot ${catClass}"></span>${taskLabel}</span>${badgesHtml}</div>
                     ${erpSummary ? `<div class="schedule-compact-person" style="color:#2d5fa0;font-size:0.78rem;">📋 ${escapeHtml(erpSummary)}</div>` : ''}
                     ${scheduleViewOptions.showDetails && detailLine ? `<div class="schedule-compact-detail-preview">📝 ${escapeHtml(detailLine)}</div>` : ''}
@@ -755,6 +900,7 @@
         document.getElementById('editShiftType').value = applyDefaultShiftType(item.category || '공사 일정', item.shift_type || '');
         document.getElementById('editWorkCode').value = String(item.work_code || '').trim();
         writeErpData('editErp', item.erp_data || null);
+        populateManagerSelect('editPerson', item.person || '');
         window.editRequestModal.show();
     }
 
@@ -785,6 +931,7 @@
                 paintQuickAddStaffButtons();
             };
         }
+        populateManagerSelect('quickAddPerson', '');
         if (shiftInput) shiftInput.value = '';
         if (workCodeInput) workCodeInput.value = '';
         if (staffListBox) {
@@ -1077,6 +1224,7 @@
     window.bindCompactItemActions = bindCompactItemActions;
     window.getActiveScheduleCardId = getActiveScheduleCardId;
     window.restoreActiveScheduleCard = restoreActiveScheduleCard;
+    window.setupScheduleManagerControls = setupScheduleManagerControls;
     window.openQuickAddForDate = openQuickAddForDate;
     window.submitQuickAddSchedule = submitQuickAddSchedule;
     window.openEditRequestById = openEditRequestById;
