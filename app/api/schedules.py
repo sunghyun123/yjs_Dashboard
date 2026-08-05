@@ -16,7 +16,14 @@ from app.db.repos.schedule import ScheduleRepository, extract_shift_type
 from app.db.repos.admin import AdminRepository
 from app.db.repos.worker import WorkerRepository
 from app.db.repos.export import ExportRepository
-from app.db.deps import get_schedule_repo, get_admin_repo, get_worker_repo, get_export_repo
+from app.db.repos.usage_metrics import UsageMetricsRepository
+from app.db.deps import (
+    get_schedule_repo,
+    get_admin_repo,
+    get_worker_repo,
+    get_export_repo,
+    get_usage_metrics_repo,
+)
 from app.core.config import settings
 from app.core.auth import require_session
 from app.services.erp_sync_service import sync_constructions
@@ -386,6 +393,7 @@ async def execute_action(
     user_session=Depends(require_session),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
     admin_repo: AdminRepository = Depends(get_admin_repo),
+    usage_repo: UsageMetricsRepository = Depends(get_usage_metrics_repo),
 ):
     action = request.action
     actor_user = user_session["user_id"]
@@ -395,6 +403,13 @@ async def execute_action(
             if not request.schedule_data:
                 raise HTTPException(status_code=400, detail="일정 데이터가 누락되었습니다.")
             result = sched_repo.upsert(request.schedule_data, actor_user=actor_user, actor_device=actor_device)
+            usage_repo.record_schedule_event(
+                event_type="schedule_created" if result.get("action") == "insert" else "schedule_updated",
+                actor_user=actor_user,
+                actor_device=actor_device,
+                schedule_id=result.get("id"),
+                source="schedule_execute",
+            )
             if str(request.schedule_data.get("work_code") or "").strip():
                 background_tasks.add_task(sync_constructions, [request.schedule_data])
             return {"message": _upsert_result_message(result), "status": "success"}
@@ -529,9 +544,10 @@ def delete_worker_status(
 def board_template_action(
     request: BoardTemplateActionRequest,
     background_tasks: BackgroundTasks,
-    _user_session=Depends(require_session),
+    user_session=Depends(require_session),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
     admin_repo: AdminRepository = Depends(get_admin_repo),
+    usage_repo: UsageMetricsRepository = Depends(get_usage_metrics_repo),
 ):
     target_date = request.date or datetime.now().strftime("%Y-%m-%d")
     actor_user = "전자칠판"
@@ -547,6 +563,13 @@ def board_template_action(
                 "erp_data": request.erp_data,
             },
             actor_user=actor_user, actor_device=actor_device,
+        )
+        usage_repo.record_schedule_event(
+            event_type="schedule_created" if result.get("action") == "insert" else "schedule_updated",
+            actor_user=user_session["user_id"],
+            actor_device=user_session.get("device_name", actor_device),
+            schedule_id=result.get("id"),
+            source="board_template",
         )
         if str(request.work_code or "").strip():
             background_tasks.add_task(sync_constructions, [
@@ -581,6 +604,7 @@ def direct_update_schedule(
     user_session=Depends(require_session),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
     admin_repo: AdminRepository = Depends(get_admin_repo),
+    usage_repo: UsageMetricsRepository = Depends(get_usage_metrics_repo),
 ):
     actor_user = user_session["user_id"]
     actor_device = user_session.get("device_name", "unknown-device")
@@ -601,6 +625,13 @@ def direct_update_schedule(
         before_json=json.dumps(before, ensure_ascii=False), after_json=json.dumps(after, ensure_ascii=False),
         reason=request.reason, actor_user=actor_user, actor_device=actor_device,
     )
+    usage_repo.record_schedule_event(
+        event_type="schedule_updated",
+        actor_user=actor_user,
+        actor_device=actor_device,
+        schedule_id=request.schedule_id,
+        source="direct_update",
+    )
     if after and str(after.get("work_code") or "").strip():
         background_tasks.add_task(sync_constructions, [after])
     return {"status": "success", "message": "일정이 즉시 수정되었습니다."}
@@ -612,6 +643,7 @@ def direct_delete_schedule(
     user_session=Depends(require_session),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
     admin_repo: AdminRepository = Depends(get_admin_repo),
+    usage_repo: UsageMetricsRepository = Depends(get_usage_metrics_repo),
 ):
     actor_user = user_session["user_id"]
     actor_device = user_session.get("device_name", "unknown-device")
@@ -628,6 +660,13 @@ def direct_delete_schedule(
         entity_type="field_schedules", entity_id=request.schedule_id, action="direct_delete",
         before_json=json.dumps(before, ensure_ascii=False), after_json=json.dumps(after, ensure_ascii=False),
         reason=request.reason, actor_user=actor_user, actor_device=actor_device,
+    )
+    usage_repo.record_schedule_event(
+        event_type="schedule_deleted",
+        actor_user=actor_user,
+        actor_device=actor_device,
+        schedule_id=request.schedule_id,
+        source="direct_delete",
     )
     return {"status": "success", "message": "일정이 즉시 삭제되었습니다."}
 
@@ -656,6 +695,7 @@ def import_construction_plan(
     background_tasks: BackgroundTasks,
     user_session=Depends(require_session),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
+    usage_repo: UsageMetricsRepository = Depends(get_usage_metrics_repo),
 ):
     try:
         target_date = datetime.strptime(request.date.strip()[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
@@ -714,6 +754,14 @@ def import_construction_plan(
 
     if erp_records:
         background_tasks.add_task(sync_constructions, erp_records)
+
+    usage_repo.record_schedule_events(
+        event_type="schedule_created",
+        actor_user=user_session["user_id"],
+        actor_device=user_session.get("device_name", "unknown-device"),
+        schedule_ids=inserted_ids,
+        source="construction_plan_import",
+    )
 
     return {
         "status": "success",

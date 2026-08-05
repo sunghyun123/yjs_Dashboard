@@ -88,6 +88,7 @@
                 </nav>
             </div>
             <button class="btn btn-outline-primary btn-sm" onclick="runDailyExport()">백업데이터 생성</button>
+            <button class="btn btn-outline-success btn-sm" onclick="openUsageReportModal()">보고용 데이터 생성</button>
             <button class="btn btn-outline-danger btn-sm" onclick="logout()">로그아웃</button>
         </div>
     </div>
@@ -206,9 +207,46 @@
     </div>
 </div>
 
+<div class="modal fade" id="usageReportModal" tabindex="-1" aria-labelledby="usageReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="usageReportModalLabel">보고용 데이터 생성</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted mb-3">실사용자·업무활동일과 일정 신규·수정·삭제 건수를 CSV로 내려받습니다.</div>
+                <div class="row g-2">
+                    <div class="col-sm-6">
+                        <label class="form-label small mb-1" for="usageReportDateFromInput">시작일</label>
+                        <input id="usageReportDateFromInput" class="form-control form-control-sm" type="date">
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label small mb-1" for="usageReportDateToInput">종료일</label>
+                        <input id="usageReportDateToInput" class="form-control form-control-sm" type="date">
+                    </div>
+                    <div class="col-12 mt-3">
+                        <label class="form-label small mb-1" for="usageReportGrainInput">집계 단위</label>
+                        <select id="usageReportGrainInput" class="form-select form-select-sm">
+                            <option value="weekly" selected>주간 (월요일~일요일)</option>
+                            <option value="daily">일별</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="usageReportStatus" class="small text-muted mt-3" aria-live="polite"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+                <button id="usageReportDownloadButton" type="button" class="btn btn-sm btn-success" onclick="downloadUsageReport()">CSV 다운로드</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     let exportModal = null;
+    let usageReportModal = null;
 
     function escapeHtml(value) {
         if (value === null || value === undefined) return '';
@@ -600,9 +638,79 @@
         alert(`백업데이터 생성 완료: ${data.data.output_file}`);
     }
 
+    function toLocalDateInputValue(value) {
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, '0');
+        const day = String(value.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function openUsageReportModal() {
+        const end = new Date();
+        const start = new Date(end);
+        start.setDate(start.getDate() - 27);
+        document.getElementById('usageReportDateFromInput').value = toLocalDateInputValue(start);
+        document.getElementById('usageReportDateToInput').value = toLocalDateInputValue(end);
+        document.getElementById('usageReportGrainInput').value = 'weekly';
+        const status = document.getElementById('usageReportStatus');
+        status.className = 'small text-muted mt-3';
+        status.textContent = '';
+        usageReportModal.show();
+    }
+
+    async function downloadUsageReport() {
+        const dateFrom = document.getElementById('usageReportDateFromInput').value;
+        const dateTo = document.getElementById('usageReportDateToInput').value;
+        const grain = document.getElementById('usageReportGrainInput').value;
+        const status = document.getElementById('usageReportStatus');
+        const button = document.getElementById('usageReportDownloadButton');
+
+        if (!dateFrom || !dateTo) {
+            status.className = 'small text-danger mt-3';
+            status.textContent = '시작일과 종료일을 선택하세요.';
+            return;
+        }
+        if (dateFrom > dateTo) {
+            status.className = 'small text-danger mt-3';
+            status.textContent = '시작일은 종료일보다 늦을 수 없습니다.';
+            return;
+        }
+
+        const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo, grain });
+        button.disabled = true;
+        status.className = 'small text-muted mt-3';
+        status.textContent = '보고용 데이터를 생성하는 중입니다...';
+        try {
+            const res = await fetch(`/api/admin/usage-metrics.csv?${params.toString()}`);
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.detail || '보고용 데이터 생성에 실패했습니다.');
+            }
+            const blob = await res.blob();
+            const disposition = res.headers.get('content-disposition') || '';
+            const filenameMatch = disposition.match(/filename="([^"]+)"/i);
+            const filename = filenameMatch?.[1] || `usage_metrics_${dateFrom}_${dateTo}_${grain}.csv`;
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(objectUrl);
+            usageReportModal.hide();
+        } catch (error) {
+            status.className = 'small text-danger mt-3';
+            status.textContent = error.message || '보고용 데이터 생성에 실패했습니다.';
+        } finally {
+            button.disabled = false;
+        }
+    }
+
     ensureAdminSession().then((ok) => {
         if (!ok) return;
         exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
+        usageReportModal = new bootstrap.Modal(document.getElementById('usageReportModal'));
         loadFieldStaffAdmin();
         loadOutingStaffAdmin();
         loadFrequentSiteAdmin();

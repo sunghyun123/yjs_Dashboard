@@ -11,7 +11,8 @@ from starlette.responses import Response
 from app.core.config import settings
 from app.core.auth import SESSION_COOKIE_NAME, create_session, require_session
 from app.db.repos.user import UserRepository
-from app.db.deps import get_user_repo
+from app.db.repos.usage_metrics import UsageMetricsRepository
+from app.db.deps import get_user_repo, get_usage_metrics_repo
 import app.services.kakao_oauth as kakao_oauth
 from app.services.kakao_oauth import KakaoOAuthError
 from app.services.kakao_whitelist import find_whitelisted_user
@@ -175,7 +176,15 @@ def logout(
 
 
 @router.get("/me")
-def me(session=Depends(require_session)):
+def me(
+    session=Depends(require_session),
+    usage_repo: UsageMetricsRepository = Depends(get_usage_metrics_repo),
+):
+    usage_repo.record_user_activity(
+        actor_user=session["user_id"],
+        actor_device=session.get("device_name", ""),
+        source="auth_me",
+    )
     return {
         "user_id": session["user_id"],
         "role": session["role"],
