@@ -71,39 +71,31 @@ class ExportRepository:
                 """
                 SELECT
                     (SELECT COUNT(*) FROM field_schedules WHERE date=? AND deleted_at IS NULL) AS active_schedule_count,
-                    (SELECT COUNT(*) FROM field_schedules WHERE date(datetime(created_at,'localtime'))=?) AS schedule_created_count,
+                    (SELECT COUNT(*) FROM usage_events WHERE event_type='schedule_created' AND activity_date=?) AS schedule_created_count,
                     (SELECT COUNT(*) FROM worker_status) AS outing_status_snapshot_count,
                     (SELECT COUNT(*) FROM admin_requests WHERE date(datetime(created_at,'localtime'))=?) AS admin_request_count,
                     (SELECT COUNT(*) FROM photo_uploads WHERE related_date=? OR date(datetime(created_at,'localtime'))=?) AS photo_upload_count,
                     (SELECT COUNT(*) FROM audit_events WHERE date(datetime(created_at,'localtime'))=?) AS audit_event_count,
                     (SELECT COUNT(*) FROM sessions WHERE date(datetime(created_at,'localtime'))=?) AS login_session_count,
                     (SELECT COUNT(*) FROM chat_events WHERE date(datetime(created_at,'localtime'))=?) AS chat_count,
-                    (SELECT COUNT(*) FROM audit_events WHERE entity_type='schedule' AND action='update' AND date(datetime(created_at,'localtime'))=?) AS schedule_update_count,
-                    (SELECT COUNT(*) FROM audit_events WHERE entity_type='schedule' AND action='delete' AND date(datetime(created_at,'localtime'))=?) AS schedule_delete_count
+                    (SELECT COUNT(*) FROM usage_events WHERE event_type='schedule_updated' AND activity_date=?) AS schedule_update_count,
+                    (SELECT COUNT(*) FROM usage_events WHERE event_type='schedule_deleted' AND activity_date=?) AS schedule_delete_count
                 """,
                 (target_date, target_date, target_date, target_date, target_date,
                  target_date, target_date, target_date, target_date, target_date),
             ).fetchone()
             metrics = dict(row) if row else {}
 
-            active_users_rows = conn.execute(
+            active_users_row = conn.execute(
                 """
-                SELECT DISTINCT actor_user AS user_name FROM (
-                    SELECT COALESCE(last_actor_user,'') AS actor_user FROM field_schedules WHERE date(last_actor_at)=?
-                    UNION ALL
-                    SELECT COALESCE(requested_by,'') FROM admin_requests WHERE date(datetime(created_at,'localtime'))=?
-                    UNION ALL
-                    SELECT COALESCE(uploaded_by,'') FROM photo_uploads WHERE related_date=? OR date(datetime(created_at,'localtime'))=?
-                    UNION ALL
-                    SELECT COALESCE(actor_user,'') FROM audit_events WHERE date(datetime(created_at,'localtime'))=?
-                    UNION ALL
-                    SELECT COALESCE(user_id,'') FROM sessions WHERE date(datetime(created_at,'localtime'))=?
-                    UNION ALL
-                    SELECT COALESCE(user_id,'') FROM chat_events WHERE date(datetime(created_at,'localtime'))=?
-                ) WHERE user_name != ''
+                SELECT COUNT(DISTINCT actor_user) AS active_users
+                FROM usage_events
+                WHERE activity_date=?
+                  AND TRIM(COALESCE(actor_user,'')) <> ''
+                  AND actor_user NOT IN ('auto-system','system')
                 """,
-                (target_date, target_date, target_date, target_date, target_date, target_date, target_date),
-            ).fetchall()
+                (target_date,),
+            ).fetchone()
             metrics["target_date"] = target_date
-            metrics["daily_active_user_count"] = len(active_users_rows)
+            metrics["daily_active_user_count"] = int(active_users_row["active_users"] or 0)
             return {k: int(v) if isinstance(v, int) and k != "target_date" else v for k, v in metrics.items()}

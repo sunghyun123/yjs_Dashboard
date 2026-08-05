@@ -52,7 +52,7 @@ def test_static_pages_are_served(client):
         "/": ["YJS 운영 홈", "외출/행선표"],
         "/index.html": ["사진 카테고리 선택", "요청 접수"],
         "/dashboard.html": ["일정 수정", "한눈에 보기"],
-        "/admin.html": ["카카오 로그인 승인 대기", "백업데이터 생성 실행"],
+        "/admin.html": ["카카오 로그인 승인 대기", "백업데이터 생성 실행", "보고용 데이터 생성"],
     }
 
     for path in ["/", "/index.html", "/dashboard.html", "/admin.html"]:
@@ -92,6 +92,79 @@ def test_auth_login_me_logout_flow(client, monkeypatch, tmp_path):
 
     unauthorized_me = client.get("/api/auth/me")
     assert unauthorized_me.status_code == 401
+
+
+def test_usage_metrics_track_active_users_and_schedule_mutations(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    d = _iso_today()
+
+    # Repeated page authentication checks count as one active user for the day.
+    assert client.get("/api/auth/me").status_code == 200
+    assert client.get("/api/auth/me").status_code == 200
+
+    created_res = client.post(
+        "/api/schedules/execute",
+        json={
+            "action": "create",
+            "schedule_data": {
+                "date": d,
+                "location": "운영지표 테스트",
+                "task": "운영지표 일정",
+                "person": "테스트담당",
+                "details": "신규·수정·삭제 집계 검증",
+                "category": "공사 일정",
+            },
+        },
+    )
+    assert created_res.status_code == 200
+    rows = client.get(f"/api/schedules/today?date={d}").json()["data"]
+    schedule = next(row for row in rows if row["task"] == "운영지표 일정")
+
+    updated_res = client.post(
+        "/api/schedules/direct-update",
+        json={
+            "schedule_id": schedule["id"],
+            "schedule_data": {
+                "date": d,
+                "task": "운영지표 일정 수정",
+                "person": "테스트담당",
+                "details": "수정 완료",
+                "category": "공사 일정",
+            },
+        },
+    )
+    assert updated_res.status_code == 200
+
+    deleted_res = client.post(
+        "/api/schedules/direct-delete",
+        json={"schedule_id": schedule["id"], "reason": "집계 검증"},
+    )
+    assert deleted_res.status_code == 200
+
+    metrics_res = client.get(f"/api/admin/usage-metrics?date_from={d}&date_to={d}")
+    assert metrics_res.status_code == 200
+    data = metrics_res.json()["data"]
+    assert data["summary"] == {
+        "active_users": 1,
+        "activity_days": 1,
+        "schedule_created_count": 1,
+        "schedule_update_count": 1,
+        "schedule_delete_count": 1,
+    }
+    assert data["weekly"][0]["weekly_active_users"] == 1
+    assert data["weekly"][0]["activity_days"] == 1
+
+    csv_res = client.get(
+        f"/api/admin/usage-metrics.csv?date_from={d}&date_to={d}&grain=weekly"
+    )
+    assert csv_res.status_code == 200
+    assert "weekly_active_users" in csv_res.text
+    assert ",1,1,1,1,1" in csv_res.text
+
+
+def test_usage_metrics_require_admin(client):
+    assert client.get("/api/admin/usage-metrics").status_code == 401
+    assert client.get("/api/admin/usage-metrics.csv").status_code == 401
 
 
 def test_field_staff_color_is_generated_and_admin_can_update_it(client, monkeypatch, tmp_path):

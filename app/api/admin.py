@@ -1,9 +1,14 @@
+import csv
+import io
 import json
 import re
 import sqlite3
-from typing import Optional, Dict, Any
+from datetime import date, datetime, timedelta
+from typing import Optional, Dict, Any, Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.core.auth import require_admin
@@ -14,7 +19,16 @@ from app.db.repos.worker import WorkerRepository
 from app.db.repos.user import UserRepository
 from app.db.repos.export import ExportRepository
 from app.db.repos.monthly_progress import MonthlyProgressRepository
-from app.db.deps import get_schedule_repo, get_admin_repo, get_worker_repo, get_user_repo, get_export_repo, get_monthly_progress_repo
+from app.db.repos.usage_metrics import UsageMetricsRepository
+from app.db.deps import (
+    get_schedule_repo,
+    get_admin_repo,
+    get_worker_repo,
+    get_user_repo,
+    get_export_repo,
+    get_monthly_progress_repo,
+    get_usage_metrics_repo,
+)
 from app.services.export_service import DailyExportService
 from app.services.erp_sync_service import sync_constructions
 from app.api.schedules import reload_construction_list
@@ -63,6 +77,43 @@ class MonthlyProgressConfigSave(BaseModel):
     target_amount_thousand: int = Field(default=429250, ge=0, description="목표금액(천원)")
 
 
+def _usage_metrics_range(date_from: str, date_to: str) -> tuple[str, str]:
+    try:
+        today = datetime.now(ZoneInfo(settings.APP_TIMEZONE)).date()
+    except Exception:
+        today = date.today()
+    try:
+        start = date.fromisoformat(date_from) if date_from else today - timedelta(days=27)
+        end = date.fromisoformat(date_to) if date_to else today
+    except ValueError:
+        raise HTTPException(status_code=400, detail="날짜 형식은 YYYY-MM-DD 이어야 합니다.")
+    if start > end:
+        raise HTTPException(status_code=400, detail="date_from은 date_to보다 늦을 수 없습니다.")
+    if (end - start).days > 366:
+        raise HTTPException(status_code=400, detail="한 번에 조회할 수 있는 기간은 최대 367일입니다.")
+    return start.isoformat(), end.isoformat()
+
+
+def _usage_metrics_payload(
+    usage_repo: UsageMetricsRepository,
+    date_from: str,
+    date_to: str,
+) -> Dict[str, Any]:
+    start, end = _usage_metrics_range(date_from, date_to)
+    metrics = usage_repo.get_usage_metrics(start, end)
+    return {
+        "period": {"date_from": start, "date_to": end},
+        **metrics,
+        "definitions": {
+            "active_user": "로그인 상태로 화면을 열었거나 일정 신규·수정·삭제를 수행한 고유 사용자",
+            "activity_day": "한 명 이상의 실사용자가 활동한 날짜",
+            "schedule_created": "DB에 새 일정 행이 실제 삽입된 건수",
+            "schedule_updated": "일정 내용 변경이 DB에 실제 반영된 건수(정렬·확인 처리는 제외)",
+            "schedule_deleted": "일정이 실제 소프트 삭제된 건수",
+        },
+    }
+
+
 @router.get("/requests")
 def list_requests(
     status: str = "pending",
@@ -92,6 +143,75 @@ def list_audit_events(
         "status": "success",
         "data": admin_repo.list_audit_events(limit=limit, actions=action_list or None, since=since, until=until),
     }
+
+
+@router.get("/usage-metrics", summary="실사용자 및 일정 변경 운영지표")
+def get_usage_metrics(
+    date_from: str = "",
+    date_to: str = "",
+    _admin=Depends(require_admin),
+    usage_repo: UsageMetricsRepository = Depends(get_usage_metrics_repo),
+):
+    return {
+        "status": "success",
+        "data": _usage_metrics_payload(usage_repo, date_from, date_to),
+    }
+
+
+@router.get("/usage-metrics.csv", summary="실사용자 및 일정 변경 운영지표 CSV")
+def export_usage_metrics_csv(
+    date_from: str = "",
+    date_to: str = "",
+    grain: Literal["weekly", "daily"] = "weekly",
+    _admin=Depends(require_admin),
+    usage_repo: UsageMetricsRepository = Depends(get_usage_metrics_repo),
+):
+    data = _usage_metrics_payload(usage_repo, date_from, date_to)
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    if grain == "weekly":
+        writer.writerow([
+            "week_start",
+            "week_end",
+            "weekly_active_users",
+            "activity_days",
+            "schedule_created_count",
+            "schedule_update_count",
+            "schedule_delete_count",
+        ])
+        for row in data["weekly"]:
+            writer.writerow([
+                row["week_start"],
+                row["week_end"],
+                row["weekly_active_users"],
+                row["activity_days"],
+                row["schedule_created_count"],
+                row["schedule_update_count"],
+                row["schedule_delete_count"],
+            ])
+    else:
+        writer.writerow([
+            "date",
+            "active_users",
+            "schedule_created_count",
+            "schedule_update_count",
+            "schedule_delete_count",
+        ])
+        for row in data["daily"]:
+            writer.writerow([
+                row["date"],
+                row["active_users"],
+                row["schedule_created_count"],
+                row["schedule_update_count"],
+                row["schedule_delete_count"],
+            ])
+
+    filename = f"usage_metrics_{data['period']['date_from']}_{data['period']['date_to']}_{grain}.csv"
+    return Response(
+        content="\ufeff" + output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/requests/{request_id}/candidates")
@@ -154,6 +274,7 @@ def review_request(
     admin=Depends(require_admin),
     admin_repo: AdminRepository = Depends(get_admin_repo),
     sched_repo: ScheduleRepository = Depends(get_schedule_repo),
+    usage_repo: UsageMetricsRepository = Depends(get_usage_metrics_repo),
 ):
     request_row = admin_repo.get_request_by_id(payload.request_id)
     if not request_row:
@@ -187,12 +308,27 @@ def review_request(
     if request_type in ["update_request"] and payload.schedule_id and payload_data:
         applied = sched_repo.update_by_id(payload.schedule_id, payload_data, actor_user=actor_user, actor_device=actor_device)
         if applied:
+            usage_repo.record_schedule_event(
+                event_type="schedule_updated",
+                actor_user=actor_user,
+                actor_device=actor_device,
+                schedule_id=payload.schedule_id,
+                source="admin_review",
+            )
             updated = sched_repo.get_by_id(payload.schedule_id)
             if updated and str(updated.get("work_code") or "").strip():
                 background_tasks.add_task(sync_constructions, [updated])
     elif request_type in ["delete_request"] and payload.schedule_id:
         applied = sched_repo.soft_delete(schedule_id=payload.schedule_id, deleted_by=actor_user,
                                           delete_reason=payload.reason, actor_device=actor_device)
+        if applied:
+            usage_repo.record_schedule_event(
+                event_type="schedule_deleted",
+                actor_user=actor_user,
+                actor_device=actor_device,
+                schedule_id=payload.schedule_id,
+                source="admin_review",
+            )
     elif request_type in ["other", "update_request", "delete_request", "unclassified"]:
         applied = True
     else:

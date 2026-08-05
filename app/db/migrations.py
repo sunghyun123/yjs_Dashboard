@@ -208,3 +208,29 @@ def run_migrations(db_path: str) -> None:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS usage_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    actor_user TEXT NOT NULL DEFAULT '',
+                    actor_device TEXT NOT NULL DEFAULT '',
+                    entity_type TEXT NOT NULL DEFAULT '',
+                    entity_id INTEGER,
+                    source TEXT NOT NULL DEFAULT '',
+                    activity_date TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL
+                )
+            """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_usage_events_activity_date "
+                "ON usage_events(activity_date)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_usage_events_type_date "
+                "ON usage_events(event_type, activity_date)"
+            )
+            conn.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_events_daily_active_user
+                ON usage_events(event_type, actor_user, activity_date)
+                WHERE event_type='user_active'
+            """)
