@@ -837,6 +837,9 @@
         start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
         end.setDate(end.getDate() + ((7 - end.getDay()) % 7));
         const visibleSet = new Set(sortedDates);
+        // 지나간 날짜 숨김은 '오늘이 든 달'을 볼 때만 — 지난달로 이동했을 때 화면이 통째로 비지 않게.
+        // sortedDates는 보고 있는 달의 전체 날짜라, 오늘이 그 안에 있으면 곧 현재 달이다.
+        const hidePastDays = visibleSet.has(todayStr);
 
         html += '<div class="calendar-overview-grid">';
         for (let weekStart = new Date(start); weekStart <= end; weekStart.setDate(weekStart.getDate() + 7)) {
@@ -847,7 +850,9 @@
                 const date = new Date(weekStart);
                 date.setDate(weekStart.getDate() + offset);
                 const key = formatLocalDateYYYYMMDD(date);
-                const inRange = visibleSet.has(key);
+                // 오늘 이전은 inRange를 내려 기존 out-range 경로를 타게 한다(일정 미렌더 + 지나간 주는 아래 가드가 통째로 skip).
+                // YYYY-MM-DD는 0으로 자리를 채운 고정폭이라 문자열 비교가 곧 날짜 순서 비교다.
+                const inRange = visibleSet.has(key) && (!hidePastDays || key >= todayStr);
                 const items = groupedData[key] || [];
 
                 if (offset < 5) {
