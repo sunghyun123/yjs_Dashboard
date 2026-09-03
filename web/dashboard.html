@@ -204,12 +204,27 @@
             box-shadow: 0 0 0 1px rgba(31, 111, 229, 0.15);
         }
 
+        .calendar-cell.holiday {
+            border-color: #e7a7a7;
+            background: #fff7f7;
+        }
+
+        .calendar-cell.holiday.today {
+            border-color: #1f6fe5;
+            background: linear-gradient(135deg, #fff7f7 0%, #fff7f7 72%, #eff5ff 100%);
+        }
+
         .calendar-cell.sun .calendar-date-label {
             color: #d13232;
         }
 
         .calendar-cell.sat .calendar-date-label {
             color: #2467c5;
+        }
+
+        .calendar-cell.holiday .calendar-date-label {
+            color: #c62828;
+            border-bottom-color: #f1cccc;
         }
 
         .calendar-date-label {
@@ -229,6 +244,66 @@
             align-items: center;
             gap: 4px;
             min-width: 0;
+        }
+
+        .calendar-date-text {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        .holiday-name-badge {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid #e4a3a3;
+            border-radius: 999px;
+            background: #ffe6e6;
+            color: #b42323;
+            padding: 1px 5px;
+            font-size: 0.65rem;
+            font-weight: 800;
+            line-height: 1.25;
+            white-space: nowrap;
+        }
+
+        .holiday-legend {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #b42323;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .holiday-legend::before {
+            content: '';
+            width: 9px;
+            height: 9px;
+            border-radius: 3px;
+            border: 1px solid #df8f8f;
+            background: #ffe6e6;
+        }
+
+        .holiday-date-notice {
+            border: 1px solid #e3a0a0;
+            border-radius: 8px;
+            background: #fff1f1;
+            color: #a61b1b;
+            padding: 7px 9px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .holiday-date-notice[hidden] {
+            display: none !important;
+        }
+
+        .form-control.holiday-date-input {
+            border-color: #d9534f;
+            background-color: #fff7f7;
+            color: #a61b1b;
         }
 
         .day-add-btn {
@@ -1181,6 +1256,11 @@
                 margin-bottom: 8px;
             }
 
+            .mobile-day-block.holiday {
+                border-color: #e7a7a7;
+                background: #fff7f7;
+            }
+
             .mobile-day-title {
                 font-size: 0.82rem;
                 font-weight: 700;
@@ -1202,6 +1282,11 @@
 
             .mobile-day-title.today {
                 color: #1f6fe5;
+            }
+
+            .mobile-day-title.holiday {
+                color: #c62828;
+                border-bottom-color: #f1cccc;
             }
 
             .mobile-today-pin {
@@ -1381,6 +1466,7 @@
                             <input class="form-check-input" type="checkbox" id="viewOverviewMode">
                             <label class="form-check-label" for="viewOverviewMode">한눈에 보기</label>
                         </div>
+                        <span class="holiday-legend">공휴일</span>
                         <span class="schedule-view-hint">평일은 모두 유지하고 공사 일정만 크게 표시하며, 실제 공사가 있는 주말만 추가합니다.</span>
                     </div>
                 </div>
@@ -1468,6 +1554,7 @@
                             <input id="editTask" class="form-control form-control-sm" placeholder="공사명">
                         </div>
                     </div>
+                    <div id="editHolidayNotice" class="holiday-date-notice mb-2" role="alert" hidden></div>
                     <div class="row g-2 mb-3">
                         <div class="col-6">
                             <label class="form-label small mb-1">공사코드 (지중No)</label>
@@ -1586,6 +1673,7 @@
                             <input id="quickAddTask" class="form-control form-control-sm" placeholder="공사명">
                         </div>
                     </div>
+                    <div id="quickAddHolidayNotice" class="holiday-date-notice mb-2" role="alert" hidden></div>
                     <div class="row g-2 mb-3">
                         <div class="col-6">
                             <label class="form-label small mb-1">공사코드 (지중No)</label>
@@ -2077,6 +2165,7 @@
             loadScheduleViewOptions();
             bindScheduleViewOptions();
             bindCompactItemActions();
+            bindHolidayDateNotices();
             loadSchedules();
 
             // 60초마다 자동 갱신. 탭이 백그라운드면 건너뛰어 불필요한 호출/충전 방지.
@@ -2104,7 +2193,8 @@
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
     <script src="/dashboard.sidebar.js?v=20260429"></script>
-    <script src="/dashboard.schedule.js?v=20260731d"></script>
+    <script src="/dashboard.holidays.js?v=20260903"></script>
+    <script src="/dashboard.schedule.js?v=20260903"></script>
 </body>
 
 </html>

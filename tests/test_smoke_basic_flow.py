@@ -77,6 +77,20 @@ def test_static_pages_are_served(client):
     assert board_redirect.headers.get("location") == "/dashboard.html"
 
 
+def test_dashboard_holiday_asset_is_served(client):
+    page = client.get("/dashboard.html")
+    assert page.status_code == 200
+    assert "/dashboard.holidays.js?v=20260903" in page.text
+    assert 'class="holiday-legend">공휴일' in page.text
+    assert 'id="quickAddHolidayNotice"' in page.text
+
+    asset = client.get("/dashboard.holidays.js")
+    assert asset.status_code == 200
+    assert "application/javascript" in asset.headers.get("content-type", "")
+    assert "'2026-09-24': '추석 연휴'" in asset.text
+    assert "'2026-09-25': '추석'" in asset.text
+
+
 def test_auth_login_me_logout_flow(client, monkeypatch, tmp_path):
     login_as_admin(client, monkeypatch, tmp_path)
 

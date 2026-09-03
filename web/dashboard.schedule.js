@@ -783,6 +783,18 @@
         return `<div class="${listClass}" data-date-key="${encodedDate}" data-collapse-limit="${safeCollapseLimit}">${listHtml}</div>${toggleHtml}`;
     }
 
+    function holidayForDate(dateKey) {
+        return window.DashboardHolidays?.get(dateKey) || null;
+    }
+
+    function calendarDateTextHtml(text, dateKey, isToday) {
+        const holiday = holidayForDate(dateKey);
+        const holidayBadge = holiday
+            ? `<span class="holiday-name-badge" title="${escapeHtml(holiday.name)}">${escapeHtml(holiday.name)}</span>`
+            : '';
+        return `<span class="calendar-date-text"><span>${escapeHtml(text)}${isToday ? ' [오늘]' : ''}</span>${holidayBadge}</span>`;
+    }
+
     function renderMobileCalendar(sortedDates, groupedData, todayStr) {
         const todayCount = (groupedData[todayStr] || []).length;
         let html = `<div class="mobile-today-pin">오늘 일정: ${todayCount}건</div>`;
@@ -790,7 +802,9 @@
             const dayName = getDayName(date);
             const dayItems = groupedData[date] || [];
             const todayClass = date === todayStr ? 'today' : '';
-            html += `<div class="mobile-day-block"><div class="mobile-day-title ${todayClass}"><span class="calendar-date-main"><span>📅 ${escapeHtml(date)} ${dayName}${date === todayStr ? ' [오늘]' : ''}</span>${dayAddButtonHtml(date)}</span><span class="day-count-badge">${dayItems.length}건</span></div>`;
+            const holidayClass = holidayForDate(date) ? 'holiday' : '';
+            const dateText = calendarDateTextHtml(`📅 ${date} ${dayName}`, date, date === todayStr);
+            html += `<div class="mobile-day-block ${holidayClass}"><div class="mobile-day-title ${todayClass} ${holidayClass}"><span class="calendar-date-main">${dateText}${dayAddButtonHtml(date)}</span><span class="day-count-badge">${dayItems.length}건</span></div>`;
             html += renderDayItemsSection(date, dayItems);
             html += '</div>';
         });
@@ -807,14 +821,15 @@
         const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
         const dayCls = dayIdx === 0 ? 'sun' : (dayIdx === 6 ? 'sat' : '');
         const isToday = dateKey === todayStr;
-        const classes = `calendar-cell ${dayCls} ${extraClass} ${inRange ? '' : 'out-range'} ${isToday ? 'today' : ''}`.trim();
+        const holidayClass = holidayForDate(dateKey) ? 'holiday' : '';
+        const classes = `calendar-cell ${dayCls} ${holidayClass} ${extraClass} ${inRange ? '' : 'out-range'} ${isToday ? 'today' : ''}`.trim();
         const constructionItems = inRange ? dayItems.filter(isConstructionSchedule) : [];
         const count = constructionItems.length;
         const addBtn = inRange ? dayAddButtonHtml(dateKey) : '';
         const dateText = `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekDays[dayIdx]})`;
 
         let html = `<div class="${classes}">`;
-        html += `<div class="calendar-date-label"><span class="calendar-date-main"><span>${escapeHtml(dateText)}${isToday ? ' [오늘]' : ''}</span>${addBtn}</span>${count ? `<span class="day-count-badge">${count}건</span>` : ''}</div>`;
+        html += `<div class="calendar-date-label"><span class="calendar-date-main">${calendarDateTextHtml(dateText, dateKey, isToday)}${addBtn}</span>${count ? `<span class="day-count-badge">${count}건</span>` : ''}</div>`;
         if (inRange) {
             html += renderDayItemsSection(dateKey, constructionItems, 3);
         }
@@ -919,12 +934,13 @@
             const isToday = dateKey === todayStr;
             const dayItems = groupedData[dateKey] || [];
             const dayCls = dayIdx === 0 ? 'sun' : (dayIdx === 6 ? 'sat' : '');
-            const classes = `calendar-cell ${dayCls} ${inRange ? '' : 'out-range'} ${isToday ? 'today' : ''}`.trim();
+            const holidayClass = holidayForDate(dateKey) ? 'holiday' : '';
+            const classes = `calendar-cell ${dayCls} ${holidayClass} ${inRange ? '' : 'out-range'} ${isToday ? 'today' : ''}`.trim();
 
             html += `<div class="${classes}">`;
             const count = inRange ? dayItems.length : 0;
             const addBtn = inRange ? dayAddButtonHtml(dateKey) : '';
-            html += `<div class="calendar-date-label"><span class="calendar-date-main"><span>${escapeHtml(dateKey)}${isToday ? ' [오늘]' : ''}</span>${addBtn}</span><span class="day-count-badge">${count}건</span></div>`;
+            html += `<div class="calendar-date-label"><span class="calendar-date-main">${calendarDateTextHtml(dateKey, dateKey, isToday)}${addBtn}</span><span class="day-count-badge">${count}건</span></div>`;
             if (inRange) {
                 html += renderDayItemsSection(dateKey, dayItems);
             }
@@ -1016,7 +1032,34 @@
         document.getElementById('editWorkCode').value = String(item.work_code || '').trim();
         writeErpData('editErp', item.erp_data || null);
         populateManagerSelect('editPerson', item.person || '');
+        updateHolidayDateNotice('editDate', 'editHolidayNotice');
         window.editRequestModal.show();
+    }
+
+    function updateHolidayDateNotice(inputId, noticeId) {
+        const input = document.getElementById(inputId);
+        const notice = document.getElementById(noticeId);
+        if (!input || !notice) return;
+        const holiday = holidayForDate(input.value);
+        input.classList.toggle('holiday-date-input', Boolean(holiday));
+        notice.hidden = !holiday;
+        notice.textContent = holiday
+            ? `⚠ ${holiday.name} 공휴일입니다. 공사 가능 여부를 확인한 뒤 일정을 저장해 주세요.`
+            : '';
+    }
+
+    function bindHolidayDateNotices() {
+        [
+            ['quickAddDate', 'quickAddHolidayNotice'],
+            ['editDate', 'editHolidayNotice'],
+        ].forEach(([inputId, noticeId]) => {
+            const input = document.getElementById(inputId);
+            if (!input || input.dataset.holidayNoticeBound === '1') return;
+            input.dataset.holidayNoticeBound = '1';
+            input.addEventListener('input', () => updateHolidayDateNotice(inputId, noticeId));
+            input.addEventListener('change', () => updateHolidayDateNotice(inputId, noticeId));
+            updateHolidayDateNotice(inputId, noticeId);
+        });
     }
 
     function openQuickAddForDate(dateKey) {
@@ -1053,6 +1096,7 @@
             staffListBox.innerHTML = '<span class="small text-muted">펼치면 인원 목록이 보입니다.</span>';
         }
         resetErpData('qaErp');
+        updateHolidayDateNotice('quickAddDate', 'quickAddHolidayNotice');
         window.quickAddScheduleModal.show();
         if (taskInput) taskInput.focus();
     }
@@ -1337,6 +1381,7 @@
     window.renderDesktopOverviewCalendar = renderDesktopOverviewCalendar;
     window.renderDesktopCalendar = renderDesktopCalendar;
     window.bindCompactItemActions = bindCompactItemActions;
+    window.bindHolidayDateNotices = bindHolidayDateNotices;
     window.getActiveScheduleCardId = getActiveScheduleCardId;
     window.restoreActiveScheduleCard = restoreActiveScheduleCard;
     window.setupScheduleManagerControls = setupScheduleManagerControls;

@@ -175,6 +175,10 @@ async def serve_dashboard_auth_js():
 async def serve_dashboard_sidebar_js():
     return FileResponse("web/dashboard.sidebar.js", media_type="application/javascript")
 
+@app.get("/dashboard.holidays.js", summary="대시보드 공휴일 스크립트", tags=["Pages"])
+async def serve_dashboard_holidays_js():
+    return FileResponse("web/dashboard.holidays.js", media_type="application/javascript")
+
 @app.get("/dashboard.schedule.js", summary="대시보드 일정 스크립트", tags=["Pages"])
 async def serve_dashboard_schedule_js():
     return FileResponse("web/dashboard.schedule.js", media_type="application/javascript")
