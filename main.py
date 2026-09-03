@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager, suppress
 
 from app.api import schedules
@@ -17,11 +18,76 @@ from app.api import admin
 from app.api import progress_map
 from app.api import erp
 from app.db.migrations import run_migrations
+from app.db.repos.user import UserRepository
 from app.services.export_service import DailyExportService
 from app.core.config import settings
-from app.core.auth import require_session
+from app.core.auth import require_session, SESSION_COOKIE_NAME
 
 logger = logging.getLogger(__name__)
+
+# 액세스 로그 전용 로거. uvicorn 기본 access 로그(access_log=False)를 대체한다.
+# root 로거에 핸들러가 없어도 INFO가 확실히 stderr→journald로 나가도록 직접 핸들러를 단다.
+access_logger = logging.getLogger("yjs.access")
+if not access_logger.handlers:
+    _access_handler = logging.StreamHandler()
+    _access_handler.setFormatter(logging.Formatter("%(levelname)s [access] %(message)s"))
+    access_logger.addHandler(_access_handler)
+    access_logger.setLevel(logging.INFO)
+    access_logger.propagate = False
+
+
+class AccessLogMiddleware(BaseHTTPMiddleware):
+    """요청마다 세션 쿠키로 사용자를 식별해 한 줄 액세스 로그를 남긴다.
+
+    로그 예시: `1.235.19.128 user=hong(worker) GET /api/schedules/today 200 3.1ms`
+    - 세션 조회 결과는 30초 캐시(한 페이지가 동시에 여러 요청을 쏘므로 DB 조회를 줄임).
+    - 미인증 요청은 user=anon, 만료/위조 세션은 user=invalid-session.
+    """
+
+    _SESSION_CACHE_TTL = 30.0  # 초
+    _CACHE_MAX = 512
+
+    def __init__(self, app):
+        super().__init__(app)
+        self._user_repo = UserRepository(settings.sqlite_db_path)
+        self._session_cache: dict[str, tuple[float, str]] = {}
+
+    def _resolve_user(self, session_id) -> str:
+        if not session_id:
+            return "anon"
+        now = time.monotonic()
+        cached = self._session_cache.get(session_id)
+        if cached and now - cached[0] < self._SESSION_CACHE_TTL:
+            return cached[1]
+        try:
+            session = self._user_repo.get_session(session_id)
+        except Exception:
+            return "anon"  # 로그 때문에 요청을 깨뜨리지 않는다.
+        if not session:
+            label = "invalid-session"
+        else:
+            label = f"{session.get('user_id')}({session.get('role')})"
+        if len(self._session_cache) >= self._CACHE_MAX:
+            self._session_cache.clear()
+        self._session_cache[session_id] = (now, label)
+        return label
+
+    async def dispatch(self, request, call_next):
+        start = time.monotonic()
+        response = await call_next(request)
+        elapsed_ms = (time.monotonic() - start) * 1000.0
+        try:
+            user = self._resolve_user(request.cookies.get(SESSION_COOKIE_NAME))
+            client_ip = request.client.host if request.client else "-"
+            query = f"?{request.url.query}" if request.url.query else ""
+            access_logger.info(
+                "%s user=%s %s %s%s %s %.1fms",
+                client_ip, user, request.method, request.url.path, query,
+                response.status_code, elapsed_ms,
+            )
+        except Exception:  # 로깅 실패가 응답을 막지 않도록 방어
+            logger.exception("액세스 로그 기록 실패")
+        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -85,6 +151,8 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_li
 app.add_middleware(SecurityHeadersMiddleware)
 if settings.FORCE_HTTPS_REDIRECT:
     app.add_middleware(HTTPSRedirectMiddleware)
+# 마지막에 추가 = 최외곽 → 최종 상태코드와 전체 소요시간을 정확히 집계한다.
+app.add_middleware(AccessLogMiddleware)
 
 if settings.COOKIE_SECURE is False:
     logger.warning("COOKIE_SECURE=false: 운영 HTTPS 배포에서는 true로 설정하세요.")
@@ -208,4 +276,5 @@ if __name__ == "__main__":
         port=settings.PORT,
         proxy_headers=True,
         forwarded_allow_ips="*",
+        access_log=False,  # 기본 액세스 로그 대신 AccessLogMiddleware(사용자명 포함) 사용
     )
