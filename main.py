@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path
 import asyncio
 import logging
+import re
 import time
 from contextlib import asynccontextmanager, suppress
 
@@ -254,6 +255,19 @@ async def serve_dashboard_schedule_js():
 @app.get("/home.js", summary="홈 화면 스크립트", tags=["Pages"])
 async def serve_home_js():
     return FileResponse("web/home.js", media_type="application/javascript")
+
+@app.get("/uploads/monthly-target/{file_name}", summary="월간 목표 이미지 서빙", tags=["Pages"])
+async def serve_monthly_target_image(file_name: str, _session=Depends(require_session)):
+    # 회사 월간 목표표라 대시보드와 같은 선(로그인 필요)에 둔다.
+    # 파일명은 관리자 업로드 때 'YYYY-MM.확장자'로만 만들어지므로 그 모양만 통과시킨다 —
+    # 경로 조각이 들어올 자리를 아예 없애는 쪽이 상위 폴더 검사보다 확실하다.
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])\.(png|jpg|webp)", file_name):
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+    path = Path(settings.UPLOADS_DIR) / "monthly-target" / file_name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+    return FileResponse(str(path))
+
 
 @app.get("/uploads/photos/{file_path:path}", summary="첨부 사진 파일 서빙", tags=["Pages"])
 async def serve_upload_photo(file_path: str):

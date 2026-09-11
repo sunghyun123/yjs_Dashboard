@@ -3,11 +3,12 @@ import io
 import json
 import re
 import sqlite3
+from pathlib import Path
 from datetime import date, datetime, timedelta
 from typing import Optional, Dict, Any, Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -531,6 +532,80 @@ def admin_save_monthly_progress_config(
         return {"status": "success", "data": saved}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── 월간 목표 이미지 ───────────────────────────────────────────────────────────
+# 파일명은 사용자가 올린 이름을 절대 쓰지 않는다. 검증된 'YYYY-MM' + 화이트리스트 확장자로
+# 우리가 지어 붙인다 — 업로드 파일명을 그대로 쓰면 "../../" 같은 이름으로 아무 데나 쓸 수 있다.
+MONTHLY_TARGET_DIR = "monthly-target"
+MONTHLY_TARGET_MAX_BYTES = 10 * 1024 * 1024
+# 확장자를 파일명에서 뽑지 않고 실제 content-type에서 되짚는다(브라우저가 붙여준 값)
+MONTHLY_TARGET_TYPES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+}
+MONTH_PATTERN = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+def _monthly_target_dir() -> Path:
+    return Path(settings.UPLOADS_DIR) / MONTHLY_TARGET_DIR
+
+
+def _validate_month(month: str) -> str:
+    key = (month or "").strip()
+    if not MONTH_PATTERN.match(key):
+        raise HTTPException(status_code=400, detail="대상 월은 YYYY-MM 형식이어야 합니다.")
+    return key
+
+
+@router.post("/monthly-progress-config/target-image")
+async def upload_monthly_target_image(
+    month: str = "",
+    file: UploadFile = File(...),
+    _admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    key = _validate_month(month)
+    ext = MONTHLY_TARGET_TYPES.get((file.content_type or "").lower())
+    if not ext:
+        raise HTTPException(status_code=400, detail="PNG·JPG·WEBP 이미지만 올릴 수 있습니다.")
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="빈 파일입니다.")
+    if len(contents) > MONTHLY_TARGET_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="이미지는 10MB 이하만 올릴 수 있습니다.")
+
+    target_dir = _monthly_target_dir()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    name = f"{key}{ext}"
+
+    # 같은 달에 확장자가 다른 옛 파일이 남아 있으면 지운다. 안 지우면 2026-09.png 와
+    # 2026-09.jpg 가 공존하고, DB는 하나만 가리켜 나머지는 영영 안 지워지는 쓰레기가 된다.
+    for old_ext in MONTHLY_TARGET_TYPES.values():
+        if old_ext == ext:
+            continue
+        old = target_dir / f"{key}{old_ext}"
+        if old.is_file():
+            old.unlink()
+
+    (target_dir / name).write_bytes(contents)
+    return {"status": "success", "data": repo.set_target_image(key, name)}
+
+
+@router.delete("/monthly-progress-config/target-image")
+def delete_monthly_target_image(
+    month: str = "",
+    _admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    key = _validate_month(month)
+    for ext in MONTHLY_TARGET_TYPES.values():
+        path = _monthly_target_dir() / f"{key}{ext}"
+        if path.is_file():
+            path.unlink()
+    return {"status": "success", "data": repo.clear_target_image(key)}
 
 
 @router.post("/export/daily")

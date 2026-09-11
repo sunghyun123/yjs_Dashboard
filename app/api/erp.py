@@ -1,6 +1,6 @@
 # app/api/erp.py
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +13,71 @@ from app.db.repos.monthly_progress import MonthlyProgressRepository
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/erp", tags=["ERP"])
+
+
+def _as_int(value: Any) -> int:
+    # ERP가 숫자를 문자열/실수로 보내도 타일이 깨지지 않게 정수로 강제, 실패 시 0
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _as_str(value: Any) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def _as_list(value: Any) -> list:
+    return value if isinstance(value, list) else []
+
+
+def _as_day_list(value: Any) -> list:
+    # 화면에 '일'로 찍히는 값이라 1~31 밖은 아예 버린다(표기가 깨지느니 안 보이는 편이 낫다)
+    out = []
+    for item in _as_list(value):
+        try:
+            day = int(item)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= day <= 31:
+            out.append(day)
+    return out
+
+
+def _normalize_breakdown(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    실적 상세(공사별 내역)를 방어적으로 재포장한다.
+
+    ⚠️ 이 기능의 존재 이유가 "표의 합계 == 도넛의 실적"이므로, 재포장 과정에서 행이
+       한 줄이라도 유실되면 그 순간 표는 조용히 틀린 표가 된다. 그래서 총액을 ERP가
+       보낸 값으로 믿지 않고 **재포장된 행들을 직접 더해서** 만들고, ERP가 말한 총액과
+       다르면 상세를 통째로 버린다(None). 모자란 표를 보여주느니 없는 게 낫다.
+    """
+    raw = payload.get("breakdown")
+    if not isinstance(raw, dict):
+        return None
+    rows_raw = _as_list(raw.get("rows"))
+    rows = [
+        {
+            "jijungNo": _as_str(item.get("지중no")),
+            "name": _as_str(item.get("공사명")),
+            "amountThousand": _as_int(item.get("금액천원")),
+            "days": _as_day_list(item.get("일자")),
+            "nightDays": _as_day_list(item.get("야간일자")),
+        }
+        for item in rows_raw
+        if isinstance(item, dict)
+    ]
+    if len(rows) != len(rows_raw):
+        logger.warning("ERP KPI breakdown: %d개 행 중 %d개만 읽혀 상세를 버린다", len(rows_raw), len(rows))
+        return None
+
+    total = sum(row["amountThousand"] for row in rows)
+    reported = raw.get("totalThousand")
+    if reported is not None and _as_int(reported) != total:
+        logger.warning("ERP KPI breakdown 합계 불일치(ERP %s / 행 합 %s) — 상세를 버린다", reported, total)
+        return None
+    return {"rows": rows, "totalThousand": total}
 
 
 def _normalize_monthly_kpi(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -32,6 +97,8 @@ def _normalize_monthly_kpi(payload: Dict[str, Any]) -> Dict[str, Any]:
             "monthlyInput": formatted.get("monthlyInput") or "",
             "monthlyProfit": formatted.get("monthlyProfit") or "",
         },
+        # 구버전 ERP(브레이크다운 배포 전)는 이 키가 없다 → None, 화면은 기존 동작 그대로
+        "breakdown": _normalize_breakdown(payload),
         "updatedAt": payload.get("updatedAt") or "",
     }
 
@@ -59,22 +126,6 @@ async def get_monthly_kpi(_session=Depends(require_session)):
     except Exception as exc:
         logger.warning("ERP monthly KPI lookup failed: %s", exc)
         raise HTTPException(status_code=503, detail="ERP KPI data is unavailable.")
-
-
-def _as_int(value: Any) -> int:
-    # ERP가 숫자를 문자열/실수로 보내도 타일이 깨지지 않게 정수로 강제, 실패 시 0
-    try:
-        return int(round(float(value)))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _as_str(value: Any) -> str:
-    return str(value).strip() if value is not None else ""
-
-
-def _as_list(value: Any) -> list:
-    return value if isinstance(value, list) else []
 
 
 def _normalize_materials(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -164,10 +215,17 @@ async def get_materials(_session=Depends(require_session)):
         raise HTTPException(status_code=503, detail="ERP materials data is unavailable.")
 
 
+def _with_target_image_url(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    # 홈은 파일이 있는지 없는지만 알면 된다. 경로 조립을 화면에 맡기지 않고 여기서 끝낸다.
+    name = _as_str(cfg.get("target_image_name"))
+    cfg["target_image_url"] = f"/uploads/monthly-target/{name}" if name else ""
+    return cfg
+
+
 @router.get("/monthly-progress-config")
 def get_monthly_progress_config(
     month: str = "",
     _session=Depends(require_session),
     repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
 ):
-    return {"status": "success", "data": repo.get_config(month or None)}
+    return {"status": "success", "data": _with_target_image_url(repo.get_config(month or None))}
