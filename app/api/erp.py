@@ -215,10 +215,17 @@ async def get_materials(_session=Depends(require_session)):
         raise HTTPException(status_code=503, detail="ERP materials data is unavailable.")
 
 
+def _with_target_image_url(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    # 홈은 파일이 있는지 없는지만 알면 된다. 경로 조립을 화면에 맡기지 않고 여기서 끝낸다.
+    name = _as_str(cfg.get("target_image_name"))
+    cfg["target_image_url"] = f"/uploads/monthly-target/{name}" if name else ""
+    return cfg
+
+
 @router.get("/monthly-progress-config")
 def get_monthly_progress_config(
     month: str = "",
     _session=Depends(require_session),
     repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
 ):
-    return {"status": "success", "data": repo.get_config(month or None)}
+    return {"status": "success", "data": _with_target_image_url(repo.get_config(month or None))}

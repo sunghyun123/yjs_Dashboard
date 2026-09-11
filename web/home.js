@@ -38,6 +38,9 @@
         sourceLabel: '',
         // ERP가 내려준 공사별 실적 내역. null이면 상세를 보여줄 수 없다(구버전 ERP 또는 조회 실패).
         breakdown: null,
+        // 관리자 페이지에서 올린 그 달 목표 이미지. 빈 문자열이면 아직 안 올린 달이다.
+        targetImageUrl: '',
+        targetImageUpdatedAt: '',
     };
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -175,12 +178,12 @@
                 ? `<br><span style="font-size:0.74rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">${escapeHtml(totalProgressState.actualDetailText)}</span>`
                 : '';
             const sourceText = totalProgressState.sourceLabel ? ` ${totalProgressState.sourceLabel}` : '';
-            // 실적 줄만 클릭 대상으로 만든다 — 목표 줄은 이미지 업로드(2단계)가 붙을 때 같이 연다
             amtEl.innerHTML =
                 `<span class="tp-clickable" role="button" tabindex="0" data-tp-open="actual">` +
                     `실적 <b>${escapeHtml(totalProgressState.actualText)}</b></span>` +
                 detailHtml +
-                `<br><span style="white-space:nowrap;">목표 <b>${Number(totalProgressState.targetAmountThousand || 0).toLocaleString('ko-KR')}천원</b></span>` +
+                `<br><span class="tp-clickable" role="button" tabindex="0" data-tp-open="target">` +
+                    `목표 <b>${Number(totalProgressState.targetAmountThousand || 0).toLocaleString('ko-KR')}천원</b></span>` +
                 `<br><span style="font-size:0.71rem;color:#aab8c6;white-space:nowrap;">최신화${sourceText} ${escapeHtml(totalProgressState.updatedAt)}</span>`;
         }
     }
@@ -246,10 +249,39 @@
             `</div>`;
     }
 
+    function renderProgressTargetModal() {
+        const label = totalProgressState.label || '';
+        const titleEl = document.getElementById('progressTargetTitle');
+        const bodyEl = document.getElementById('progressTargetBody');
+        if (!bodyEl) return;
+        if (titleEl) titleEl.textContent = `${label} 목표`;
+
+        const url = totalProgressState.targetImageUrl;
+        const when = totalProgressState.targetImageUpdatedAt;
+        // 이미지 속 합계가 도넛의 목표와 같은지는 프로그램이 검증할 수 없다(그림이라서).
+        // 그래서 도넛이 쓰는 숫자를 위에 같이 찍어, 어긋나면 최소한 눈에는 보이게 한다.
+        const cap = `<div class="tp-target-cap">` +
+            `<span class="lb">도넛 기준 목표</span>` +
+            `<span><span class="v">${Number(totalProgressState.targetAmountThousand || 0).toLocaleString('ko-KR')} 천원</span>` +
+                `<span class="when"> · 이미지 ${url ? escapeHtml(when) + ' 등록' : '미등록'}</span></span>` +
+            `</div>`;
+
+        bodyEl.innerHTML = cap + (url
+            ? `<img class="tp-target-img" src="${escapeHtml(url)}" alt="${escapeHtml(label)} 월간 목표 이미지">`
+            : `<div class="tp-empty">${escapeHtml(label)} 목표 이미지가 아직 등록되지 않았습니다.<br>` +
+              `<span style="font-size:0.79rem;">관리자 페이지 → 월별 총 공정률 목표 관리에서 올릴 수 있습니다.</span></div>`);
+    }
+
     function openProgressDetail(which) {
-        if (which !== 'actual') return;
-        renderProgressActualModal();
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('progressActualModal')).show();
+        if (which === 'actual') {
+            renderProgressActualModal();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('progressActualModal')).show();
+            return;
+        }
+        if (which === 'target') {
+            renderProgressTargetModal();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('progressTargetModal')).show();
+        }
     }
 
     // 캡션은 렌더할 때마다 innerHTML로 새로 그려지므로, 핸들러는 바뀌지 않는 부모에 한 번만 건다
@@ -352,6 +384,8 @@
         if (cfg.label) totalProgressState.label = String(cfg.label).trim();
         if (Number.isFinite(progress)) totalProgressState.totalProgress = progress;
         if (Number.isFinite(target)) totalProgressState.targetAmountThousand = Math.max(0, Math.round(target));
+        totalProgressState.targetImageUrl = String(cfg.target_image_url || '');
+        totalProgressState.targetImageUpdatedAt = String(cfg.target_image_updated_at || '');
         return true;
     }
 

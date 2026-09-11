@@ -183,6 +183,13 @@ def run_migrations(db_path: str) -> None:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            # 월간 목표 이미지(사장님이 만든 목표표) — 파일은 uploads/monthly-target/ 에 두고
+            # 여기엔 파일명만 적는다. 월당 1장이라 재업로드하면 같은 자리를 덮어쓴다.
+            mp_cols = {row[1] for row in conn.execute("PRAGMA table_info(monthly_progress_config)").fetchall()}
+            if "target_image_name" not in mp_cols:
+                conn.execute("ALTER TABLE monthly_progress_config ADD COLUMN target_image_name TEXT DEFAULT ''")
+            if "target_image_updated_at" not in mp_cols:
+                conn.execute("ALTER TABLE monthly_progress_config ADD COLUMN target_image_updated_at TIMESTAMP")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

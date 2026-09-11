@@ -453,7 +453,7 @@
         }
 
         .tp-clickable::after {
-            content: "a";
+            content: "›";
             font-weight: 700;
             color: #7aa3d8;
             margin-left: 4px;
@@ -526,6 +526,29 @@
         .tp-foot .lb { font-size: 0.84rem; font-weight: 700; color: #274a75; }
         .tp-foot .v { font-size: 1.05rem; font-weight: 800; color: #1b3c66; font-variant-numeric: tabular-nums; }
         .tp-foot .match { font-size: 0.71rem; color: #4a7ab5; font-weight: 600; margin-left: 8px; }
+
+        .tp-target-cap {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 9px 12px;
+            border-radius: 10px;
+            background: #fff6ec;
+            border: 1px solid #ffddbd;
+            margin-bottom: 10px;
+        }
+
+        .tp-target-cap .lb { font-size: 0.82rem; font-weight: 700; color: #8a4b06; }
+        .tp-target-cap .v { font-size: 1.02rem; font-weight: 800; color: #7a3f00; font-variant-numeric: tabular-nums; }
+        .tp-target-cap .when { font-size: 0.71rem; color: #b08355; }
+
+        .tp-target-img {
+            width: 100%;
+            border: 1px solid #e3eaf3;
+            border-radius: 10px;
+            background: #fbfcfe;
+            display: block;
+        }
 
         .tp-empty {
             padding: 26px 14px;
@@ -1063,6 +1086,21 @@
             </div>
         </div>
     </main>
+
+    <!-- 총 공정률 '목표' 캡션 클릭 시 뜨는 월간 목표 이미지 -->
+    <div class="modal fade" id="progressTargetModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h5 class="modal-title" id="progressTargetTitle">목표</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="progressTargetBody"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- 총 공정률 '실적' 캡션 클릭 시 뜨는 공사별 상세 -->
     <div class="modal fade" id="progressActualModal" tabindex="-1" aria-hidden="true">
