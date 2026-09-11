@@ -432,6 +432,120 @@
             line-height: 1.55;
         }
 
+        /* ── 총 공정률 상세 팝업 (실적/목표 캡션 클릭) ── */
+        /* 캡션 줄을 '눌러도 되는 글자'로 보이게 한다 — 안 그러면 클릭할 수 있는 줄 알 방법이 없다 */
+        .tp-clickable {
+            display: inline-block;
+            cursor: pointer;
+            padding: 1px 6px;
+            margin: 1px 0;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            transition: background .12s, border-color .12s;
+            white-space: nowrap;
+        }
+
+        .tp-clickable:hover,
+        .tp-clickable:focus-visible {
+            background: #eef5ff;
+            border-color: #cfe2ff;
+            outline: none;
+        }
+
+        .tp-clickable::after {
+            content: "a";
+            font-weight: 700;
+            color: #7aa3d8;
+            margin-left: 4px;
+        }
+
+        .tp-modal-sub { font-size: 0.76rem; color: #8a99ab; margin-top: 2px; }
+
+        .tp-table-wrap {
+            max-height: 46vh;
+            overflow-y: auto;
+            border: 1px solid #e3eaf3;
+            border-radius: 10px;
+        }
+
+        .tp-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+
+        .tp-table thead th {
+            position: sticky;
+            top: 0;
+            background: #f5f8fc;
+            border-bottom: 1px solid #e3eaf3;
+            font-weight: 700;
+            color: #43566b;
+            font-size: 0.78rem;
+            padding: 8px 10px;
+            text-align: left;
+            z-index: 1;
+        }
+
+        .tp-table tbody td {
+            border-bottom: 1px solid #eef2f7;
+            padding: 7px 10px;
+            vertical-align: top;
+        }
+
+        .tp-table tbody tr:last-child td { border-bottom: 0; }
+        .tp-table tbody tr:hover { background: #fafcff; }
+
+        .tp-no { font-variant-numeric: tabular-nums; color: #45586e; white-space: nowrap; }
+        .tp-name { color: #1f3045; }
+        .tp-amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; color: #1f3045; white-space: nowrap; }
+        .tp-amt.minus { color: #d64045; }
+
+        /* 공사명 아래 진행 날짜 — 금액에서 시선을 뺏지 않도록 작고 흐리게.
+           (야간)만 살짝 진하게 해서 훑을 때 눈에 걸리도록 한다. */
+        .tp-days {
+            display: block;
+            font-size: 0.72rem;
+            color: #90a0b2;
+            font-weight: 500;
+            margin-top: 3px;
+            line-height: 1.5;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .tp-days .n { color: #7b8ba0; }
+        .tp-days .night { color: #55697e; font-weight: 700; }
+
+        .tp-foot {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-top: 10px;
+            padding: 9px 12px;
+            border-radius: 10px;
+            background: #eef5ff;
+            border: 1px solid #cfe2ff;
+        }
+
+        .tp-foot .lb { font-size: 0.84rem; font-weight: 700; color: #274a75; }
+        .tp-foot .v { font-size: 1.05rem; font-weight: 800; color: #1b3c66; font-variant-numeric: tabular-nums; }
+        .tp-foot .match { font-size: 0.71rem; color: #4a7ab5; font-weight: 600; margin-left: 8px; }
+
+        .tp-empty {
+            padding: 26px 14px;
+            text-align: center;
+            color: #8a99ab;
+            font-size: 0.85rem;
+            line-height: 1.7;
+        }
+
+        .tp-error {
+            padding: 22px 14px;
+            text-align: center;
+            color: #a8323a;
+            background: #fdf1f2;
+            border: 1px solid #f6d7da;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            line-height: 1.7;
+        }
+
         /* ── 바로가기 ── */
         .mini-link-grid {
             /* 지도 하단 가로 배치로 이동 — 칸 수를 폭에 맞춰 자동 조절 */
@@ -949,6 +1063,24 @@
             </div>
         </div>
     </main>
+
+    <!-- 총 공정률 '실적' 캡션 클릭 시 뜨는 공사별 상세 -->
+    <div class="modal fade" id="progressActualModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <div>
+                        <h5 class="modal-title" id="progressActualTitle">실적 상세</h5>
+                        <div class="tp-modal-sub" id="progressActualSub"></div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="progressActualBody"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="modal fade" id="workerReturnTimeModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">

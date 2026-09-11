@@ -36,6 +36,8 @@
         targetAmountThousand: JUN_TOTAL_PLAN_AMT,
         updatedAt: JUN_DATA_UPDATED,
         sourceLabel: '',
+        // ERP가 내려준 공사별 실적 내역. null이면 상세를 보여줄 수 없다(구버전 ERP 또는 조회 실패).
+        breakdown: null,
     };
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -173,12 +175,98 @@
                 ? `<br><span style="font-size:0.74rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">${escapeHtml(totalProgressState.actualDetailText)}</span>`
                 : '';
             const sourceText = totalProgressState.sourceLabel ? ` ${totalProgressState.sourceLabel}` : '';
+            // 실적 줄만 클릭 대상으로 만든다 — 목표 줄은 이미지 업로드(2단계)가 붙을 때 같이 연다
             amtEl.innerHTML =
-                `<span style="white-space:nowrap;">실적 <b>${escapeHtml(totalProgressState.actualText)}</b></span>` +
+                `<span class="tp-clickable" role="button" tabindex="0" data-tp-open="actual">` +
+                    `실적 <b>${escapeHtml(totalProgressState.actualText)}</b></span>` +
                 detailHtml +
                 `<br><span style="white-space:nowrap;">목표 <b>${Number(totalProgressState.targetAmountThousand || 0).toLocaleString('ko-KR')}천원</b></span>` +
                 `<br><span style="font-size:0.71rem;color:#aab8c6;white-space:nowrap;">최신화${sourceText} ${escapeHtml(totalProgressState.updatedAt)}</span>`;
         }
+    }
+
+    // ══════════ 총 공정률 실적 상세 팝업 ══════════
+
+    // 공사명 아래 진행 날짜 한 줄. 월은 카드 제목에 이미 있으므로 '일'만 적는다.
+    // 날짜가 없으면(그 달 작업 없이 준공만 반영된 공사) 줄 자체를 안 그린다 — 빈 줄도 시선을 뺏는다.
+    function buildProgressDaysHtml(row) {
+        const days = row.days || [];
+        if (!days.length) return '';
+        const nightSet = new Set(row.nightDays || []);
+        const text = days
+            .map((d) => (nightSet.has(d)
+                ? `<span class="night">${d}(야간)</span>`
+                : `<span class="n">${d}</span>`))
+            .join('<span class="n">, </span>');
+        return `<span class="tp-days">${text}</span>`;
+    }
+
+    function renderProgressActualModal() {
+        const label = totalProgressState.label || '';
+        const titleEl = document.getElementById('progressActualTitle');
+        const subEl = document.getElementById('progressActualSub');
+        const bodyEl = document.getElementById('progressActualBody');
+        if (!bodyEl) return;
+        if (titleEl) titleEl.textContent = `${label} 실적 상세`;
+        if (subEl) subEl.textContent = `ERP 최신화 ${totalProgressState.updatedAt || '-'}`;
+
+        const breakdown = totalProgressState.breakdown;
+        // 못 불러온 경우 빈 표를 띄우지 않는다 — 빈 표는 "실적이 0건"과 화면상 구분이 안 된다.
+        if (!breakdown) {
+            bodyEl.innerHTML = '<div class="tp-error">ERP에서 실적 상세를 불러오지 못했습니다.<br>' +
+                '도넛에 보이는 숫자는 <b>최근 저장된 대체값</b>이라 상세와 맞지 않을 수 있습니다.</div>';
+            return;
+        }
+        // 반대로 진짜로 0건인 달은 그렇게 말한다. 위 에러 문구를 재활용하면 없는 고장을 있다고 하는 것.
+        if (breakdown.rows.length === 0) {
+            bodyEl.innerHTML = `<div class="tp-empty">${escapeHtml(label)}에 등록된 실적이 아직 없습니다.</div>`;
+            return;
+        }
+
+        const rowsHtml = breakdown.rows.map((r) => `<tr>` +
+            `<td class="tp-no">${escapeHtml(r.jijungNo)}</td>` +
+            `<td class="tp-name">${escapeHtml(r.name)}${buildProgressDaysHtml(r)}</td>` +
+            `<td class="tp-amt ${r.amountThousand < 0 ? 'minus' : ''}">` +
+                `${r.amountThousand.toLocaleString('ko-KR')}</td>` +
+            `</tr>`).join('');
+
+        bodyEl.innerHTML =
+            `<div class="tp-table-wrap"><table class="tp-table">` +
+                `<thead><tr>` +
+                    `<th style="width:110px;">지중No</th>` +
+                    `<th>공사명</th>` +
+                    `<th style="width:130px;text-align:right;">실적 (천원)</th>` +
+                `</tr></thead>` +
+                `<tbody>${rowsHtml}</tbody>` +
+            `</table></div>` +
+            `<div class="tp-foot">` +
+                `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${breakdown.rows.length}건)</span>` +
+                    `<span class="match">도넛의 '실적'과 같은 값</span></span>` +
+                `<span class="v">${breakdown.totalThousand.toLocaleString('ko-KR')} 천원</span>` +
+            `</div>`;
+    }
+
+    function openProgressDetail(which) {
+        if (which !== 'actual') return;
+        renderProgressActualModal();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('progressActualModal')).show();
+    }
+
+    // 캡션은 렌더할 때마다 innerHTML로 새로 그려지므로, 핸들러는 바뀌지 않는 부모에 한 번만 건다
+    function bindProgressDetailHandlers() {
+        const amtEl = document.getElementById('totalProgressAmount');
+        if (!amtEl) return;
+        amtEl.addEventListener('click', (e) => {
+            const el = e.target.closest('[data-tp-open]');
+            if (el) openProgressDetail(el.dataset.tpOpen);
+        });
+        amtEl.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            const el = e.target.closest('[data-tp-open]');
+            if (!el) return;
+            e.preventDefault();
+            openProgressDetail(el.dataset.tpOpen);
+        });
     }
 
     function getTotalProgressPercent() {
@@ -207,8 +295,13 @@
         if (!data || typeof data !== 'object') return false;
         const formatted = data.formatted || {};
         const amounts = data.amounts || {};
+        const breakdown = normalizeBreakdown(data.breakdown);
         const amount = Number(amounts.monthlyRevenue);
-        const actualAmountThousand = Number.isFinite(amount) ? Math.round(amount / 1000) : null;
+        // 상세가 있으면 '표에 보이는 행들의 합'을 실적으로 쓴다.
+        // 원 단위 총액을 따로 반올림하면 행을 손으로 더한 값과 몇 천원 어긋나고, 그게 곧 '틀린 표'다.
+        const actualAmountThousand = breakdown
+            ? breakdown.totalThousand
+            : (Number.isFinite(amount) ? Math.round(amount / 1000) : null);
         const actualText = actualAmountThousand !== null
             ? `${actualAmountThousand.toLocaleString('ko-KR')}천원`
             : String(formatted.monthlyRevenue || '').trim();
@@ -223,7 +316,32 @@
         totalProgressState.actualDetailText = '';
         totalProgressState.updatedAt = formatKpiUpdatedAt(data.updatedAt);
         totalProgressState.sourceLabel = '(ERP)';
+        totalProgressState.breakdown = breakdown;
         return true;
+    }
+
+    function toDayNumbers(value) {
+        if (!Array.isArray(value)) return [];
+        return value.map(Number).filter((d) => Number.isInteger(d) && d >= 1 && d <= 31);
+    }
+
+    // 서버가 이미 모양을 맞춰 보내지만, 여기서도 총액을 '행의 합'으로 다시 만든다.
+    // 도넛에 찍히는 숫자와 표에 보이는 행이 같은 배열에서 나와야 둘이 갈라질 자리가 없다.
+    function normalizeBreakdown(raw) {
+        // 행이 0개인 것과 상세가 아예 없는 것은 다른 상황이다(전자는 '이번 달 실적 없음',
+        // 후자는 '못 불러옴') — 여기서 뭉개면 화면이 둘을 같은 말로 설명하게 된다.
+        if (!raw || !Array.isArray(raw.rows)) return null;
+        const rows = raw.rows.map((r) => ({
+            jijungNo: String(r.jijungNo || ''),
+            name: String(r.name || ''),
+            amountThousand: Number(r.amountThousand) || 0,
+            // 아래에서 innerHTML로 들어가는 값이라 여기서 숫자로 못 박는다.
+            // 서버(app/api/erp.py)가 이미 1~31 정수로 걸러 보내지만, 태그로 해석될 수 있는
+            // 문자열이 이 경로로 들어올 자리를 아예 남기지 않는다.
+            days: toDayNumbers(r.days),
+            nightDays: toDayNumbers(r.nightDays),
+        }));
+        return { rows, totalThousand: rows.reduce((sum, r) => sum + r.amountThousand, 0) };
     }
 
     function applyMonthlyProgressConfig(data) {
@@ -976,6 +1094,7 @@
 
     async function initializeHomePage() {
         window.dashboardLoginModal = new bootstrap.Modal(document.getElementById('dashboardLoginModal'));
+        bindProgressDetailHandlers();
         workerReturnTimeModal = new bootstrap.Modal(document.getElementById('workerReturnTimeModal'));
         const ok = await ensureSession();
         if (!ok) return;
