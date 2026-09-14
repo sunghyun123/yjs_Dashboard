@@ -218,7 +218,17 @@ async def get_materials(_session=Depends(require_session)):
 def _with_target_image_url(cfg: Dict[str, Any]) -> Dict[str, Any]:
     # 홈은 파일이 있는지 없는지만 알면 된다. 경로 조립을 화면에 맡기지 않고 여기서 끝낸다.
     name = _as_str(cfg.get("target_image_name"))
-    cfg["target_image_url"] = f"/uploads/monthly-target/{name}" if name else ""
+    if not name:
+        cfg["target_image_url"] = ""
+        return cfg
+
+    # 파일명이 'YYYY-MM.확장자'로 고정이라, 그림을 바꿔도 주소가 한 글자도 안 바뀐다.
+    # 그러면 브라우저는 "이미 아는 주소"라 판단해 서버에 묻지도 않고 옛 그림을 내준다
+    # (우리는 Cache-Control 을 안 보내므로 브라우저가 유효기간을 제 맘대로 추정한다).
+    # 그래서 캐시를 끄는 대신 이름표를 바꾼다 — 등록 시각을 붙여 '바뀌면 다른 주소'로 만든다.
+    version = "".join(ch for ch in _as_str(cfg.get("target_image_updated_at")) if ch.isdigit())
+    suffix = f"?v={version}" if version else ""
+    cfg["target_image_url"] = f"/uploads/monthly-target/{name}{suffix}"
     return cfg
 
 
