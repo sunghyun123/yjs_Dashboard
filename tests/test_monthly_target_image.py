@@ -7,6 +7,7 @@
 """
 from pathlib import Path
 
+from app.api.erp import _with_target_image_url
 from app.core.config import settings
 from tests.test_smoke_basic_flow import login_as_admin
 
@@ -38,9 +39,11 @@ def test_업로드하면_월_이름으로_저장되고_설정에_잡힌다(clien
     assert data["target_image_updated_at"]
     assert (_target_dir() / "2026-09.png").is_file()
 
-    # 홈이 읽는 설정 응답에도 주소가 실려야 팝업을 그릴 수 있다
+    # 홈이 읽는 설정 응답에도 주소가 실려야 팝업을 그릴 수 있다.
+    # 주소 뒤 ?v= 는 캐시용 이름표다 — 아래 _with_target_image_url 테스트 참고.
     cfg = client.get("/api/erp/monthly-progress-config?month=2026-09").json()["data"]
-    assert cfg["target_image_url"] == "/uploads/monthly-target/2026-09.png"
+    version = "".join(ch for ch in cfg["target_image_updated_at"] if ch.isdigit())
+    assert cfg["target_image_url"] == f"/uploads/monthly-target/2026-09.png?v={version}"
 
 
 def test_올린_사람의_파일명은_저장에_쓰이지_않는다(client, monkeypatch, tmp_path):
@@ -141,4 +144,27 @@ def test_업로드_전에는_주소가_비어있다(client, monkeypatch, tmp_pat
 
     cfg = client.get("/api/erp/monthly-progress-config?month=2026-12").json()["data"]
     assert cfg["target_image_name"] == ""
+    assert cfg["target_image_url"] == ""
+
+
+def test_그림을_바꾸면_주소도_바뀐다():
+    # 실제 사고: 삭제 후 새 이미지를 올렸는데 팝업에 옛 이미지가 계속 나왔다.
+    # 파일명이 'YYYY-MM.확장자'로 고정이라 주소가 한 글자도 안 바뀌었고,
+    # 브라우저는 같은 주소면 서버에 묻지도 않고 제 캐시를 내준다.
+    # 그래서 '내용이 바뀌면 주소도 바뀐다'가 이 함수가 지켜야 할 계약이다.
+    before = _with_target_image_url({"target_image_name": "2026-09.png", "target_image_updated_at": "2026-09-11 09:00:00"})
+    after = _with_target_image_url({"target_image_name": "2026-09.png", "target_image_updated_at": "2026-09-14 17:20:17"})
+    assert before["target_image_url"] != after["target_image_url"]
+    assert after["target_image_url"] == "/uploads/monthly-target/2026-09.png?v=20260914172017"
+
+
+def test_등록시각이_없으면_버전_없이_주소만_준다():
+    # 이미지는 있는데 시각이 비는 경우(옛 기록)에도 그림은 떠야 한다 — 캐시 이름표만 포기한다
+    cfg = _with_target_image_url({"target_image_name": "2026-09.png", "target_image_updated_at": ""})
+    assert cfg["target_image_url"] == "/uploads/monthly-target/2026-09.png"
+
+
+def test_이미지가_없으면_주소는_빈_문자열이다():
+    # 홈은 이 값이 비었는지로 '미등록'을 판단한다 — 버전만 붙은 주소가 새어나가면 안 된다
+    cfg = _with_target_image_url({"target_image_name": "", "target_image_updated_at": "2026-09-14 17:20:17"})
     assert cfg["target_image_url"] == ""
