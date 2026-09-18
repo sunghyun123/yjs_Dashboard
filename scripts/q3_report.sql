@@ -90,7 +90,12 @@ SELECT '[4] 월별 일정·자동화' AS 구분,
        SUM(CASE WHEN COALESCE(source_kind,'manual')<>'manual' THEN 1 ELSE 0 END)  AS 자동입력,
        ROUND(100.0*SUM(CASE WHEN COALESCE(source_kind,'manual')<>'manual' THEN 1 ELSE 0 END)
              / NULLIF(COUNT(*),0), 1)                                             AS 자동입력_비율,
-       SUM(CASE WHEN TRIM(COALESCE(erp_data,''))<>'' THEN 1 ELSE 0 END)           AS ERP실적기재,
+       -- ⚠️ erp_data 는 일정을 저장하면 **전 항목이 0인 빈 껍데기 JSON**으로 채워진다.
+       --    "비어 있지 않다"로 세면 매달 100%가 나온다(2026-09-18 실측으로 확인된 오집계).
+       --    실제로 값이 하나라도 들어간 행만 센다.
+       SUM(CASE WHEN erp_data IS NOT NULL AND json_valid(erp_data)
+                 AND (SELECT COUNT(*) FROM json_each(erp_data) WHERE CAST(value AS INTEGER)<>0) > 0
+                THEN 1 ELSE 0 END)                                                AS ERP실적기재,
        SUM(CASE WHEN deleted_at IS NOT NULL THEN 1 ELSE 0 END)                    AS 이후삭제,
        COUNT(DISTINCT last_actor_user)                                            AS 입력자수
 FROM field_schedules, p
@@ -117,11 +122,33 @@ ORDER BY 등록일정 DESC;
 
 
 -- ----------------------------------------------------------------------------
+-- [5-보강] 등록 주체 구분 — "직원이 쓴다"를 말하려면 반드시 이 구분이 필요하다
+--     `last_actor_user` 에는 사람 계정만 있는 게 아니라 **1층 공용 상황판**과
+--     관리자 본인 계정이 섞여 들어온다. 나누지 않으면 사용자 수가 부풀어 보인다.
+-- ----------------------------------------------------------------------------
+WITH p(s,e) AS (VALUES ('2026-07-01','2026-09-30'))
+SELECT '[5-보강] 주체별' AS 구분,
+       CASE WHEN last_actor_user IN ('전자칠판','상황판','1층 상황판') THEN '공용 상황판'
+            WHEN last_actor_user = 'admin'                            THEN '관리자(본인)'
+            WHEN last_actor_user LIKE 'kakao_%'                       THEN '이름미등록 카카오'
+            ELSE '현장 직원(실명)' END AS 주체,
+       COUNT(*)                        AS 등록일정,
+       COUNT(DISTINCT last_actor_user) AS 계정수
+FROM field_schedules, p
+WHERE date(datetime(created_at,'localtime')) BETWEEN s AND e
+  AND TRIM(COALESCE(last_actor_user,'')) <> ''
+GROUP BY 주체
+ORDER BY 등록일정 DESC;
+
+
+-- ----------------------------------------------------------------------------
 -- [6] 자료 보전 — 일일 백업 커버리지
 --     성공률만 세면 "시도조차 안 한 날"이 안 잡힌다. 그래서 달력을 만들어
 --     분기 전체 일수 대비 실제 백업이 남은 날을 센다.
 -- ----------------------------------------------------------------------------
-WITH RECURSIVE p(s,e) AS (VALUES ('2026-07-01','2026-09-30')),
+-- ⚠️ 분모에서 아직 오지 않은 날을 뺀다. 백업은 '전일분'을 만드니 대상은 어제까지다.
+--    안 그러면 진행 중인 달이 늘 실패한 것처럼 보인다(9월을 56.7%로 오독한 실측 사례 — 실제는 17/17=100%).
+WITH RECURSIVE p(s,e) AS (SELECT '2026-07-01', MIN('2026-09-30', date('now','localtime','-1 day'))),
 cal(d) AS (
     SELECT s FROM p
     UNION ALL
