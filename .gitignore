@@ -35,3 +35,5 @@ uploads/
 # Firebase 서비스 계정 키 (민감 정보 — 절대 커밋 금지)
 *-firebase-adminsdk-*.json
 firebase-adminsdk-*.json
+# 운영 데이터 추출물(운영 DB에서 뽑은 실지표) - 저장소에 올리지 않는다
+q3_report.csv
