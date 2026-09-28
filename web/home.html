@@ -494,6 +494,7 @@
 
         .tp-no { font-variant-numeric: tabular-nums; color: #45586e; white-space: nowrap; }
         .tp-name { color: #1f3045; }
+        .tp-kind { color: #45586e; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .tp-amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; color: #1f3045; white-space: nowrap; }
         .tp-amt.minus { color: #d64045; }
 
@@ -1120,6 +1121,24 @@
         </div>
     </div>
 
+    <!-- 총 공정률 '정산' 캡션 클릭 시 뜨는 계산서(기성·준공) 상세 -->
+    <div class="modal fade" id="progressSettlementModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <div>
+                        <h5 class="modal-title" id="progressSettlementTitle">정산 상세</h5>
+                        <div class="tp-modal-sub" id="progressSettlementSub"></div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="progressSettlementBody"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="workerReturnTimeModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -1188,7 +1207,7 @@
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20260618h"></script>
+    <script src="/home.js?v=20260928a"></script>
 </body>
 
 </html>

@@ -44,40 +44,74 @@ def _as_day_list(value: Any) -> list:
     return out
 
 
-def _normalize_breakdown(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """
-    실적 상세(공사별 내역)를 방어적으로 재포장한다.
+def _as_day(value: Any) -> Optional[int]:
+    # 정산 행의 '일' 하나 — 1~31 밖이거나 숫자가 아니면 None(표기가 깨지느니 비워 둔다)
+    days = _as_day_list([value])
+    return days[0] if days else None
 
-    ⚠️ 이 기능의 존재 이유가 "표의 합계 == 도넛의 실적"이므로, 재포장 과정에서 행이
+
+def _construction_row(item: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "jijungNo": _as_str(item.get("지중no")),
+        "name": _as_str(item.get("공사명")),
+        "amountThousand": _as_int(item.get("금액천원")),
+        "days": _as_day_list(item.get("일자")),
+        "nightDays": _as_day_list(item.get("야간일자")),
+    }
+
+
+def _settlement_row(item: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "jijungNo": _as_str(item.get("지중no")),
+        "name": _as_str(item.get("공사명")),
+        "kind": _as_str(item.get("구분")),
+        "day": _as_day(item.get("일")),
+        "amountThousand": _as_int(item.get("금액천원")),
+    }
+
+
+def _normalize_section(raw: Any, to_row, label: str) -> Optional[Dict[str, Any]]:
+    """
+    '행 목록 + 합계' 한 섹션을 방어적으로 재포장한다 (breakdown · split.construction · split.settlement 공통).
+
+    ⚠️ 이 섹션들의 존재 이유가 "표의 합계 == 화면의 숫자"이므로, 재포장 과정에서 행이
        한 줄이라도 유실되면 그 순간 표는 조용히 틀린 표가 된다. 그래서 총액을 ERP가
        보낸 값으로 믿지 않고 **재포장된 행들을 직접 더해서** 만들고, ERP가 말한 총액과
-       다르면 상세를 통째로 버린다(None). 모자란 표를 보여주느니 없는 게 낫다.
+       다르면 섹션을 통째로 버린다(None). 모자란 표를 보여주느니 없는 게 낫다.
     """
-    raw = payload.get("breakdown")
     if not isinstance(raw, dict):
         return None
     rows_raw = _as_list(raw.get("rows"))
-    rows = [
-        {
-            "jijungNo": _as_str(item.get("지중no")),
-            "name": _as_str(item.get("공사명")),
-            "amountThousand": _as_int(item.get("금액천원")),
-            "days": _as_day_list(item.get("일자")),
-            "nightDays": _as_day_list(item.get("야간일자")),
-        }
-        for item in rows_raw
-        if isinstance(item, dict)
-    ]
+    rows = [to_row(item) for item in rows_raw if isinstance(item, dict)]
     if len(rows) != len(rows_raw):
-        logger.warning("ERP KPI breakdown: %d개 행 중 %d개만 읽혀 상세를 버린다", len(rows_raw), len(rows))
+        logger.warning("ERP KPI %s: %d개 행 중 %d개만 읽혀 버린다", label, len(rows_raw), len(rows))
         return None
 
     total = sum(row["amountThousand"] for row in rows)
     reported = raw.get("totalThousand")
     if reported is not None and _as_int(reported) != total:
-        logger.warning("ERP KPI breakdown 합계 불일치(ERP %s / 행 합 %s) — 상세를 버린다", reported, total)
+        logger.warning("ERP KPI %s 합계 불일치(ERP %s / 행 합 %s) — 버린다", label, reported, total)
         return None
     return {"rows": rows, "totalThousand": total}
+
+
+def _normalize_breakdown(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    # 기존 칸(시공 + 준공 보정). 대시보드가 split 으로 옮겨간 뒤에도 옛 화면 호환을 위해 남겨 둔다
+    return _normalize_section(payload.get("breakdown"), _construction_row, "breakdown")
+
+
+def _normalize_split(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    시공 실적 / 정산 분리 (2026-09-28). 섹션마다 따로 판정한다 — 정산이 깨졌다고 시공(도넛)까지 버리지 않는다.
+    split 자체가 없으면(옛 ERP) None. home.js 는 그때 monthlyRevenue 로 대신 채우지 않고 대체값 경로로 간다.
+    """
+    raw = payload.get("split")
+    if not isinstance(raw, dict):
+        return None
+    return {
+        "construction": _normalize_section(raw.get("construction"), _construction_row, "split.construction"),
+        "settlement": _normalize_section(raw.get("settlement"), _settlement_row, "split.settlement"),
+    }
 
 
 def _normalize_monthly_kpi(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -99,6 +133,8 @@ def _normalize_monthly_kpi(payload: Dict[str, Any]) -> Dict[str, Any]:
         },
         # 구버전 ERP(브레이크다운 배포 전)는 이 키가 없다 → None, 화면은 기존 동작 그대로
         "breakdown": _normalize_breakdown(payload),
+        # 허용목록 방식이라 여기 적지 않은 칸은 브라우저에 도착하지 않는다 — split 을 추가하면 이 줄도 필요하다
+        "split": _normalize_split(payload),
         "updatedAt": payload.get("updatedAt") or "",
     }
 
