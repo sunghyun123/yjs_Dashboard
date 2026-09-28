@@ -260,7 +260,7 @@
             `</table></div>` +
             `<div class="tp-foot">` +
                 `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${breakdown.rows.length}건)</span>` +
-                    `<span class="match">도넛의 '실적'과 같은 값</span></span>` +
+                    `<span class="match">캡션의 '시공 실적'과 같은 값</span></span>` +
                 `<span class="v">${breakdown.totalThousand.toLocaleString('ko-KR')} 천원</span>` +
             `</div>`;
     }
