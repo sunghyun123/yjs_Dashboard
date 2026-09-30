@@ -190,6 +190,22 @@ def run_migrations(db_path: str) -> None:
                 conn.execute("ALTER TABLE monthly_progress_config ADD COLUMN target_image_name TEXT DEFAULT ''")
             if "target_image_updated_at" not in mp_cols:
                 conn.execute("ALTER TABLE monthly_progress_config ADD COLUMN target_image_updated_at TIMESTAMP")
+            # 월간 목표를 공사 단위 행으로 둔다(시공 목표 / 정산 목표). 이미지·총액 칸을 대신한다 —
+            # 목표 총액은 여기에 저장하지 않고 항상 행의 합으로 계산한다(총액 칸과 행 합계가 두 벌이면 어긋난다).
+            # 같은 달·같은 종류에 같은 공사가 두 번 들어가면 목표가 조용히 두 배가 되므로 UNIQUE 로 막는다.
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS monthly_target_rows (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    month TEXT NOT NULL,
+                    kind TEXT NOT NULL CHECK (kind IN ('construction', 'settlement')),
+                    jijung_no TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    amount_thousand INTEGER NOT NULL,
+                    created_by TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (month, kind, jijung_no)
+                )
+            """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -3,12 +3,11 @@ import io
 import json
 import re
 import sqlite3
-from pathlib import Path
 from datetime import date, datetime, timedelta
 from typing import Optional, Dict, Any, Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -75,7 +74,15 @@ class MonthlyProgressConfigSave(BaseModel):
     month: str = Field(..., min_length=7, max_length=7, description="YYYY-MM")
     label: str = Field(default="", description="표시 월 라벨")
     total_progress: float = Field(default=34.8, ge=0, le=100, description="총 공정률")
-    target_amount_thousand: int = Field(default=429250, ge=0, description="목표금액(천원)")
+
+
+class MonthlyTargetRowCreate(BaseModel):
+    month: str = Field(..., description="YYYY-MM")
+    kind: Literal["construction", "settlement"] = Field(..., description="시공 목표 / 정산 목표")
+    jijung_no: str = Field(..., min_length=1, max_length=50, description="지중No(ERP 공사코드)")
+    name: str = Field(..., min_length=1, max_length=200, description="공사명")
+    # 0원 목표 행은 합계에 아무 영향이 없는데 '목표가 있다'는 인상만 준다 — 1천원 이상만 받는다
+    amount_thousand: int = Field(..., gt=0, le=100_000_000, description="목표 금액(천원)")
 
 
 def _usage_metrics_range(date_from: str, date_to: str) -> tuple[str, str]:
@@ -526,7 +533,6 @@ def admin_save_monthly_progress_config(
             month=payload.month,
             label=payload.label,
             total_progress=payload.total_progress,
-            target_amount_thousand=payload.target_amount_thousand,
             updated_by=admin.get("user_id", "admin"),
         )
         return {"status": "success", "data": saved}
@@ -534,22 +540,8 @@ def admin_save_monthly_progress_config(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# ── 월간 목표 이미지 ───────────────────────────────────────────────────────────
-# 파일명은 사용자가 올린 이름을 절대 쓰지 않는다. 검증된 'YYYY-MM' + 화이트리스트 확장자로
-# 우리가 지어 붙인다 — 업로드 파일명을 그대로 쓰면 "../../" 같은 이름으로 아무 데나 쓸 수 있다.
-MONTHLY_TARGET_DIR = "monthly-target"
-MONTHLY_TARGET_MAX_BYTES = 10 * 1024 * 1024
-# 확장자를 파일명에서 뽑지 않고 실제 content-type에서 되짚는다(브라우저가 붙여준 값)
-MONTHLY_TARGET_TYPES = {
-    "image/png": ".png",
-    "image/jpeg": ".jpg",
-    "image/webp": ".webp",
-}
+# ── 월간 목표 행 (시공 목표 / 정산 목표) ─────────────────────────────────────────
 MONTH_PATTERN = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
-
-
-def _monthly_target_dir() -> Path:
-    return Path(settings.UPLOADS_DIR) / MONTHLY_TARGET_DIR
 
 
 def _validate_month(month: str) -> str:
@@ -559,53 +551,46 @@ def _validate_month(month: str) -> str:
     return key
 
 
-@router.post("/monthly-progress-config/target-image")
-async def upload_monthly_target_image(
-    month: str = "",
-    file: UploadFile = File(...),
+@router.post("/monthly-progress-config/target-rows")
+def add_monthly_target_row(
+    payload: MonthlyTargetRowCreate,
+    admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    key = _validate_month(payload.month)
+    jijung_no = payload.jijung_no.strip()
+    name = payload.name.strip()
+    # min_length 는 공백만 든 문자열을 통과시킨다 — 빈 지중No 행은 정렬·중복 검사 모두를 무의미하게 만든다
+    if not jijung_no or not name:
+        raise HTTPException(status_code=400, detail="지중No와 공사명을 입력하세요.")
+    try:
+        rows = repo.add_target_row(
+            month=key,
+            kind=payload.kind,
+            jijung_no=jijung_no,
+            name=name,
+            amount_thousand=payload.amount_thousand,
+            created_by=admin.get("user_id", "admin"),
+        )
+    except sqlite3.IntegrityError:
+        kind_text = "시공" if payload.kind == "construction" else "정산"
+        raise HTTPException(
+            status_code=409,
+            detail=f"{key} {kind_text} 목표에 지중No {jijung_no} 행이 이미 있습니다. 금액을 바꾸려면 지우고 다시 추가하세요.",
+        )
+    return {"status": "success", "data": rows}
+
+
+@router.delete("/monthly-progress-config/target-rows/{row_id}")
+def delete_monthly_target_row(
+    row_id: int,
     _admin=Depends(require_admin),
     repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
 ):
-    key = _validate_month(month)
-    ext = MONTHLY_TARGET_TYPES.get((file.content_type or "").lower())
-    if not ext:
-        raise HTTPException(status_code=400, detail="PNG·JPG·WEBP 이미지만 올릴 수 있습니다.")
-
-    contents = await file.read()
-    if not contents:
-        raise HTTPException(status_code=400, detail="빈 파일입니다.")
-    if len(contents) > MONTHLY_TARGET_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="이미지는 10MB 이하만 올릴 수 있습니다.")
-
-    target_dir = _monthly_target_dir()
-    target_dir.mkdir(parents=True, exist_ok=True)
-    name = f"{key}{ext}"
-
-    # 같은 달에 확장자가 다른 옛 파일이 남아 있으면 지운다. 안 지우면 2026-09.png 와
-    # 2026-09.jpg 가 공존하고, DB는 하나만 가리켜 나머지는 영영 안 지워지는 쓰레기가 된다.
-    for old_ext in MONTHLY_TARGET_TYPES.values():
-        if old_ext == ext:
-            continue
-        old = target_dir / f"{key}{old_ext}"
-        if old.is_file():
-            old.unlink()
-
-    (target_dir / name).write_bytes(contents)
-    return {"status": "success", "data": repo.set_target_image(key, name)}
-
-
-@router.delete("/monthly-progress-config/target-image")
-def delete_monthly_target_image(
-    month: str = "",
-    _admin=Depends(require_admin),
-    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
-):
-    key = _validate_month(month)
-    for ext in MONTHLY_TARGET_TYPES.values():
-        path = _monthly_target_dir() / f"{key}{ext}"
-        if path.is_file():
-            path.unlink()
-    return {"status": "success", "data": repo.clear_target_image(key)}
+    month = repo.delete_target_row(row_id)
+    if month is None:
+        raise HTTPException(status_code=404, detail="목표 행을 찾을 수 없습니다.")
+    return {"status": "success", "data": repo.list_target_rows(month)}
 
 
 @router.post("/export/daily")

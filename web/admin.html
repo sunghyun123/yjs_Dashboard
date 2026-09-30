@@ -155,7 +155,8 @@
             <div class="row g-2 align-items-end">
                 <div class="col-md-2">
                     <label class="form-label small mb-0">대상 월</label>
-                    <input id="monthlyProgressMonthInput" class="form-control form-control-sm" type="month">
+                    <input id="monthlyProgressMonthInput" class="form-control form-control-sm" type="month"
+                           onchange="loadMonthlyProgressConfigAdmin()">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small mb-0">표시 라벨</label>
@@ -165,29 +166,54 @@
                     <label class="form-label small mb-0">ERP 장애시 공정률(%)</label>
                     <input id="monthlyProgressRateInput" class="form-control form-control-sm" type="number" min="0" max="100" step="0.1">
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label small mb-0">목표금액(천원)</label>
-                    <input id="monthlyProgressTargetInput" class="form-control form-control-sm" type="number" min="0" step="1">
-                </div>
                 <div class="col-md-3 d-flex gap-2">
                     <button type="button" class="btn btn-sm btn-outline-secondary w-50" onclick="loadMonthlyProgressConfigAdmin()">조회</button>
                     <button type="button" class="btn btn-sm btn-primary w-50" onclick="saveMonthlyProgressConfigAdmin()">저장</button>
                 </div>
             </div>
-            <div class="row g-2 align-items-end mt-1 pt-2 border-top">
-                <div class="col-md-6">
-                    <label class="form-label small mb-0">월간 목표 이미지 (PNG·JPG·WEBP, 10MB 이하)</label>
-                    <input id="monthlyTargetImageInput" class="form-control form-control-sm" type="file"
-                           accept="image/png,image/jpeg,image/webp">
+            <div id="monthlyProgressConfigStatus" class="mt-2 small text-muted">불러오는 중...</div>
+
+            <!-- 월간 목표 행. 목표 총액은 따로 입력하지 않는다 — 홈 도넛의 분모는 '시공 목표' 행의 합이다. -->
+            <div class="row g-3 mt-1 pt-2 border-top">
+                <div class="col-lg-6" data-target-kind="construction">
+                    <div class="d-flex justify-content-between align-items-baseline mb-1">
+                        <span class="fw-bold small">시공 목표 <span class="text-muted fw-normal">(도넛 분모)</span></span>
+                        <span class="small">합계 <b data-target-total>-</b> 천원</span>
+                    </div>
+                    <div class="table-responsive" style="max-height:280px;overflow-y:auto;">
+                        <table class="table table-sm align-middle mb-1">
+                            <thead><tr><th style="width:100px;">지중No</th><th>공사명</th><th class="text-end" style="width:110px;">목표(천원)</th><th style="width:60px;"></th></tr></thead>
+                            <tbody data-target-body><tr><td colspan="4" class="text-muted small">불러오는 중...</td></tr></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <input class="form-control form-control-sm" style="width:100px;" placeholder="지중No" list="adminConstructionCodes" data-target-code>
+                        <input class="form-control form-control-sm" placeholder="공사명" list="adminConstructionNames" data-target-name>
+                        <input class="form-control form-control-sm text-end" style="width:110px;" type="number" min="1" step="1" placeholder="천원" data-target-amount>
+                        <button type="button" class="btn btn-sm btn-primary text-nowrap" onclick="addMonthlyTargetRow('construction')">추가</button>
+                    </div>
                 </div>
-                <div class="col-md-6 d-flex gap-2">
-                    <button type="button" class="btn btn-sm btn-primary w-50"
-                            onclick="uploadMonthlyTargetImage()">이미지 업로드</button>
-                    <button type="button" class="btn btn-sm btn-outline-danger w-50"
-                            onclick="deleteMonthlyTargetImage()">이미지 삭제</button>
+                <div class="col-lg-6" data-target-kind="settlement">
+                    <div class="d-flex justify-content-between align-items-baseline mb-1">
+                        <span class="fw-bold small">정산 목표</span>
+                        <span class="small">합계 <b data-target-total>-</b> 천원</span>
+                    </div>
+                    <div class="table-responsive" style="max-height:280px;overflow-y:auto;">
+                        <table class="table table-sm align-middle mb-1">
+                            <thead><tr><th style="width:100px;">지중No</th><th>공사명</th><th class="text-end" style="width:110px;">목표(천원)</th><th style="width:60px;"></th></tr></thead>
+                            <tbody data-target-body><tr><td colspan="4" class="text-muted small">불러오는 중...</td></tr></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <input class="form-control form-control-sm" style="width:100px;" placeholder="지중No" list="adminConstructionCodes" data-target-code>
+                        <input class="form-control form-control-sm" placeholder="공사명" list="adminConstructionNames" data-target-name>
+                        <input class="form-control form-control-sm text-end" style="width:110px;" type="number" min="1" step="1" placeholder="천원" data-target-amount>
+                        <button type="button" class="btn btn-sm btn-primary text-nowrap" onclick="addMonthlyTargetRow('settlement')">추가</button>
+                    </div>
                 </div>
             </div>
-            <div id="monthlyProgressConfigStatus" class="mt-2 small text-muted">불러오는 중...</div>
+            <datalist id="adminConstructionCodes"></datalist>
+            <datalist id="adminConstructionNames"></datalist>
         </div>
     </div>
 
@@ -498,29 +524,146 @@
         const monthInput = document.getElementById('monthlyProgressMonthInput');
         const labelInput = document.getElementById('monthlyProgressLabelInput');
         const rateInput = document.getElementById('monthlyProgressRateInput');
-        const targetInput = document.getElementById('monthlyProgressTargetInput');
         const status = document.getElementById('monthlyProgressConfigStatus');
         monthInput.value = cfg.month || monthInput.value || currentMonthValue();
         labelInput.value = cfg.label || defaultMonthLabel(monthInput.value);
         rateInput.value = cfg.total_progress ?? '';
-        targetInput.value = cfg.target_amount_thousand ?? '';
-        const targetText = Number(cfg.target_amount_thousand || 0).toLocaleString('ko-KR');
-        // 이미지가 걸려 있는지를 항상 보여준다. 안 보이면 "올렸나 안 올렸나"를 알 방법이 없다.
-        const imageText = cfg.target_image_name
-            ? `<b>${escapeHtml(cfg.target_image_name)}</b> (${escapeHtml(cfg.target_image_updated_at || '')} 등록)`
-            : '<span class="text-danger">미등록</span>';
-        status.innerHTML = `현재 설정: <b>${escapeHtml(labelInput.value)}</b> / 목표 <b>${targetText}천원</b> / ERP 장애시 공정률 <b>${escapeHtml(rateInput.value)}%</b>` +
-            (cfg.updated_at ? ` <span class="text-muted">(최신화 ${escapeHtml(cfg.updated_at)})</span>` : '') +
-            `<br>목표 이미지: ${imageText}`;
+        status.innerHTML = `현재 설정: <b>${escapeHtml(labelInput.value)}</b> / ERP 장애시 공정률 <b>${escapeHtml(rateInput.value)}%</b>` +
+            (cfg.updated_at ? ` <span class="text-muted">(최신화 ${escapeHtml(cfg.updated_at)})</span>` : '');
+        if (cfg.targets) paintMonthlyTargets(monthInput.value, cfg.targets);
+    }
+
+    // ── 월간 목표 행 ──
+    // 표가 보여주는 달. 추가는 입력칸의 달이 아니라 이 달로 보낸다 —
+    // 월을 바꾸고 조회가 끝나기 전에 추가를 누르면, 눈에 보이는 표와 다른 달에 행이 들어가기 때문이다.
+    let adminTargetMonth = '';
+    let adminConstructionList = [];
+
+    function paintMonthlyTargets(month, targets) {
+        adminTargetMonth = month;
+        ['construction', 'settlement'].forEach((kind) => {
+            const box = document.querySelector(`[data-target-kind="${kind}"]`);
+            const rows = Array.isArray(targets[kind]) ? targets[kind] : [];
+            const body = box.querySelector('[data-target-body]');
+            body.innerHTML = rows.length
+                ? rows.map((r) => `<tr>` +
+                    `<td class="small">${escapeHtml(r.jijungNo)}</td>` +
+                    `<td class="small">${escapeHtml(r.name)}</td>` +
+                    `<td class="small text-end">${Number(r.amountThousand).toLocaleString('ko-KR')}</td>` +
+                    `<td><button type="button" class="btn btn-sm btn-outline-danger py-0 text-nowrap" onclick="deleteMonthlyTargetRow(${Number(r.id)})">삭제</button></td>` +
+                    `</tr>`).join('')
+                : `<tr><td colspan="4" class="text-muted small">${escapeHtml(month)} 목표 행이 없습니다.</td></tr>`;
+            // 합계는 화면에서도 행으로만 만든다 — 홈 도넛과 같은 규칙
+            const total = rows.reduce((sum, r) => sum + (Number(r.amountThousand) || 0), 0);
+            box.querySelector('[data-target-total]').textContent = rows.length ? total.toLocaleString('ko-KR') : '미등록';
+        });
+    }
+
+    // 공사일정 자동완성과 같은 목록(ERP 수주 테이블). 지중No를 ERP 글자 그대로 받아야 시공 상세의 지중No와 맞는다.
+    async function loadAdminConstructionList() {
+        try {
+            const res = await fetch('/api/schedules/construction-list');
+            if (!res.ok) return;
+            const data = await res.json();
+            adminConstructionList = Array.isArray(data.data) ? data.data : [];
+        } catch (_e) {
+            adminConstructionList = [];
+        }
+        const opt = (value, label) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
+        document.getElementById('adminConstructionCodes').innerHTML =
+            adminConstructionList.map((c) => opt(c.code, c.name)).join('');
+        document.getElementById('adminConstructionNames').innerHTML =
+            adminConstructionList.map((c) => opt(c.name, c.code)).join('');
+    }
+
+    // 지중No나 공사명 중 하나를 목록에서 고르면 나머지 칸을 채운다
+    function bindTargetAutofill() {
+        document.querySelectorAll('[data-target-kind]').forEach((box) => {
+            const codeInput = box.querySelector('[data-target-code]');
+            const nameInput = box.querySelector('[data-target-name]');
+            codeInput.addEventListener('change', () => {
+                const hit = adminConstructionList.find((c) => c.code === codeInput.value.trim());
+                if (hit) nameInput.value = hit.name;
+            });
+            nameInput.addEventListener('change', () => {
+                const hit = adminConstructionList.find((c) => c.name === nameInput.value.trim());
+                if (hit) codeInput.value = hit.code;
+            });
+        });
+    }
+
+    async function addMonthlyTargetRow(kind) {
+        const box = document.querySelector(`[data-target-kind="${kind}"]`);
+        const codeInput = box.querySelector('[data-target-code]');
+        const nameInput = box.querySelector('[data-target-name]');
+        const amountInput = box.querySelector('[data-target-amount]');
+        const payload = {
+            month: adminTargetMonth,
+            kind,
+            jijung_no: codeInput.value.trim(),
+            name: nameInput.value.trim(),
+            amount_thousand: Number(amountInput.value),
+        };
+        if (!payload.month) {
+            alert('먼저 대상 월을 조회하세요.');
+            return;
+        }
+        if (!payload.jijung_no || !payload.name) {
+            alert('지중No와 공사명을 입력하세요.');
+            return;
+        }
+        if (!Number.isInteger(payload.amount_thousand) || payload.amount_thousand <= 0) {
+            alert('목표 금액(천원)을 1 이상의 정수로 입력하세요.');
+            return;
+        }
+        // ERP 목록에 없는 지중No는 막지 않되 한 번 묻는다 — 오타면 홈의 시공 상세와 지중No가 안 맞는다
+        if (adminConstructionList.length && !adminConstructionList.some((c) => c.code === payload.jijung_no)
+            && !confirm(`지중No ${payload.jijung_no} 는 ERP 공사목록에 없습니다. 그래도 추가할까요?`)) {
+            return;
+        }
+        const res = await fetch('/api/admin/monthly-progress-config/target-rows', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(typeof data.detail === 'string' ? data.detail : '추가 실패');
+            return;
+        }
+        codeInput.value = '';
+        nameInput.value = '';
+        amountInput.value = '';
+        paintMonthlyTargets(payload.month, data.data || {});
+        codeInput.focus();
+    }
+
+    async function deleteMonthlyTargetRow(rowId) {
+        if (!confirm('이 목표 행을 삭제할까요?')) return;
+        const res = await fetch(`/api/admin/monthly-progress-config/target-rows/${rowId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '삭제 실패');
+            return;
+        }
+        paintMonthlyTargets(adminTargetMonth, data.data || {});
     }
 
     async function loadMonthlyProgressConfigAdmin() {
         const monthInput = document.getElementById('monthlyProgressMonthInput');
         if (!monthInput.value) monthInput.value = currentMonthValue();
         const status = document.getElementById('monthlyProgressConfigStatus');
+        const requested = monthInput.value;
         status.textContent = '불러오는 중...';
-        const res = await fetch(`/api/admin/monthly-progress-config?month=${encodeURIComponent(monthInput.value)}`);
+        // 조회가 끝날 때까지는 어느 달에도 추가하지 못하게 비운다 — 옛 달 표를 보며 새 달에 넣는 일을 막는다
+        adminTargetMonth = '';
+        document.querySelectorAll('[data-target-body]').forEach((body) => {
+            body.innerHTML = '<tr><td colspan="4" class="text-muted small">불러오는 중...</td></tr>';
+        });
+        const res = await fetch(`/api/admin/monthly-progress-config?month=${encodeURIComponent(requested)}`);
         const data = await res.json();
+        // 월을 연달아 바꾸면 응답이 순서대로 안 올 수 있다 — 지금 입력칸의 달이 아닌 응답은 버린다
+        if (monthInput.value !== requested) return;
         if (!res.ok) {
             status.innerHTML = `<span class="text-danger">${escapeHtml(data.detail || '설정을 불러오지 못했습니다.')}</span>`;
             return;
@@ -532,13 +675,11 @@
         const monthInput = document.getElementById('monthlyProgressMonthInput');
         const labelInput = document.getElementById('monthlyProgressLabelInput');
         const rateInput = document.getElementById('monthlyProgressRateInput');
-        const targetInput = document.getElementById('monthlyProgressTargetInput');
         const month = monthInput.value || currentMonthValue();
         const payload = {
             month,
             label: labelInput.value.trim() || defaultMonthLabel(month),
-            total_progress: Number(rateInput.value),
-            target_amount_thousand: Number(targetInput.value)
+            total_progress: Number(rateInput.value)
         };
         if (!payload.month) {
             alert('대상 월을 선택하세요.');
@@ -546,10 +687,6 @@
         }
         if (!Number.isFinite(payload.total_progress) || payload.total_progress < 0 || payload.total_progress > 100) {
             alert('총 공정률은 0~100 사이 숫자로 입력하세요.');
-            return;
-        }
-        if (!Number.isFinite(payload.target_amount_thousand) || payload.target_amount_thousand < 0) {
-            alert('목표금액(천원)을 0 이상의 숫자로 입력하세요.');
             return;
         }
         const res = await fetch('/api/admin/monthly-progress-config', {
@@ -564,47 +701,6 @@
         }
         paintMonthlyProgressConfig(data.data || payload);
         alert('월별 총 공정률 목표 설정을 저장했습니다.');
-    }
-
-    async function uploadMonthlyTargetImage() {
-        const monthInput = document.getElementById('monthlyProgressMonthInput');
-        const fileInput = document.getElementById('monthlyTargetImageInput');
-        const month = monthInput.value || currentMonthValue();
-        const file = fileInput.files && fileInput.files[0];
-        if (!file) {
-            alert('올릴 이미지를 선택하세요.');
-            return;
-        }
-        const form = new FormData();
-        form.append('file', file);
-        const res = await fetch(`/api/admin/monthly-progress-config/target-image?month=${encodeURIComponent(month)}`, {
-            method: 'POST',
-            body: form
-        });
-        const data = await res.json();
-        if (!res.ok) {
-            alert(data.detail || '업로드 실패');
-            return;
-        }
-        // 성공하면 고른 파일을 비운다 — 안 비우면 다음에 또 누를 때 같은 파일이 한 번 더 올라간다
-        fileInput.value = '';
-        paintMonthlyProgressConfig(data.data || {});
-        alert(`${month} 목표 이미지를 올렸습니다.`);
-    }
-
-    async function deleteMonthlyTargetImage() {
-        const monthInput = document.getElementById('monthlyProgressMonthInput');
-        const month = monthInput.value || currentMonthValue();
-        if (!confirm(`${month} 목표 이미지를 삭제할까요? 되돌릴 수 없습니다.`)) return;
-        const res = await fetch(`/api/admin/monthly-progress-config/target-image?month=${encodeURIComponent(month)}`, {
-            method: 'DELETE'
-        });
-        const data = await res.json();
-        if (!res.ok) {
-            alert(data.detail || '삭제 실패');
-            return;
-        }
-        paintMonthlyProgressConfig(data.data || {});
     }
 
     async function deleteOutingStaff(id) {
@@ -774,6 +870,8 @@
         loadOutingStaffAdmin();
         loadFrequentSiteAdmin();
         loadMonthlyProgressConfigAdmin();
+        bindTargetAutofill();
+        loadAdminConstructionList();
         loadLoginAccessRequests();
     });
 </script>

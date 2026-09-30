@@ -284,7 +284,6 @@ def test_monthly_progress_config_admin_save_and_home_read(client, monkeypatch, t
             "month": "2026-07",
             "label": "7월",
             "total_progress": 12.3,
-            "target_amount_thousand": 555000,
         },
     )
     assert save_res.status_code == 200
@@ -292,13 +291,11 @@ def test_monthly_progress_config_admin_save_and_home_read(client, monkeypatch, t
     assert saved["month"] == "2026-07"
     assert saved["label"] == "7월"
     assert saved["total_progress"] == 12.3
-    assert saved["target_amount_thousand"] == 555000
 
     home_res = client.get("/api/erp/monthly-progress-config?month=2026-07")
     assert home_res.status_code == 200
     cfg = home_res.json()["data"]
     assert cfg["label"] == "7월"
-    assert cfg["target_amount_thousand"] == 555000
 
 
 def test_kakao_login_pending_then_admin_approve_flow(client, monkeypatch, tmp_path):

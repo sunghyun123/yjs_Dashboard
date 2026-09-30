@@ -528,28 +528,10 @@
         .tp-foot .v { font-size: 1.05rem; font-weight: 800; color: #1b3c66; font-variant-numeric: tabular-nums; }
         .tp-foot .match { font-size: 0.71rem; color: #4a7ab5; font-weight: 600; margin-left: 8px; }
 
-        .tp-target-cap {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            padding: 9px 12px;
-            border-radius: 10px;
-            background: #fff6ec;
-            border: 1px solid #ffddbd;
-            margin-bottom: 10px;
-        }
-
-        .tp-target-cap .lb { font-size: 0.82rem; font-weight: 700; color: #8a4b06; }
-        .tp-target-cap .v { font-size: 1.02rem; font-weight: 800; color: #7a3f00; font-variant-numeric: tabular-nums; }
-        .tp-target-cap .when { font-size: 0.71rem; color: #b08355; }
-
-        .tp-target-img {
-            width: 100%;
-            border: 1px solid #e3eaf3;
-            border-radius: 10px;
-            background: #fbfcfe;
-            display: block;
-        }
+        /* 목표 상세 표의 정렬 가능한 머리글 */
+        .tp-table thead th.tp-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+        .tp-table thead th.tp-sort:hover,
+        .tp-table thead th.tp-sort:focus-visible { background: #e9f1fb; color: #274a75; outline: none; }
 
         .tp-empty {
             padding: 26px 14px;
@@ -1088,7 +1070,7 @@
         </div>
     </main>
 
-    <!-- 총 공정률 '목표' 캡션 클릭 시 뜨는 월간 목표 이미지 -->
+    <!-- 총 공정률 캡션의 '/ 목표' 클릭 시 뜨는 시공·정산 목표 상세 (종류는 home.js targetModalState.kind) -->
     <div class="modal fade" id="progressTargetModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
@@ -1207,7 +1189,7 @@
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20260928a"></script>
+    <script src="/home.js?v=20260930a"></script>
 </body>
 
 </html>
