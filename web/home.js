@@ -44,8 +44,8 @@
         // 목표 총액은 따로 저장하지 않는다 — 도넛 분모도 팝업 합계도 이 rows 의 합에서만 나온다.
         targets: null,
     };
-    // 목표 상세 팝업의 현재 상태. 정렬은 팝업을 다시 열어도 유지한다.
-    const targetModalState = { kind: 'construction', sortKey: 'jijungNo', sortDir: 'asc' };
+    // 목표 상세 팝업이 지금 보여주는 종류(시공/정산). 정렬 상태는 tableSortState 에 따로 둔다.
+    const targetModalState = { kind: 'construction' };
     // ─────────────────────────────────────────────────────────────────────────
 
     // 담당자별 핀 색상/약칭 (메모리 project-home-renewal 확정값)
@@ -161,25 +161,33 @@
 
     function renderTotalProgressChartHome() {
         const percent = getTotalProgressPercent();
-        const progress = percent === null ? 0 : percent;
-        const remain = Math.round((Math.max(0, 100 - progress)) * 10) / 10;
+        const settle = getSettlementPercent();
         const donutEl = document.getElementById('totalProgressDonut');
         const valueEl = document.getElementById('totalProgressValue');
-        const doneEl = document.getElementById('totalProgressLegendDone');
-        const remainEl = document.getElementById('totalProgressLegendRemain');
+        const settleEl = document.getElementById('totalProgressSettleValue');
+        const settleRowEl = document.getElementById('totalProgressSettleRow');
+        const settleLegendEl = document.getElementById('totalProgressLegendSettle');
         const amtEl = document.getElementById('totalProgressAmount');
         const titleEl = document.getElementById('totalProgressTitle');
-        const subEl = document.getElementById('totalProgressSub');
-        if (!donutEl || !valueEl || !doneEl || !remainEl) return;
+        if (!donutEl || !valueEl) return;
         const label = totalProgressState.label || '6월';
         if (titleEl) titleEl.textContent = `${label} 총 공정률`;
-        if (subEl) subEl.textContent = `${label} 총 공정률`;
-        donutEl.style.setProperty('--progress', String(progress));
-        // 못 받음(targets=null)과 목표 미등록(행 0개)은 캡션과 같은 말로 구분한다 — 고칠 곳이 다르다
-        const noTargetText = totalProgressState.targets ? '목표 미등록' : '-';
-        valueEl.textContent = percent === null ? noTargetText : `${progress}%`;
-        doneEl.textContent = percent === null ? '진행 -' : `진행 ${progress}%`;
-        remainEl.textContent = percent === null ? '미달성 -' : `미달성 ${remain}%`;
+        // 못 받음(targets=null)과 목표 미등록(행 0개)은 캡션과 같은 말로 구분한다 — 고칠 곳이 다르다.
+        // 도넛 가운데는 좁아서 '목표 미등록' 대신 '미등록'으로 줄인다(캡션에 전체 문구가 있다).
+        const noTargetText = totalProgressState.targets ? '미등록' : '-';
+        donutEl.style.setProperty('--progress', String(percent === null ? 0 : percent));
+        valueEl.textContent = percent === null ? noTargetText : `${percent}%`;
+
+        // 안쪽 링(정산). 대체값 화면에선 정산을 아예 안 받았으므로 링·가운데 줄·범례를 모두 감춘다.
+        const showSettle = settle.state !== 'hidden';
+        donutEl.classList.toggle('no-settle', !showSettle);
+        if (settleRowEl) settleRowEl.style.display = showSettle ? '' : 'none';
+        if (settleLegendEl) settleLegendEl.style.display = showSettle ? '' : 'none';
+        donutEl.style.setProperty('--settle', String(settle.state === 'ok' ? settle.value : 0));
+        if (settleEl) {
+            settleEl.textContent = settle.state === 'ok' ? `${settle.value}%`
+                : settle.state === 'notarget' ? '미등록' : '-';
+        }
         if (amtEl) {
             const detailHtml = totalProgressState.actualDetailText
                 ? `<br><span style="font-size:0.74rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">${escapeHtml(totalProgressState.actualDetailText)}</span>`
@@ -257,7 +265,7 @@
             return;
         }
 
-        const rowsHtml = breakdown.rows.map((r) => `<tr>` +
+        const rowsHtml = sortDetailRows(breakdown.rows, 'actual').map((r) => `<tr>` +
             `<td class="tp-no">${escapeHtml(r.jijungNo)}</td>` +
             `<td class="tp-name">${escapeHtml(r.name)}${buildProgressDaysHtml(r)}</td>` +
             `<td class="tp-amt ${r.amountThousand < 0 ? 'minus' : ''}">` +
@@ -267,9 +275,9 @@
         bodyEl.innerHTML =
             `<div class="tp-table-wrap"><table class="tp-table">` +
                 `<thead><tr>` +
-                    `<th style="width:110px;">지중No</th>` +
+                    sortableTh('actual', 'jijungNo', '지중No', 'width:110px;') +
                     `<th>공사명</th>` +
-                    `<th style="width:130px;text-align:right;">실적 (천원)</th>` +
+                    sortableTh('actual', 'amount', '실적 (천원)', 'width:130px;text-align:right;') +
                 `</tr></thead>` +
                 `<tbody>${rowsHtml}</tbody>` +
             `</table></div>` +
@@ -300,7 +308,7 @@
             return;
         }
 
-        const rowsHtml = s.rows.map((r) => `<tr>` +
+        const rowsHtml = sortDetailRows(s.rows, 'settlement').map((r) => `<tr>` +
             `<td class="tp-no">${escapeHtml(r.jijungNo)}</td>` +
             `<td class="tp-name">${escapeHtml(r.name)}</td>` +
             `<td class="tp-kind">${escapeHtml(r.kind)}</td>` +
@@ -312,11 +320,11 @@
         bodyEl.innerHTML =
             `<div class="tp-table-wrap"><table class="tp-table">` +
                 `<thead><tr>` +
-                    `<th style="width:110px;">지중No</th>` +
+                    sortableTh('settlement', 'jijungNo', '지중No', 'width:110px;') +
                     `<th>공사명</th>` +
                     `<th style="width:80px;">구분</th>` +
                     `<th style="width:50px;text-align:right;">일</th>` +
-                    `<th style="width:120px;text-align:right;">금액 (천원)</th>` +
+                    sortableTh('settlement', 'amount', '금액 (천원)', 'width:120px;text-align:right;') +
                 `</tr></thead>` +
                 `<tbody>${rowsHtml}</tbody>` +
             `</table></div>` +
@@ -329,20 +337,49 @@
 
     const TARGET_KIND_TEXT = { construction: '시공', settlement: '정산' };
 
+    // 상세 팝업 셋(실적·정산·목표)의 정렬 상태. key 가 null 이면 서버가 보낸 순서 그대로 둔다.
+    // 팝업을 닫았다 다시 열어도 유지한다 — 60초마다 ERP 값이 새로 와도 사용자가 고른 순서가 풀리지 않게.
+    const tableSortState = {
+        actual: { key: null, dir: 'asc' },
+        settlement: { key: null, dir: 'asc' },
+        target: { key: 'jijungNo', dir: 'asc' },
+    };
+
     // 지중No는 문자열이라 그냥 비교하면 '99'가 '101'보다 뒤로 간다 — numeric 옵션으로 숫자 덩어리는 숫자로 비교한다
     function compareJijungNo(a, b) {
         return a.jijungNo.localeCompare(b.jijungNo, 'ko', { numeric: true });
     }
 
-    function sortTargetRows(rows) {
-        const sign = targetModalState.sortDir === 'asc' ? 1 : -1;
+    // 원본 배열은 건드리지 않는다(slice) — 합계는 여전히 원본 rows 에서 나오고, 정렬은 보여주는 순서만 바꾼다
+    function sortDetailRows(rows, table) {
+        const { key, dir } = tableSortState[table];
+        if (!key) return rows;
+        const sign = dir === 'asc' ? 1 : -1;
         return rows.slice().sort((a, b) => {
-            const diff = targetModalState.sortKey === 'amount'
-                ? a.amountThousand - b.amountThousand
-                : compareJijungNo(a, b);
+            const diff = key === 'amount' ? a.amountThousand - b.amountThousand : compareJijungNo(a, b);
             // 금액이 같은 행끼리는 지중No 순으로 — 다시 그릴 때마다 순서가 흔들리지 않게
             return diff !== 0 ? diff * sign : compareJijungNo(a, b);
         });
+    }
+
+    function sortableTh(table, key, label, style) {
+        const st = tableSortState[table];
+        const arrow = st.key !== key ? '' : (st.dir === 'asc' ? ' ▲' : ' ▼');
+        return `<th class="tp-sort" style="${style}" role="button" tabindex="0" data-tp-sort="${key}">${label}${arrow}</th>`;
+    }
+
+    // 같은 열을 다시 누르면 방향만 뒤집는다. 금액은 처음 누를 때 큰 것부터 — 보통 큰 공사부터 본다.
+    function toggleDetailSort(table, key) {
+        const st = tableSortState[table];
+        if (st.key === key) {
+            st.dir = st.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            st.key = key;
+            st.dir = key === 'amount' ? 'desc' : 'asc';
+        }
+        if (table === 'actual') renderProgressActualModal();
+        else if (table === 'settlement') renderProgressSettlementModal();
+        else renderProgressTargetModal();
     }
 
     function renderProgressTargetModal() {
@@ -366,9 +403,7 @@
             return;
         }
 
-        const arrow = (key) => (targetModalState.sortKey !== key ? ''
-            : (targetModalState.sortDir === 'asc' ? ' ▲' : ' ▼'));
-        const rowsHtml = sortTargetRows(target.rows).map((r) => `<tr>` +
+        const rowsHtml = sortDetailRows(target.rows, 'target').map((r) => `<tr>` +
             `<td class="tp-no">${escapeHtml(r.jijungNo)}</td>` +
             `<td class="tp-name">${escapeHtml(r.name)}</td>` +
             `<td class="tp-amt">${r.amountThousand.toLocaleString('ko-KR')}</td>` +
@@ -377,11 +412,9 @@
         bodyEl.innerHTML =
             `<div class="tp-table-wrap"><table class="tp-table">` +
                 `<thead><tr>` +
-                    `<th class="tp-sort" style="width:110px;" role="button" tabindex="0" data-tp-sort="jijungNo">` +
-                        `지중No${arrow('jijungNo')}</th>` +
+                    sortableTh('target', 'jijungNo', '지중No', 'width:110px;') +
                     `<th>공사명</th>` +
-                    `<th class="tp-sort" style="width:140px;text-align:right;" role="button" tabindex="0" data-tp-sort="amount">` +
-                        `목표 (천원)${arrow('amount')}</th>` +
+                    sortableTh('target', 'amount', '목표 (천원)', 'width:140px;text-align:right;') +
                 `</tr></thead>` +
                 `<tbody>${rowsHtml}</tbody>` +
             `</table></div>` +
@@ -389,17 +422,6 @@
                 `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${target.rows.length}건)</span></span>` +
                 `<span class="v">${target.totalThousand.toLocaleString('ko-KR')} 천원</span>` +
             `</div>`;
-    }
-
-    // 같은 열을 다시 누르면 방향만 뒤집는다. 금액은 처음 누를 때 큰 것부터 — 보통 큰 공사부터 본다.
-    function toggleTargetSort(key) {
-        if (targetModalState.sortKey === key) {
-            targetModalState.sortDir = targetModalState.sortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-            targetModalState.sortKey = key;
-            targetModalState.sortDir = key === 'amount' ? 'desc' : 'asc';
-        }
-        renderProgressTargetModal();
     }
 
     function openProgressDetail(which) {
@@ -422,21 +444,23 @@
 
     // 캡션은 렌더할 때마다 innerHTML로 새로 그려지므로, 핸들러는 바뀌지 않는 부모에 한 번만 건다
     function bindProgressDetailHandlers() {
-        // 목표 표의 정렬 머리글도 innerHTML 로 다시 그려지므로 바뀌지 않는 팝업 본문에 건다
-        const targetBody = document.getElementById('progressTargetBody');
-        if (targetBody) {
-            targetBody.addEventListener('click', (e) => {
-                const th = e.target.closest('[data-tp-sort]');
-                if (th) toggleTargetSort(th.dataset.tpSort);
+        // 상세 표의 정렬 머리글도 innerHTML 로 다시 그려지므로 바뀌지 않는 팝업 본문에 건다
+        [['progressActualBody', 'actual'], ['progressSettlementBody', 'settlement'], ['progressTargetBody', 'target']]
+            .forEach(([id, table]) => {
+                const body = document.getElementById(id);
+                if (!body) return;
+                body.addEventListener('click', (e) => {
+                    const th = e.target.closest('[data-tp-sort]');
+                    if (th) toggleDetailSort(table, th.dataset.tpSort);
+                });
+                body.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    const th = e.target.closest('[data-tp-sort]');
+                    if (!th) return;
+                    e.preventDefault();
+                    toggleDetailSort(table, th.dataset.tpSort);
+                });
             });
-            targetBody.addEventListener('keydown', (e) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                const th = e.target.closest('[data-tp-sort]');
-                if (!th) return;
-                e.preventDefault();
-                toggleTargetSort(th.dataset.tpSort);
-            });
-        }
         const amtEl = document.getElementById('totalProgressAmount');
         if (!amtEl) return;
         amtEl.addEventListener('click', (e) => {
@@ -461,6 +485,21 @@
 
     // null 이면 도넛을 '목표 미등록'으로 그린다. ERP 시공 실적은 있는데 목표가 없는 달에
     // ERP 장애용 수동 공정률로 대신 채우면, 아무 관계없는 숫자가 아무 티 없이 도넛이 된다.
+    // 안쪽 링(정산 / 정산 목표). 상태를 나눠 돌려준다 — 넷은 화면에서 서로 다른 말로 보여야 한다.
+    //   hidden   : 대체값 화면(ERP 시공 실적 없음) — 정산 자체를 안 받았다
+    //   nodata   : 정산 행 또는 목표를 불러오지 못함 → '-'
+    //   notarget : 정산 목표 행이 0개 → '미등록'
+    //   ok       : value 에 % (시공과 같이 0~100 으로 자른다)
+    function getSettlementPercent() {
+        if (!totalProgressState.settlementEnabled) return { state: 'hidden' };
+        const s = totalProgressState.settlement;
+        const t = totalProgressState.targets;
+        if (!s || !t) return { state: 'nodata' };
+        if (!t.settlement.rows.length) return { state: 'notarget' };
+        const value = Math.max(0, Math.min(100, Math.round((s.totalThousand / t.settlement.totalThousand) * 1000) / 10));
+        return { state: 'ok', value };
+    }
+
     function getTotalProgressPercent() {
         if (!totalProgressState.actualFromErp) {
             return Math.max(0, Math.min(100, Number(totalProgressState.totalProgress) || 0));
