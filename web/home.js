@@ -25,15 +25,12 @@
     const JUN_PLAN_ACTUAL_AMT   = 134362; // 천원 — 계획 공사 실적
     const JUN_EXTRA_ACTUAL_AMT  = 14958;  // 천원 — 계획 외 공사 실적
     const JUN_TOTAL_ACTUAL_AMT  = 149320; // 천원 — 합계
-    const JUN_TOTAL_PLAN_AMT    = 429250; // 천원 — 계획 목표금액
     const totalProgressState = {
         label: '6월',
         totalProgress: JUN_TOTAL_PROGRESS,
         actualAmountThousand: JUN_TOTAL_ACTUAL_AMT,
         actualFromErp: false,
-        actualText: `${JUN_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')}천원`,
         actualDetailText: `(계획 ${JUN_PLAN_ACTUAL_AMT.toLocaleString('ko-KR')} + 계획외 ${JUN_EXTRA_ACTUAL_AMT.toLocaleString('ko-KR')}천원)`,
-        targetAmountThousand: JUN_TOTAL_PLAN_AMT,
         updatedAt: JUN_DATA_UPDATED,
         sourceLabel: '',
         // ERP가 내려준 공사별 실적 내역. null이면 상세를 보여줄 수 없다(구버전 ERP 또는 조회 실패).
@@ -42,10 +39,13 @@
         settlement: null,
         // split.construction 을 받았을 때만 true — 대체값으로 그리는 중에는 정산 줄 자체를 안 그린다
         settlementEnabled: false,
-        // 관리자 페이지에서 올린 그 달 목표 이미지. 빈 문자열이면 아직 안 올린 달이다.
-        targetImageUrl: '',
-        targetImageUpdatedAt: '',
+        // 관리자 페이지에서 넣은 그 달 목표 행. { construction:{rows,totalThousand}, settlement:{...} }
+        // null 은 '아직 못 받음'이고, 행이 0개인 것('목표 미등록')과는 다른 상황이다.
+        // 목표 총액은 따로 저장하지 않는다 — 도넛 분모도 팝업 합계도 이 rows 의 합에서만 나온다.
+        targets: null,
     };
+    // 목표 상세 팝업의 현재 상태. 정렬은 팝업을 다시 열어도 유지한다.
+    const targetModalState = { kind: 'construction', sortKey: 'jijungNo', sortDir: 'asc' };
     // ─────────────────────────────────────────────────────────────────────────
 
     // 담당자별 핀 색상/약칭 (메모리 project-home-renewal 확정값)
@@ -160,7 +160,8 @@
     }
 
     function renderTotalProgressChartHome() {
-        const progress = getTotalProgressPercent();
+        const percent = getTotalProgressPercent();
+        const progress = percent === null ? 0 : percent;
         const remain = Math.round((Math.max(0, 100 - progress)) * 10) / 10;
         const donutEl = document.getElementById('totalProgressDonut');
         const valueEl = document.getElementById('totalProgressValue');
@@ -174,9 +175,11 @@
         if (titleEl) titleEl.textContent = `${label} 총 공정률`;
         if (subEl) subEl.textContent = `${label} 총 공정률`;
         donutEl.style.setProperty('--progress', String(progress));
-        valueEl.textContent = `${progress}%`;
-        doneEl.textContent = `진행 ${progress}%`;
-        remainEl.textContent = `미달성 ${remain}%`;
+        // 못 받음(targets=null)과 목표 미등록(행 0개)은 캡션과 같은 말로 구분한다 — 고칠 곳이 다르다
+        const noTargetText = totalProgressState.targets ? '목표 미등록' : '-';
+        valueEl.textContent = percent === null ? noTargetText : `${progress}%`;
+        doneEl.textContent = percent === null ? '진행 -' : `진행 ${progress}%`;
+        remainEl.textContent = percent === null ? '미달성 -' : `미달성 ${remain}%`;
         if (amtEl) {
             const detailHtml = totalProgressState.actualDetailText
                 ? `<br><span style="font-size:0.74rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">${escapeHtml(totalProgressState.actualDetailText)}</span>`
@@ -190,18 +193,30 @@
                 const s = totalProgressState.settlement;
                 settlementHtml = s
                     ? `<br><span class="tp-clickable" role="button" tabindex="0" data-tp-open="settlement">` +
-                          `정산 <b>${Number(s.totalThousand).toLocaleString('ko-KR')}천원</b></span>`
+                          `정산 <b>${Number(s.totalThousand).toLocaleString('ko-KR')}</b></span>` +
+                      buildTargetFractionHtml('settlement')
                     : `<br><span style="font-size:0.74rem;color:#aab8c6;white-space:nowrap;">정산 불러오지 못함</span>`;
             }
+            // 목표는 자기 실적 바로 뒤에 '/ 목표'로 붙인다 — 목표를 별도 줄로 두면 바로 위 줄의 목표처럼 읽힌다
             amtEl.innerHTML =
                 `<span class="tp-clickable" role="button" tabindex="0" data-tp-open="actual">` +
-                    `${actualLabel} <b>${escapeHtml(totalProgressState.actualText)}</b></span>` +
+                    `${actualLabel} <b>${Number(totalProgressState.actualAmountThousand || 0).toLocaleString('ko-KR')}</b></span>` +
+                buildTargetFractionHtml('construction') +
                 detailHtml +
                 settlementHtml +
-                `<br><span class="tp-clickable" role="button" tabindex="0" data-tp-open="target">` +
-                    `목표 <b>${Number(totalProgressState.targetAmountThousand || 0).toLocaleString('ko-KR')}천원</b></span>` +
                 `<br><span style="font-size:0.71rem;color:#aab8c6;white-space:nowrap;">최신화${sourceText} ${escapeHtml(totalProgressState.updatedAt)}</span>`;
         }
+    }
+
+    // 캡션의 ' / 목표천원' 조각. 누르면 그 종류의 목표 상세가 열린다.
+    // 아직 못 받았으면 '-', 받았는데 행이 없으면 '목표 미등록' — 둘은 고칠 곳이 다르다(네트워크 vs 관리자 입력).
+    function buildTargetFractionHtml(kind) {
+        const t = totalProgressState.targets;
+        let text;
+        if (!t) text = '-';
+        else if (!t[kind].rows.length) text = '목표 미등록';
+        else text = `<b>${t[kind].totalThousand.toLocaleString('ko-KR')}</b>천원`;
+        return ` / <span class="tp-clickable" role="button" tabindex="0" data-tp-open="target-${kind}">${text}</span>`;
     }
 
     // ══════════ 총 공정률 실적 상세 팝업 ══════════
@@ -312,27 +327,79 @@
             `</div>`;
     }
 
+    const TARGET_KIND_TEXT = { construction: '시공', settlement: '정산' };
+
+    // 지중No는 문자열이라 그냥 비교하면 '99'가 '101'보다 뒤로 간다 — numeric 옵션으로 숫자 덩어리는 숫자로 비교한다
+    function compareJijungNo(a, b) {
+        return a.jijungNo.localeCompare(b.jijungNo, 'ko', { numeric: true });
+    }
+
+    function sortTargetRows(rows) {
+        const sign = targetModalState.sortDir === 'asc' ? 1 : -1;
+        return rows.slice().sort((a, b) => {
+            const diff = targetModalState.sortKey === 'amount'
+                ? a.amountThousand - b.amountThousand
+                : compareJijungNo(a, b);
+            // 금액이 같은 행끼리는 지중No 순으로 — 다시 그릴 때마다 순서가 흔들리지 않게
+            return diff !== 0 ? diff * sign : compareJijungNo(a, b);
+        });
+    }
+
     function renderProgressTargetModal() {
         const label = totalProgressState.label || '';
+        const kind = targetModalState.kind;
+        const kindText = TARGET_KIND_TEXT[kind];
         const titleEl = document.getElementById('progressTargetTitle');
         const bodyEl = document.getElementById('progressTargetBody');
         if (!bodyEl) return;
-        if (titleEl) titleEl.textContent = `${label} 목표`;
+        if (titleEl) titleEl.textContent = `${label} ${kindText} 목표 상세`;
 
-        const url = totalProgressState.targetImageUrl;
-        const when = totalProgressState.targetImageUpdatedAt;
-        // 이미지 속 합계가 도넛의 목표와 같은지는 프로그램이 검증할 수 없다(그림이라서).
-        // 그래서 도넛이 쓰는 숫자를 위에 같이 찍어, 어긋나면 최소한 눈에는 보이게 한다.
-        const cap = `<div class="tp-target-cap">` +
-            `<span class="lb">도넛 기준 목표</span>` +
-            `<span><span class="v">${Number(totalProgressState.targetAmountThousand || 0).toLocaleString('ko-KR')} 천원</span>` +
-                `<span class="when"> · 이미지 ${url ? escapeHtml(when) + ' 등록' : '미등록'}</span></span>` +
+        const t = totalProgressState.targets;
+        if (!t) {
+            bodyEl.innerHTML = '<div class="tp-error">목표를 불러오지 못했습니다.</div>';
+            return;
+        }
+        const target = t[kind];
+        if (!target.rows.length) {
+            bodyEl.innerHTML = `<div class="tp-empty">${escapeHtml(label)} ${kindText} 목표가 아직 등록되지 않았습니다.<br>` +
+                `<span style="font-size:0.79rem;">관리자 페이지 → 월별 총 공정률 목표 관리에서 추가할 수 있습니다.</span></div>`;
+            return;
+        }
+
+        const arrow = (key) => (targetModalState.sortKey !== key ? ''
+            : (targetModalState.sortDir === 'asc' ? ' ▲' : ' ▼'));
+        const rowsHtml = sortTargetRows(target.rows).map((r) => `<tr>` +
+            `<td class="tp-no">${escapeHtml(r.jijungNo)}</td>` +
+            `<td class="tp-name">${escapeHtml(r.name)}</td>` +
+            `<td class="tp-amt">${r.amountThousand.toLocaleString('ko-KR')}</td>` +
+            `</tr>`).join('');
+
+        bodyEl.innerHTML =
+            `<div class="tp-table-wrap"><table class="tp-table">` +
+                `<thead><tr>` +
+                    `<th class="tp-sort" style="width:110px;" role="button" tabindex="0" data-tp-sort="jijungNo">` +
+                        `지중No${arrow('jijungNo')}</th>` +
+                    `<th>공사명</th>` +
+                    `<th class="tp-sort" style="width:140px;text-align:right;" role="button" tabindex="0" data-tp-sort="amount">` +
+                        `목표 (천원)${arrow('amount')}</th>` +
+                `</tr></thead>` +
+                `<tbody>${rowsHtml}</tbody>` +
+            `</table></div>` +
+            `<div class="tp-foot">` +
+                `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${target.rows.length}건)</span></span>` +
+                `<span class="v">${target.totalThousand.toLocaleString('ko-KR')} 천원</span>` +
             `</div>`;
+    }
 
-        bodyEl.innerHTML = cap + (url
-            ? `<img class="tp-target-img" src="${escapeHtml(url)}" alt="${escapeHtml(label)} 월간 목표 이미지">`
-            : `<div class="tp-empty">${escapeHtml(label)} 목표 이미지가 아직 등록되지 않았습니다.<br>` +
-              `<span style="font-size:0.79rem;">관리자 페이지 → 월별 총 공정률 목표 관리에서 올릴 수 있습니다.</span></div>`);
+    // 같은 열을 다시 누르면 방향만 뒤집는다. 금액은 처음 누를 때 큰 것부터 — 보통 큰 공사부터 본다.
+    function toggleTargetSort(key) {
+        if (targetModalState.sortKey === key) {
+            targetModalState.sortDir = targetModalState.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            targetModalState.sortKey = key;
+            targetModalState.sortDir = key === 'amount' ? 'desc' : 'asc';
+        }
+        renderProgressTargetModal();
     }
 
     function openProgressDetail(which) {
@@ -346,7 +413,8 @@
             bootstrap.Modal.getOrCreateInstance(document.getElementById('progressSettlementModal')).show();
             return;
         }
-        if (which === 'target') {
+        if (which === 'target-construction' || which === 'target-settlement') {
+            targetModalState.kind = which === 'target-construction' ? 'construction' : 'settlement';
             renderProgressTargetModal();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('progressTargetModal')).show();
         }
@@ -354,6 +422,21 @@
 
     // 캡션은 렌더할 때마다 innerHTML로 새로 그려지므로, 핸들러는 바뀌지 않는 부모에 한 번만 건다
     function bindProgressDetailHandlers() {
+        // 목표 표의 정렬 머리글도 innerHTML 로 다시 그려지므로 바뀌지 않는 팝업 본문에 건다
+        const targetBody = document.getElementById('progressTargetBody');
+        if (targetBody) {
+            targetBody.addEventListener('click', (e) => {
+                const th = e.target.closest('[data-tp-sort]');
+                if (th) toggleTargetSort(th.dataset.tpSort);
+            });
+            targetBody.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                const th = e.target.closest('[data-tp-sort]');
+                if (!th) return;
+                e.preventDefault();
+                toggleTargetSort(th.dataset.tpSort);
+            });
+        }
         const amtEl = document.getElementById('totalProgressAmount');
         if (!amtEl) return;
         amtEl.addEventListener('click', (e) => {
@@ -369,13 +452,23 @@
         });
     }
 
+    // 시공 목표 총액(천원). 행이 없거나 아직 못 받았으면 null — 0 으로 돌려주면 '목표 0원'과 구분이 안 된다.
+    function getConstructionTargetThousand() {
+        const t = totalProgressState.targets;
+        if (!t || !t.construction.rows.length) return null;
+        return t.construction.totalThousand;
+    }
+
+    // null 이면 도넛을 '목표 미등록'으로 그린다. ERP 시공 실적은 있는데 목표가 없는 달에
+    // ERP 장애용 수동 공정률로 대신 채우면, 아무 관계없는 숫자가 아무 티 없이 도넛이 된다.
     function getTotalProgressPercent() {
-        const actual = Number(totalProgressState.actualAmountThousand);
-        const target = Number(totalProgressState.targetAmountThousand);
-        if (totalProgressState.actualFromErp && Number.isFinite(actual) && Number.isFinite(target) && target > 0) {
-            return Math.max(0, Math.min(100, Math.round((actual / target) * 1000) / 10));
+        if (!totalProgressState.actualFromErp) {
+            return Math.max(0, Math.min(100, Number(totalProgressState.totalProgress) || 0));
         }
-        return Math.max(0, Math.min(100, Number(totalProgressState.totalProgress) || 0));
+        const actual = Number(totalProgressState.actualAmountThousand);
+        const target = getConstructionTargetThousand();
+        if (target === null || !Number.isFinite(actual)) return null;
+        return Math.max(0, Math.min(100, Math.round((actual / target) * 1000) / 10));
     }
 
     function formatKpiUpdatedAt(value) {
@@ -398,7 +491,6 @@
     function resetErpMonthlyKpiToFallback() {
         totalProgressState.actualAmountThousand = JUN_TOTAL_ACTUAL_AMT;
         totalProgressState.actualFromErp = false;
-        totalProgressState.actualText = `${JUN_TOTAL_ACTUAL_AMT.toLocaleString('ko-KR')}천원`;
         totalProgressState.actualDetailText = `(계획 ${JUN_PLAN_ACTUAL_AMT.toLocaleString('ko-KR')} + 계획외 ${JUN_EXTRA_ACTUAL_AMT.toLocaleString('ko-KR')}천원)`;
         totalProgressState.updatedAt = JUN_DATA_UPDATED;
         totalProgressState.sourceLabel = '';
@@ -419,7 +511,6 @@
         totalProgressState.label = String(data.label || totalProgressState.label || '6월').trim();
         totalProgressState.actualAmountThousand = construction.totalThousand;
         totalProgressState.actualFromErp = true;
-        totalProgressState.actualText = `${construction.totalThousand.toLocaleString('ko-KR')}천원`;
         totalProgressState.actualDetailText = '';
         totalProgressState.updatedAt = formatKpiUpdatedAt(data.updatedAt);
         totalProgressState.sourceLabel = '(ERP)';
@@ -475,13 +566,27 @@
         const cfg = data && data.data ? data.data : data;
         if (!cfg || typeof cfg !== 'object') return false;
         const progress = Number(cfg.total_progress);
-        const target = Number(cfg.target_amount_thousand);
         if (cfg.label) totalProgressState.label = String(cfg.label).trim();
         if (Number.isFinite(progress)) totalProgressState.totalProgress = progress;
-        if (Number.isFinite(target)) totalProgressState.targetAmountThousand = Math.max(0, Math.round(target));
-        totalProgressState.targetImageUrl = String(cfg.target_image_url || '');
-        totalProgressState.targetImageUpdatedAt = String(cfg.target_image_updated_at || '');
+        totalProgressState.targets = normalizeTargets(cfg.targets);
         return true;
+    }
+
+    // 목표 행. 서버는 총액을 보내지 않는다 — 여기서 '행의 합'으로 만들어 도넛 분모와 팝업 합계가 같은 배열에서 나오게 한다.
+    function normalizeTargets(raw) {
+        // targets 가 없는 응답(옛 서버)은 '행 0개'가 아니라 '못 받음'이다 — 목표 미등록으로 말하면 없는 사실을 말하는 것
+        if (!raw || typeof raw !== 'object') return null;
+        const one = (list) => {
+            const rows = (Array.isArray(list) ? list : [])
+                .filter((r) => r && typeof r === 'object')
+                .map((r) => ({
+                    jijungNo: String(r.jijungNo || ''),
+                    name: String(r.name || ''),
+                    amountThousand: Number(r.amountThousand) || 0,
+                }));
+            return { rows, totalThousand: rows.reduce((sum, r) => sum + r.amountThousand, 0) };
+        };
+        return { construction: one(raw.construction), settlement: one(raw.settlement) };
     }
 
     async function loadMonthlyProgressConfigHome() {
