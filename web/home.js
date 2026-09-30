@@ -183,7 +183,7 @@
                 : '';
             const sourceText = totalProgressState.sourceLabel ? ` ${totalProgressState.sourceLabel}` : '';
             // ERP에서 시공 실적을 받았을 때만 '시공 실적'이라 부른다 — 대체값은 무엇의 합인지 보장할 수 없다
-            const actualLabel = totalProgressState.actualFromErp ? '시공 실적' : '실적';
+            const actualLabel = totalProgressState.actualFromErp ? '시공' : '실적';
             // 정산은 시공과 더하는 숫자가 아니다(대부분 이미 시공으로 잡힌 일의 청구) — 별도 줄로만 보여준다
             let settlementHtml = '';
             if (totalProgressState.settlementEnabled) {
@@ -226,7 +226,7 @@
         const subEl = document.getElementById('progressActualSub');
         const bodyEl = document.getElementById('progressActualBody');
         if (!bodyEl) return;
-        if (titleEl) titleEl.textContent = totalProgressState.actualFromErp ? `${label} 시공 실적 상세` : `${label} 실적 상세`;
+        if (titleEl) titleEl.textContent = totalProgressState.actualFromErp ? `${label} 시공 상세` : `${label} 실적 상세`;
         if (subEl) subEl.textContent = `ERP 최신화 ${totalProgressState.updatedAt || '-'}`;
 
         const breakdown = totalProgressState.breakdown;
@@ -260,7 +260,7 @@
             `</table></div>` +
             `<div class="tp-foot">` +
                 `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${breakdown.rows.length}건)</span>` +
-                    `<span class="match">캡션의 '시공 실적'과 같은 값</span></span>` +
+                    `<span class="match">       </span></span>` +
                 `<span class="v">${breakdown.totalThousand.toLocaleString('ko-KR')} 천원</span>` +
             `</div>`;
     }
@@ -307,7 +307,7 @@
             `</table></div>` +
             `<div class="tp-foot">` +
                 `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${s.rows.length}건)</span>` +
-                    `<span class="match">캡션의 '정산'과 같은 값</span></span>` +
+                    `<span class="match">       </span></span>` +
                 `<span class="v">${s.totalThousand.toLocaleString('ko-KR')} 천원</span>` +
             `</div>`;
     }
