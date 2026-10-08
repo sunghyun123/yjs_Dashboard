@@ -45,6 +45,18 @@ class ExportRepository:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def is_registered_upload(self, rel_path: str) -> bool:
+        # 서빙 허용 기준 = "첨부로 기록된 파일인가". 같은 uploads 폴더에 백업 엑셀·월별 압축이 섞여 있어
+        # 경로 모양으로는 못 가른다. 후보는 dashboard.schedule.js 가 file_path 에서 앞머리
+        # (uploads/ 또는 옛 자동화_데이터/)를 떼고 URL 을 만드는 규칙을 그대로 되돌린 것이다.
+        candidates = (f"uploads/{rel_path}", f"자동화_데이터/{rel_path}", rel_path)
+        with get_conn(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM photo_uploads WHERE replace(file_path, '\\', '/') IN (?,?,?) LIMIT 1",
+                candidates,
+            ).fetchone()
+            return bool(row)
+
     def delete_schedule_attachment(self, attachment_id: int, schedule_id: int) -> bool:
         with get_conn(self._db_path) as conn:
             with conn:

@@ -19,6 +19,8 @@ from app.api import progress_map
 from app.api import erp
 from app.db.migrations import run_migrations
 from app.db.repos.user import UserRepository
+from app.db.repos.export import ExportRepository
+from app.db.deps import get_export_repo
 from app.services.export_service import DailyExportService
 from app.core.config import settings
 from app.core.auth import require_session, SESSION_COOKIE_NAME
@@ -256,11 +258,19 @@ async def serve_home_js():
     return FileResponse("web/home.js", media_type="application/javascript")
 
 @app.get("/uploads/photos/{file_path:path}", summary="첨부 사진 파일 서빙", tags=["Pages"])
-async def serve_upload_photo(file_path: str):
-    safe = Path(settings.UPLOADS_DIR) / Path(file_path)
-    resolved = safe.resolve()
+async def serve_upload_photo(
+    file_path: str,
+    _user_session=Depends(require_session),
+    export_repo: ExportRepository = Depends(get_export_repo),
+):
+    # uploads/ 에는 첨부 사진과 함께 백업 엑셀·월별 압축도 있다 → 첨부로 기록된 파일만 내준다.
+    # 없는 것과 거부된 것을 구분하지 않으려고(파일 이름 추측 방지) 둘 다 404.
+    if not export_repo.is_registered_upload(file_path.replace("\\", "/")):
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
     base = Path(settings.UPLOADS_DIR).resolve()
-    if not str(resolved).startswith(str(base)):
+    resolved = (base / Path(file_path)).resolve()
+    # startswith 는 uploads_old 같은 형제 폴더를 통과시킨다 → 경로 단위로 비교
+    if not resolved.is_relative_to(base):
         raise HTTPException(status_code=403, detail="접근이 거부되었습니다.")
     if not resolved.is_file():
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
