@@ -211,6 +211,37 @@ def run_migrations(db_path: str) -> None:
             tr_cols = {row[1] for row in conn.execute("PRAGMA table_info(monthly_target_rows)").fetchall()}
             if "manager" not in tr_cols:
                 conn.execute("ALTER TABLE monthly_target_rows ADD COLUMN manager TEXT NOT NULL DEFAULT ''")
+            # 담당자 선택지 — 관리자 화면에서 추가/삭제한다. 목록에서 지워도 이미 행에 적힌 이름은 그대로 둔다
+            # (지난달 그래프가 소급해서 바뀌면 안 된다는 규칙과 같다). 행은 id 가 아니라 이름을 적으므로 FK 가 없다.
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS target_managers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # 기존 고정 목록으로 딱 한 번만 채운다. '표가 비었나'로 판단하면 관리자가 전부 지운 뒤 재시작할 때 되살아나므로
+            # '채운 적 있나'를 app_meta 에 표식으로 남긴다.
+            conn.execute("CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)")
+            seeded = conn.execute("SELECT 1 FROM app_meta WHERE key='target_managers_seeded'").fetchone()
+            if not seeded:
+                for name in ("김무선", "김상훈", "이재규", "김단후"):
+                    conn.execute("INSERT OR IGNORE INTO target_managers (name) VALUES (?)", (name,))
+                conn.execute("INSERT INTO app_meta (key, value) VALUES ('target_managers_seeded', '1')")
+            # 계획외 공사(그 달 목표 행이 없는 공사)의 담당 지정. 목표 표와 따로 둔다 —
+            # 목표 0원 행으로 넣으면 목표 상세에 '목표가 있다'는 인상만 주는 행이 섞인다.
+            # (월, 지중No) 하나에 담당 한 명: 시공·정산 둘 다 이 담당에게 간다.
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS monthly_unplanned_assignments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    month TEXT NOT NULL,
+                    jijung_no TEXT NOT NULL,
+                    manager TEXT NOT NULL,
+                    updated_by TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (month, jijung_no)
+                )
+            """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

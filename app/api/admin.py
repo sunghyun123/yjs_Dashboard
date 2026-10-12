@@ -86,6 +86,17 @@ class MonthlyTargetRowCreate(BaseModel):
     manager: str = Field(..., max_length=50, description="담당자 이름(필수)")
 
 
+class TargetManagerCreate(BaseModel):
+    name: str = Field(..., max_length=50, description="담당자 이름")
+
+
+class UnplannedAssignmentSave(BaseModel):
+    month: str = Field(..., description="YYYY-MM")
+    jijung_no: str = Field(..., max_length=50, description="계획외 공사의 지중No")
+    # 빈 문자열 = 지정 해제(다시 '계획외 실적' 줄로)
+    manager: str = Field("", max_length=50, description="담당자 이름")
+
+
 class MonthlyTargetRowManagerSave(BaseModel):
     manager: str = Field(..., max_length=50, description="담당자 이름(필수, 미지정으로 되돌릴 수 없음)")
 
@@ -615,6 +626,61 @@ def set_monthly_target_row_manager(
     if month is None:
         raise HTTPException(status_code=404, detail="목표 행을 찾을 수 없습니다.")
     return {"status": "success", "data": repo.list_target_rows(month)}
+
+
+# ── 담당자 목록 ──
+@router.get("/target-managers")
+def list_target_managers(
+    _admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    return {"status": "success", "data": repo.list_managers()}
+
+
+@router.post("/target-managers")
+def add_target_manager(
+    payload: TargetManagerCreate,
+    _admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    try:
+        return {"status": "success", "data": repo.add_manager(payload.name)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail=f"{payload.name.strip()} 은(는) 이미 등록된 담당자입니다.")
+
+
+@router.delete("/target-managers/{manager_id}")
+def delete_target_manager(
+    manager_id: int,
+    _admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    managers = repo.delete_manager(manager_id)
+    if managers is None:
+        raise HTTPException(status_code=404, detail="담당자를 찾을 수 없습니다.")
+    return {"status": "success", "data": managers}
+
+
+# ── 계획외 공사 담당 지정 ──
+@router.put("/monthly-progress-config/unplanned-assignments")
+def save_unplanned_assignment(
+    payload: UnplannedAssignmentSave,
+    admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    key = _validate_month(payload.month)
+    try:
+        rows = repo.set_unplanned_assignment(
+            month=key,
+            jijung_no=payload.jijung_no,
+            manager=payload.manager,
+            updated_by=admin.get("user_id", "admin"),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"status": "success", "data": rows}
 
 
 @router.post("/export/daily")

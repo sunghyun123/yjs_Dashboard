@@ -149,3 +149,62 @@ def test_담당자_지정의_잘못된_입력(client, monkeypatch, tmp_path):
 
 def test_관리자가_아니면_담당자를_못_바꾼다(client):
     assert _set_manager(client, 1, "김무선").status_code in (401, 403)
+
+
+# ── 담당자 목록 ──
+def test_담당자를_추가하고_지우면_목록만_바뀌고_지난_행은_남는다(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    names = lambda: [m["name"] for m in client.get("/api/admin/target-managers").json()["data"]]
+    assert names() == ["김무선", "김상훈", "이재규", "김단후"]  # 처음엔 기존 고정 목록으로 채워진다
+
+    assert client.post("/api/admin/target-managers", json={"name": "박신입"}).status_code == 200
+    assert client.post("/api/admin/target-managers", json={"name": "박신입"}).status_code == 409
+    assert client.post("/api/admin/target-managers", json={"name": "  "}).status_code == 400
+    assert _add(client, manager="박신입").status_code == 200
+
+    new_id = next(m["id"] for m in client.get("/api/admin/target-managers").json()["data"] if m["name"] == "박신입")
+    assert client.delete(f"/api/admin/target-managers/{new_id}").status_code == 200
+    assert "박신입" not in names()
+    # 목록에서 지워도 이미 지정된 행의 이름은 그대로다 — 지난달 그래프 보존
+    targets = client.get("/api/erp/monthly-progress-config?month=2026-10").json()["data"]["targets"]
+    assert targets["construction"][0]["manager"] == "박신입"
+    # 지워진 사람에게 새로 지정할 수는 없다
+    assert _add(client, jijung_no="NEW", manager="박신입").status_code == 400
+    assert client.delete(f"/api/admin/target-managers/{new_id}").status_code == 404
+
+
+# ── 계획외 공사 담당 지정 ──
+def _assign(client, jijung_no, manager, month="2026-10"):
+    return client.put(
+        "/api/admin/monthly-progress-config/unplanned-assignments",
+        json={"month": month, "jijung_no": jijung_no, "manager": manager},
+    )
+
+
+def test_계획외_공사를_담당자에게_지정하고_해제한다(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    assert _assign(client, "999", "김상훈").json()["data"] == [{"jijungNo": "999", "manager": "김상훈"}]
+    # 같은 공사를 다시 지정하면 바뀐다(두 줄이 되지 않는다 — 두 사람에게 이중으로 붙지 않게)
+    assert _assign(client, "999", "이재규").json()["data"] == [{"jijungNo": "999", "manager": "이재규"}]
+
+    cfg = client.get("/api/erp/monthly-progress-config?month=2026-10").json()["data"]
+    assert cfg["unplannedAssignments"] == [{"jijungNo": "999", "manager": "이재규"}]
+    # 목표는 건드리지 않는다 — 도넛 분모가 그대로여야 한다
+    assert cfg["targets"] == {"construction": [], "settlement": []}
+    # 다른 달에는 안 보인다
+    assert client.get("/api/erp/monthly-progress-config?month=2026-11").json()["data"]["unplannedAssignments"] == []
+
+    assert _assign(client, "999", "").json()["data"] == []  # 해제하면 다시 계획외 실적으로
+
+
+def test_계획외_지정의_잘못된_입력(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    assert _assign(client, "999", "홍길동").status_code == 400
+    assert _assign(client, "  ", "김무선").status_code == 400
+    assert _assign(client, "999", "김무선", month="2026-13").status_code == 400
+
+
+def test_관리자가_아니면_담당자_목록과_계획외_지정을_못_바꾼다(client):
+    assert client.post("/api/admin/target-managers", json={"name": "x"}).status_code in (401, 403)
+    assert client.delete("/api/admin/target-managers/1").status_code in (401, 403)
+    assert _assign(client, "999", "김무선").status_code in (401, 403)

@@ -214,6 +214,29 @@
                     </div>
                 </div>
             </div>
+            <!-- 담당자 목록. 지워도 이미 행에 적힌 이름은 남는다(지난달 그래프 보존) -->
+            <div class="mt-3 pt-2 border-top">
+                <div class="fw-bold small mb-1">담당자 목록 <span class="text-muted fw-normal">(목록에서 지워도 지난 목표 행의 담당은 그대로 남습니다)</span></div>
+                <div class="d-flex flex-wrap gap-1 align-items-center" id="adminManagerList"><span class="text-muted small">불러오는 중...</span></div>
+                <div class="d-flex gap-1 mt-1" style="max-width:320px;">
+                    <input id="adminManagerNameInput" class="form-control form-control-sm" placeholder="새 담당자 이름" maxlength="50">
+                    <button type="button" class="btn btn-sm btn-primary text-nowrap" onclick="addTargetManager()">추가</button>
+                </div>
+            </div>
+
+            <!-- 계획외 공사(그 달 목표 행이 없는 공사의 ERP 실적) 담당 지정. 목표에는 들어가지 않는다 — 홈에서 담당자 % 옆에 '+ 계획외'로 따로 붙는다 -->
+            <div class="mt-3 pt-2 border-top">
+                <div class="d-flex justify-content-between align-items-baseline mb-1">
+                    <span class="fw-bold small">계획외 공사 담당 지정 <span class="text-muted fw-normal">(목표 행이 없는 공사의 실적 — 시공·정산 모두 지정한 담당에게)</span></span>
+                    <span class="small text-muted" id="adminUnplannedStatus"></span>
+                </div>
+                <div class="table-responsive" style="max-height:240px;overflow-y:auto;">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead><tr><th style="width:100px;">지중No</th><th>공사명</th><th class="text-end" style="width:110px;">시공 실적</th><th class="text-end" style="width:110px;">정산 실적</th><th style="width:130px;">담당</th></tr></thead>
+                        <tbody id="adminUnplannedBody"><tr><td colspan="5" class="text-muted small">불러오는 중...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
             <datalist id="adminConstructionCodes"></datalist>
             <datalist id="adminConstructionNames"></datalist>
         </div>
@@ -536,6 +559,7 @@
             adminManagers = cfg.managers.map(String);
             paintTargetManagerOptions();
         }
+        adminUnplannedAssignments = Array.isArray(cfg.unplannedAssignments) ? cfg.unplannedAssignments : [];
         if (cfg.targets) paintMonthlyTargets(monthInput.value, cfg.targets);
     }
 
@@ -544,8 +568,13 @@
     // 월을 바꾸고 조회가 끝나기 전에 추가를 누르면, 눈에 보이는 표와 다른 달에 행이 들어가기 때문이다.
     let adminTargetMonth = '';
     let adminConstructionList = [];
-    // 담당자 선택지. 서버(TARGET_MANAGERS)가 설정 응답에 실어 보낸다 — 홈 그래프와 같은 목록을 쓰게
+    // 담당자 선택지. 서버(target_managers 표)가 설정 응답에 실어 보낸다 — 홈 그래프와 같은 목록을 쓰게
     let adminManagers = [];
+    // 계획외 지정 목록을 만들 재료. 목표 행이 바뀌면(추가/삭제) '목표에 없는 공사'도 바뀌므로 표를 다시 그린다
+    let adminTargets = { construction: [], settlement: [] };
+    let adminUnplannedAssignments = [];
+    // ERP 이번 달 실적({label, construction rows, settlement rows}). null = 못 받음
+    let adminErpActual = null;
 
     function buildManagerSelectHtml(row) {
         const current = String(row.manager || '');
@@ -570,6 +599,10 @@
 
     function paintMonthlyTargets(month, targets) {
         adminTargetMonth = month;
+        adminTargets = {
+            construction: Array.isArray(targets.construction) ? targets.construction : [],
+            settlement: Array.isArray(targets.settlement) ? targets.settlement : [],
+        };
         ['construction', 'settlement'].forEach((kind) => {
             const box = document.querySelector(`[data-target-kind="${kind}"]`);
             const rows = Array.isArray(targets[kind]) ? targets[kind] : [];
@@ -590,6 +623,159 @@
             const unassigned = rows.filter((r) => !String(r.manager || '').trim()).length;
             box.querySelector('[data-target-unassigned]').textContent = unassigned ? `⚠ 담당 미지정 ${unassigned}건` : '';
         });
+        paintUnplanned();
+    }
+
+    // ── 담당자 목록 ──
+    async function loadTargetManagersAdmin() {
+        const box = document.getElementById('adminManagerList');
+        try {
+            const res = await fetch('/api/admin/target-managers');
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || '');
+            const list = Array.isArray(data.data) ? data.data : [];
+            box.innerHTML = list.length
+                ? list.map((m) => `<span class="badge text-bg-light border d-inline-flex align-items-center gap-1">${escapeHtml(m.name)}` +
+                    `<button type="button" class="btn-close" style="font-size:0.55rem;" aria-label="삭제" onclick="deleteTargetManager(${Number(m.id)}, this)" data-name="${escapeHtml(m.name)}"></button></span>`).join('')
+                : '<span class="text-muted small">등록된 담당자가 없습니다.</span>';
+        } catch (_e) {
+            box.innerHTML = '<span class="text-danger small">담당자 목록을 불러오지 못했습니다.</span>';
+        }
+    }
+
+    async function addTargetManager() {
+        const input = document.getElementById('adminManagerNameInput');
+        const name = input.value.trim();
+        if (!name) {
+            alert('담당자 이름을 입력하세요.');
+            return;
+        }
+        const res = await fetch('/api/admin/target-managers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(typeof data.detail === 'string' ? data.detail : '추가 실패');
+            return;
+        }
+        input.value = '';
+        // 드롭다운 선택지도 바뀌므로 설정을 다시 읽는다
+        await Promise.all([loadTargetManagersAdmin(), loadMonthlyProgressConfigAdmin()]);
+    }
+
+    async function deleteTargetManager(id, btn) {
+        const name = btn.dataset.name || '';
+        if (!confirm(`${name} 을(를) 담당자 목록에서 지울까요?\n이미 지정된 목표 행과 계획외 지정은 그대로 남고, 새로 지정할 때만 고를 수 없게 됩니다.`)) return;
+        const res = await fetch(`/api/admin/target-managers/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+            alert(data.detail || '삭제 실패');
+            return;
+        }
+        await Promise.all([loadTargetManagersAdmin(), loadMonthlyProgressConfigAdmin()]);
+    }
+
+    // ── 계획외 공사 담당 지정 ──
+    // ERP 실적은 '이번 달'만 온다(월을 고를 수 없는 API). 그래서 다른 달을 보고 있으면 이미 지정한 것만 보여준다.
+    async function loadErpActualAdmin() {
+        try {
+            const res = await fetch('/api/erp/monthly-kpi');
+            if (!res.ok) throw new Error('kpi unavailable');
+            const data = await res.json();
+            const split = data && data.split && typeof data.split === 'object' ? data.split : null;
+            const rowsOf = (part) => (part && Array.isArray(part.rows) ? part.rows : null);
+            const construction = rowsOf(split && split.construction);
+            adminErpActual = construction
+                ? { label: String(data.label || '').trim(), construction, settlement: rowsOf(split.settlement) || [] }
+                : null;
+        } catch (_e) {
+            adminErpActual = null;
+        }
+        paintUnplanned();
+    }
+
+    // 목표 행이 없는 공사의 실적을 지중No로 모은다. 종류마다 따로 판단한다 —
+    // 시공 목표엔 있지만 정산 목표엔 없는 공사는 '정산 쪽만' 계획외다(홈 home.js buildManagerProgress 와 같은 규칙).
+    function collectUnplannedRows() {
+        if (!adminErpActual) return null;
+        const byNo = new Map();
+        const add = (kind, rows) => {
+            const planned = new Set(adminTargets[kind].map((r) => String(r.jijungNo)));
+            rows.forEach((r) => {
+                const no = String(r.jijungNo || '').trim();
+                if (!no || planned.has(no)) return;  // 지중No 가 없는 실적은 지정할 열쇠가 없다
+                if (!byNo.has(no)) byNo.set(no, { jijungNo: no, name: String(r.name || ''), construction: 0, settlement: 0 });
+                byNo.get(no)[kind] += Number(r.amountThousand) || 0;
+            });
+        };
+        add('construction', adminErpActual.construction);
+        add('settlement', adminErpActual.settlement);
+        return byNo;
+    }
+
+    function paintUnplanned() {
+        const body = document.getElementById('adminUnplannedBody');
+        const status = document.getElementById('adminUnplannedStatus');
+        if (!body) return;
+        const isErpMonth = adminErpActual && adminTargetMonth === currentMonthValue()
+            && adminErpActual.label === defaultMonthLabel(adminTargetMonth);
+        const rows = isErpMonth ? collectUnplannedRows() : new Map();
+        // 이미 지정했는데 지금 ERP 목록에 없는 공사(다른 달·목표가 새로 생김·ERP 조회 실패)도 줄로 남긴다 — 안 보이면 해제할 수 없다
+        adminUnplannedAssignments.forEach((a) => {
+            if (!rows.has(a.jijungNo)) rows.set(a.jijungNo, { jijungNo: a.jijungNo, name: '', construction: null, settlement: null });
+        });
+        const managerOf = new Map(adminUnplannedAssignments.map((a) => [a.jijungNo, a.manager]));
+        status.textContent = !adminErpActual ? 'ERP 실적을 불러오지 못했습니다(지정된 것만 표시)'
+            : !isErpMonth ? `ERP 실적은 이번 달(${adminErpActual.label})만 불러옵니다 — 지정된 것만 표시`
+            : '';
+        const list = [...rows.values()].sort((a, b) => a.jijungNo.localeCompare(b.jijungNo, 'ko', { numeric: true }));
+        const amount = (v) => (v === null ? '-' : Number(v).toLocaleString('ko-KR'));
+        body.innerHTML = list.length
+            ? list.map((r) => {
+                const current = managerOf.get(r.jijungNo) || '';
+                const names = current && !adminManagers.includes(current) ? [...adminManagers, current] : adminManagers;
+                const opt = (value, label) => `<option value="${escapeHtml(value)}"${value === current ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+                return `<tr>` +
+                    `<td class="small">${escapeHtml(r.jijungNo)}</td>` +
+                    `<td class="small">${escapeHtml(r.name || '-')}</td>` +
+                    `<td class="small text-end">${amount(r.construction)}</td>` +
+                    `<td class="small text-end">${amount(r.settlement)}</td>` +
+                    `<td><select class="form-select form-select-sm py-0" data-jijung-no="${escapeHtml(r.jijungNo)}" onchange="saveUnplannedAssignment(this)">` +
+                        opt('', '계획외로 둠') + names.map((n) => opt(n, n)).join('') + `</select></td>` +
+                    `</tr>`;
+            }).join('')
+            : `<tr><td colspan="5" class="text-muted small">${isErpMonth ? '이번 달 계획외 공사가 없습니다.' : '지정된 계획외 공사가 없습니다.'}</td></tr>`;
+    }
+
+    // 고르는 즉시 저장. 실패하면 서버 값으로 다시 그린다(저장 안 된 선택이 화면에 남지 않게 — 목표 행 드롭다운과 같은 규칙)
+    async function saveUnplannedAssignment(selectEl) {
+        const month = adminTargetMonth;
+        if (!month) return;
+        selectEl.disabled = true;
+        let data = {};
+        let ok = false;
+        try {
+            const res = await fetch('/api/admin/monthly-progress-config/unplanned-assignments', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ month, jijung_no: selectEl.dataset.jijungNo, manager: selectEl.value })
+            });
+            data = await res.json();
+            ok = res.ok;
+        } catch (_e) {
+            ok = false;
+        }
+        if (!ok) {
+            alert(typeof data.detail === 'string' ? data.detail : '계획외 담당 저장 실패');
+            await loadMonthlyProgressConfigAdmin();
+            return;
+        }
+        // 응답이 오기 전에 다른 달로 바꿨다면 그 달 표를 덮어쓰지 않는다
+        if (month !== adminTargetMonth) return;
+        adminUnplannedAssignments = Array.isArray(data.data) ? data.data : [];
+        paintUnplanned();
     }
 
     // 공사일정 자동완성과 같은 목록(ERP 수주 테이블). 지중No를 ERP 글자 그대로 받아야 시공 상세의 지중No와 맞는다.
@@ -936,6 +1122,8 @@
         loadMonthlyProgressConfigAdmin();
         bindTargetAutofill();
         loadAdminConstructionList();
+        loadTargetManagersAdmin();
+        loadErpActualAdmin();
         loadLoginAccessRequests();
     });
 </script>
