@@ -206,6 +206,11 @@ def run_migrations(db_path: str) -> None:
                     UNIQUE (month, kind, jijung_no)
                 )
             """)
+            # 목표 행마다 담당자를 둔다(빈 문자열 = 미지정). 공사→담당 표를 따로 두지 않은 이유:
+            # 담당이 바뀌어도 지난달 담당자별 그래프가 소급해서 바뀌면 안 된다 — 행이 달마다 따로라 그 달의 담당이 그대로 남는다.
+            tr_cols = {row[1] for row in conn.execute("PRAGMA table_info(monthly_target_rows)").fetchall()}
+            if "manager" not in tr_cols:
+                conn.execute("ALTER TABLE monthly_target_rows ADD COLUMN manager TEXT NOT NULL DEFAULT ''")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

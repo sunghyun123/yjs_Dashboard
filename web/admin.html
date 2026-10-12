@@ -178,36 +178,38 @@
                 <div class="col-lg-6" data-target-kind="construction">
                     <div class="d-flex justify-content-between align-items-baseline mb-1">
                         <span class="fw-bold small">시공 목표 <span class="text-muted fw-normal">(도넛 분모)</span></span>
-                        <span class="small">합계 <b data-target-total>-</b> 천원</span>
+                        <span class="small"><span class="text-danger fw-bold me-2" data-target-unassigned></span>합계 <b data-target-total>-</b> 천원</span>
                     </div>
                     <div class="table-responsive" style="max-height:280px;overflow-y:auto;">
                         <table class="table table-sm align-middle mb-1">
-                            <thead><tr><th style="width:100px;">지중No</th><th>공사명</th><th class="text-end" style="width:110px;">목표(천원)</th><th style="width:60px;"></th></tr></thead>
-                            <tbody data-target-body><tr><td colspan="4" class="text-muted small">불러오는 중...</td></tr></tbody>
+                            <thead><tr><th style="width:100px;">지중No</th><th>공사명</th><th class="text-end" style="width:110px;">목표(천원)</th><th style="width:120px;">담당</th><th style="width:60px;"></th></tr></thead>
+                            <tbody data-target-body><tr><td colspan="5" class="text-muted small">불러오는 중...</td></tr></tbody>
                         </table>
                     </div>
                     <div class="d-flex gap-1">
                         <input class="form-control form-control-sm" style="width:100px;" placeholder="지중No" list="adminConstructionCodes" data-target-code>
                         <input class="form-control form-control-sm" placeholder="공사명" list="adminConstructionNames" data-target-name>
                         <input class="form-control form-control-sm text-end" style="width:110px;" type="number" min="1" step="1" placeholder="천원" data-target-amount>
+                        <select class="form-select form-select-sm" style="width:100px;" data-target-manager><option value="">담당</option></select>
                         <button type="button" class="btn btn-sm btn-primary text-nowrap" onclick="addMonthlyTargetRow('construction')">추가</button>
                     </div>
                 </div>
                 <div class="col-lg-6" data-target-kind="settlement">
                     <div class="d-flex justify-content-between align-items-baseline mb-1">
                         <span class="fw-bold small">정산 목표</span>
-                        <span class="small">합계 <b data-target-total>-</b> 천원</span>
+                        <span class="small"><span class="text-danger fw-bold me-2" data-target-unassigned></span>합계 <b data-target-total>-</b> 천원</span>
                     </div>
                     <div class="table-responsive" style="max-height:280px;overflow-y:auto;">
                         <table class="table table-sm align-middle mb-1">
-                            <thead><tr><th style="width:100px;">지중No</th><th>공사명</th><th class="text-end" style="width:110px;">목표(천원)</th><th style="width:60px;"></th></tr></thead>
-                            <tbody data-target-body><tr><td colspan="4" class="text-muted small">불러오는 중...</td></tr></tbody>
+                            <thead><tr><th style="width:100px;">지중No</th><th>공사명</th><th class="text-end" style="width:110px;">목표(천원)</th><th style="width:120px;">담당</th><th style="width:60px;"></th></tr></thead>
+                            <tbody data-target-body><tr><td colspan="5" class="text-muted small">불러오는 중...</td></tr></tbody>
                         </table>
                     </div>
                     <div class="d-flex gap-1">
                         <input class="form-control form-control-sm" style="width:100px;" placeholder="지중No" list="adminConstructionCodes" data-target-code>
                         <input class="form-control form-control-sm" placeholder="공사명" list="adminConstructionNames" data-target-name>
                         <input class="form-control form-control-sm text-end" style="width:110px;" type="number" min="1" step="1" placeholder="천원" data-target-amount>
+                        <select class="form-select form-select-sm" style="width:100px;" data-target-manager><option value="">담당</option></select>
                         <button type="button" class="btn btn-sm btn-primary text-nowrap" onclick="addMonthlyTargetRow('settlement')">추가</button>
                     </div>
                 </div>
@@ -530,6 +532,10 @@
         rateInput.value = cfg.total_progress ?? '';
         status.innerHTML = `현재 설정: <b>${escapeHtml(labelInput.value)}</b> / ERP 장애시 공정률 <b>${escapeHtml(rateInput.value)}%</b>` +
             (cfg.updated_at ? ` <span class="text-muted">(최신화 ${escapeHtml(cfg.updated_at)})</span>` : '');
+        if (Array.isArray(cfg.managers)) {
+            adminManagers = cfg.managers.map(String);
+            paintTargetManagerOptions();
+        }
         if (cfg.targets) paintMonthlyTargets(monthInput.value, cfg.targets);
     }
 
@@ -538,6 +544,29 @@
     // 월을 바꾸고 조회가 끝나기 전에 추가를 누르면, 눈에 보이는 표와 다른 달에 행이 들어가기 때문이다.
     let adminTargetMonth = '';
     let adminConstructionList = [];
+    // 담당자 선택지. 서버(TARGET_MANAGERS)가 설정 응답에 실어 보낸다 — 홈 그래프와 같은 목록을 쓰게
+    let adminManagers = [];
+
+    function buildManagerSelectHtml(row) {
+        const current = String(row.manager || '');
+        // 목록에서 빠진 옛 담당자가 행에 남아 있으면 그대로 보여준다 — 안 보이면 미지정으로 착각하고 덮어쓴다
+        const names = current && !adminManagers.includes(current) ? [...adminManagers, current] : adminManagers;
+        const opt = (value, label) =>
+            `<option value="${escapeHtml(value)}"${value === current ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+        // 미지정으로 되돌릴 수는 없다(서버도 거부). 담당 칸이 생기기 전에 넣은 옛 행만 '⚠ 미지정'으로 시작한다
+        const unassigned = current ? '' : `<option value="" selected disabled>⚠ 미지정</option>`;
+        return `<select class="form-select form-select-sm py-0${current ? '' : ' border-danger text-danger'}" onchange="setMonthlyTargetManager(${Number(row.id)}, this)">` +
+            unassigned + names.map((n) => opt(n, n)).join('') + `</select>`;
+    }
+
+    function paintTargetManagerOptions() {
+        document.querySelectorAll('[data-target-manager]').forEach((sel) => {
+            const keep = sel.value;
+            sel.innerHTML = `<option value="">담당</option>` +
+                adminManagers.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+            if (adminManagers.includes(keep)) sel.value = keep;
+        });
+    }
 
     function paintMonthlyTargets(month, targets) {
         adminTargetMonth = month;
@@ -550,12 +579,16 @@
                     `<td class="small">${escapeHtml(r.jijungNo)}</td>` +
                     `<td class="small">${escapeHtml(r.name)}</td>` +
                     `<td class="small text-end">${Number(r.amountThousand).toLocaleString('ko-KR')}</td>` +
+                    `<td>${buildManagerSelectHtml(r)}</td>` +
                     `<td><button type="button" class="btn btn-sm btn-outline-danger py-0 text-nowrap" onclick="deleteMonthlyTargetRow(${Number(r.id)})">삭제</button></td>` +
                     `</tr>`).join('')
-                : `<tr><td colspan="4" class="text-muted small">${escapeHtml(month)} 목표 행이 없습니다.</td></tr>`;
+                : `<tr><td colspan="5" class="text-muted small">${escapeHtml(month)} 목표 행이 없습니다.</td></tr>`;
             // 합계는 화면에서도 행으로만 만든다 — 홈 도넛과 같은 규칙
             const total = rows.reduce((sum, r) => sum + (Number(r.amountThousand) || 0), 0);
             box.querySelector('[data-target-total]').textContent = rows.length ? total.toLocaleString('ko-KR') : '미등록';
+            // 담당 미지정 행은 홈 담당자 그래프에 못 들어간다 — 여기서만 알린다(홈은 사용자 화면이라 띄우지 않는다)
+            const unassigned = rows.filter((r) => !String(r.manager || '').trim()).length;
+            box.querySelector('[data-target-unassigned]').textContent = unassigned ? `⚠ 담당 미지정 ${unassigned}건` : '';
         });
     }
 
@@ -597,12 +630,14 @@
         const codeInput = box.querySelector('[data-target-code]');
         const nameInput = box.querySelector('[data-target-name]');
         const amountInput = box.querySelector('[data-target-amount]');
+        const managerInput = box.querySelector('[data-target-manager]');
         const payload = {
             month: adminTargetMonth,
             kind,
             jijung_no: codeInput.value.trim(),
             name: nameInput.value.trim(),
             amount_thousand: Number(amountInput.value),
+            manager: managerInput.value,
         };
         if (!payload.month) {
             alert('먼저 대상 월을 조회하세요.');
@@ -614,6 +649,10 @@
         }
         if (!Number.isInteger(payload.amount_thousand) || payload.amount_thousand <= 0) {
             alert('목표 금액(천원)을 1 이상의 정수로 입력하세요.');
+            return;
+        }
+        if (!payload.manager) {
+            alert('담당자를 선택하세요.');
             return;
         }
         // ERP 목록에 없는 지중No는 막지 않되 한 번 묻는다 — 오타면 홈의 시공 상세와 지중No가 안 맞는다
@@ -638,6 +677,31 @@
         codeInput.focus();
     }
 
+    // 드롭다운을 바꾸는 즉시 저장한다. 실패하면 서버 값으로 다시 그린다 —
+    // 저장 안 된 선택이 화면에 남으면 '지정했다'고 믿고 넘어간다(홈 그래프만 조용히 미지정에 남는다).
+    async function setMonthlyTargetManager(rowId, selectEl) {
+        selectEl.disabled = true;
+        let data = {};
+        let ok = false;
+        try {
+            const res = await fetch(`/api/admin/monthly-progress-config/target-rows/${rowId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ manager: selectEl.value })
+            });
+            data = await res.json();
+            ok = res.ok;
+        } catch (_e) {
+            ok = false;
+        }
+        if (!ok) {
+            alert(typeof data.detail === 'string' ? data.detail : '담당자 저장 실패');
+            await loadMonthlyProgressConfigAdmin();
+            return;
+        }
+        paintMonthlyTargets(adminTargetMonth, data.data || {});
+    }
+
     async function deleteMonthlyTargetRow(rowId) {
         if (!confirm('이 목표 행을 삭제할까요?')) return;
         const res = await fetch(`/api/admin/monthly-progress-config/target-rows/${rowId}`, { method: 'DELETE' });
@@ -658,7 +722,7 @@
         // 조회가 끝날 때까지는 어느 달에도 추가하지 못하게 비운다 — 옛 달 표를 보며 새 달에 넣는 일을 막는다
         adminTargetMonth = '';
         document.querySelectorAll('[data-target-body]').forEach((body) => {
-            body.innerHTML = '<tr><td colspan="4" class="text-muted small">불러오는 중...</td></tr>';
+            body.innerHTML = '<tr><td colspan="5" class="text-muted small">불러오는 중...</td></tr>';
         });
         const res = await fetch(`/api/admin/monthly-progress-config?month=${encodeURIComponent(requested)}`);
         const data = await res.json();

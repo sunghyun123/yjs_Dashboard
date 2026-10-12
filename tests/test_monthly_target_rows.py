@@ -14,6 +14,7 @@ def _add(client, **overrides):
         "jijung_no": "2026-101",
         "name": "안양 지중화 1공구",
         "amount_thousand": 120000,
+        "manager": "김무선",
     }
     body.update(overrides)
     return client.post("/api/admin/monthly-progress-config/target-rows", json=body)
@@ -89,3 +90,62 @@ def test_설정_저장이_목표_행을_지우지_않는다(client, monkeypatch,
     )
     assert res.status_code == 200
     assert len(res.json()["data"]["targets"]["construction"]) == 1
+
+
+def _set_manager(client, row_id, manager):
+    return client.patch(
+        f"/api/admin/monthly-progress-config/target-rows/{row_id}", json={"manager": manager}
+    )
+
+
+def test_담당자를_바꾼다(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    row = _add(client).json()["data"]["construction"][0]
+    assert row["manager"] == "김무선"
+
+    res = _set_manager(client, row["id"], "김상훈")
+    assert res.status_code == 200
+    updated = res.json()["data"]["construction"][0]
+    assert updated["manager"] == "김상훈"
+    # 담당 지정은 목표 숫자를 건드리지 않는다
+    assert updated["amountThousand"] == 120000 and updated["jijungNo"] == "2026-101"
+
+    cfg = client.get("/api/erp/monthly-progress-config?month=2026-10").json()["data"]
+    assert cfg["targets"]["construction"][0]["manager"] == "김상훈"
+    assert "김무선" in cfg["managers"]
+
+
+def test_담당자_없이는_추가도_미지정_되돌리기도_안된다(client, monkeypatch, tmp_path):
+    # 미지정 행은 홈 담당자 그래프 어디에도 속하지 못한다 — 들어오는 입구에서 막는다
+    login_as_admin(client, monkeypatch, tmp_path)
+    assert _add(client, manager="").status_code == 400
+    assert _add(client, manager="   ").status_code == 400
+    assert _add(client, manager="홍길동").status_code == 400
+    body = {"month": "2026-10", "kind": "construction", "jijung_no": "X", "name": "n", "amount_thousand": 1}
+    assert client.post("/api/admin/monthly-progress-config/target-rows", json=body).status_code == 422
+
+    row = _add(client).json()["data"]["construction"][0]
+    assert _set_manager(client, row["id"], "").status_code == 400
+
+
+def test_담당은_그_달_그_행에만_걸린다(client, monkeypatch, tmp_path):
+    # 담당이 바뀌어도 지난달 그래프가 소급해서 바뀌면 안 된다 — 같은 공사라도 달이 다르면 다른 행이다
+    login_as_admin(client, monkeypatch, tmp_path)
+    oct_row = _add(client, month="2026-10").json()["data"]["construction"][0]
+    nov_row = _add(client, month="2026-11").json()["data"]["construction"][0]
+    _set_manager(client, nov_row["id"], "이재규")
+
+    get = lambda m: client.get(f"/api/erp/monthly-progress-config?month={m}").json()["data"]["targets"]
+    assert get("2026-10")["construction"][0]["manager"] == "김무선"
+    assert get("2026-11")["construction"][0]["manager"] == "이재규"
+
+
+def test_담당자_지정의_잘못된_입력(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    row = _add(client).json()["data"]["construction"][0]
+    assert _set_manager(client, row["id"], "홍길동").status_code == 400
+    assert _set_manager(client, 99999, "김무선").status_code == 404
+
+
+def test_관리자가_아니면_담당자를_못_바꾼다(client):
+    assert _set_manager(client, 1, "김무선").status_code in (401, 403)

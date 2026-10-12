@@ -83,6 +83,11 @@ class MonthlyTargetRowCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, description="공사명")
     # 0원 목표 행은 합계에 아무 영향이 없는데 '목표가 있다'는 인상만 준다 — 1천원 이상만 받는다
     amount_thousand: int = Field(..., gt=0, le=100_000_000, description="목표 금액(천원)")
+    manager: str = Field(..., max_length=50, description="담당자 이름(필수)")
+
+
+class MonthlyTargetRowManagerSave(BaseModel):
+    manager: str = Field(..., max_length=50, description="담당자 이름(필수, 미지정으로 되돌릴 수 없음)")
 
 
 def _usage_metrics_range(date_from: str, date_to: str) -> tuple[str, str]:
@@ -570,8 +575,11 @@ def add_monthly_target_row(
             jijung_no=jijung_no,
             name=name,
             amount_thousand=payload.amount_thousand,
+            manager=payload.manager,
             created_by=admin.get("user_id", "admin"),
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except sqlite3.IntegrityError:
         kind_text = "시공" if payload.kind == "construction" else "정산"
         raise HTTPException(
@@ -588,6 +596,22 @@ def delete_monthly_target_row(
     repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
 ):
     month = repo.delete_target_row(row_id)
+    if month is None:
+        raise HTTPException(status_code=404, detail="목표 행을 찾을 수 없습니다.")
+    return {"status": "success", "data": repo.list_target_rows(month)}
+
+
+@router.patch("/monthly-progress-config/target-rows/{row_id}")
+def set_monthly_target_row_manager(
+    row_id: int,
+    payload: MonthlyTargetRowManagerSave,
+    _admin=Depends(require_admin),
+    repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
+):
+    try:
+        month = repo.set_target_row_manager(row_id, payload.manager)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if month is None:
         raise HTTPException(status_code=404, detail="목표 행을 찾을 수 없습니다.")
     return {"status": "success", "data": repo.list_target_rows(month)}

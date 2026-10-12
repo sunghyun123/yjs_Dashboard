@@ -43,6 +43,8 @@
         // null 은 '아직 못 받음'이고, 행이 0개인 것('목표 미등록')과는 다른 상황이다.
         // 목표 총액은 따로 저장하지 않는다 — 도넛 분모도 팝업 합계도 이 rows 의 합에서만 나온다.
         targets: null,
+        // 담당자 선택지(서버 TARGET_MANAGERS). 그래프는 이 순서로 그리고 '미지정'을 맨 끝에 붙인다.
+        managers: [],
     };
     // 목표 상세 팝업이 지금 보여주는 종류(시공/정산). 정렬 상태는 tableSortState 에 따로 둔다.
     const targetModalState = { kind: 'construction' };
@@ -175,7 +177,7 @@
         // 못 받음(targets=null)과 목표 미등록(행 0개)은 캡션과 같은 말로 구분한다 — 고칠 곳이 다르다.
         // 도넛 가운데는 좁아서 '목표 미등록' 대신 '미등록'으로 줄인다(캡션에 전체 문구가 있다).
         const noTargetText = totalProgressState.targets ? '미등록' : '-';
-        donutEl.style.setProperty('--progress', String(percent === null ? 0 : percent));
+        donutEl.style.setProperty('--progress', String(percent === null ? 0 : Math.min(100, percent)));
         valueEl.textContent = percent === null ? noTargetText : `${percent}%`;
 
         // 안쪽 링(정산). 대체값 화면에선 정산을 아예 안 받았으므로 링·가운데 줄·범례를 모두 감춘다.
@@ -183,7 +185,7 @@
         donutEl.classList.toggle('no-settle', !showSettle);
         if (settleRowEl) settleRowEl.style.display = showSettle ? '' : 'none';
         if (settleLegendEl) settleLegendEl.style.display = showSettle ? '' : 'none';
-        donutEl.style.setProperty('--settle', String(settle.state === 'ok' ? settle.value : 0));
+        donutEl.style.setProperty('--settle', String(settle.state === 'ok' ? Math.min(100, settle.value) : 0));
         if (settleEl) {
             settleEl.textContent = settle.state === 'ok' ? `${settle.value}%`
                 : settle.state === 'notarget' ? '미등록' : '-';
@@ -214,6 +216,77 @@
                 settlementHtml +
                 `<br><span style="font-size:0.71rem;color:#aab8c6;white-space:nowrap;">최신화${sourceText} ${escapeHtml(totalProgressState.updatedAt)}</span>`;
         }
+        // 담당자 그래프는 도넛과 같은 상태(targets·breakdown·settlement)에서 그린다 — 도넛이 다시 그려질 때 항상 같이
+        renderManagerProgressHome();
+    }
+
+    // 담당자 한 줄(시공 또는 정산). 100%에서 자르지 않는다 — 계획보다 얼마나 부족/초과했는지가 다음 달 계획을 고치는 근거다.
+    // 넘치면 막대 전체를 실적 기준으로 줄이고, 목표 지점에 세로 눈금을 세운다(눈금 오른쪽이 초과분).
+    function buildManagerLineHtml(kindClass, label, cell) {
+        const fmt = (n) => Number(n).toLocaleString('ko-KR');
+        const hasActual = cell.actualThousand !== null;
+        const actualText = hasActual ? fmt(cell.actualThousand) : '-';
+        const pct = hasActual && cell.targetThousand > 0
+            ? Math.round((cell.actualThousand / cell.targetThousand) * 1000) / 10
+            : null;
+        const scale = pct === null ? 100 : Math.max(100, pct);
+        const width = pct === null ? 0 : (pct / scale) * 100;
+        const marker = pct !== null && pct > 100
+            ? `<i class="mgr-goal" style="left:${(100 / scale) * 100}%"></i>` : '';
+        let diffHtml = '';
+        if (pct !== null) {
+            const diff = cell.actualThousand - cell.targetThousand;
+            diffHtml = diff >= 0
+                ? `<span class="mgr-diff over">+${fmt(diff)} 초과</span>`
+                : `<span class="mgr-diff short">${fmt(-diff)} 부족</span>`;
+        }
+        return `<div class="mgr-line ${kindClass}"><span>${label}</span>` +
+            `<div class="mgr-bar"><span style="width:${width}%"></span>${marker}</div>` +
+            `<span class="mgr-val"><span><b>${pct === null ? '-' : `${pct}%`}</b>${actualText} / ${cell.targetThousand ? fmt(cell.targetThousand) : '목표 없음'}</span>${diffHtml}</span></div>`;
+    }
+
+    function renderManagerProgressHome() {
+        const listEl = document.getElementById('managerProgressList');
+        if (!listEl) return;
+        const t = totalProgressState.targets;
+        if (!t) {
+            listEl.innerHTML = '<div class="text-muted small">목표를 불러오지 못했습니다.</div>';
+            return;
+        }
+        if (!t.construction.rows.length && !t.settlement.rows.length) {
+            listEl.innerHTML = '<div class="text-muted small">이번 달 목표 행이 없습니다(관리자 페이지에서 등록).</div>';
+            return;
+        }
+        // 대체값 화면(ERP 시공 실적 없음)에선 breakdown 이 null — 실적 '-'로 목표만 보여준다
+        const construction = buildManagerProgress(t.construction, totalProgressState.breakdown);
+        const showSettle = totalProgressState.settlementEnabled;
+        const settlement = buildManagerProgress(t.settlement, showSettle ? totalProgressState.settlement : null);
+        const empty = (actual) => ({ targetThousand: 0, actualThousand: actual ? 0 : null });
+        const cell = (map, name, actual) => map.get(name) || empty(actual);
+        const fmt = (n) => Number(n).toLocaleString('ko-KR');
+
+        // 목록에 없는 이름(목록에서 빠진 옛 담당자)이 행에 남아 있으면 그 칸도 그린다 — 안 그리면 그 금액이 그래프에서 사라진다
+        const names = [...totalProgressState.managers];
+        [...construction.buckets.keys(), ...settlement.buckets.keys()].forEach((n) => { if (n && !names.includes(n)) names.push(n); });
+        // 옛 미지정 행이 남아 있을 때만 그 칸을 그린다(관리자 화면에서 지정하면 사라진다) — 안 그리면 그 금액이 합계에서 빠진다
+        if (construction.buckets.has('') || settlement.buckets.has('')) names.push('');
+
+        const rowsHtml = names.map((name) => {
+            const color = name ? managerStyle(name).color : '#aab8c6';
+            return `<div class="mgr-row${name ? '' : ' unassigned'}">` +
+                `<div class="mgr-name"><i style="background:${color}"></i>${escapeHtml(name || '담당 미지정')}</div>` +
+                buildManagerLineHtml('construction', '시공', cell(construction.buckets, name, totalProgressState.breakdown)) +
+                (showSettle ? buildManagerLineHtml('settlement', '정산', cell(settlement.buckets, name, totalProgressState.settlement)) : '') +
+                `</div>`;
+        }).join('');
+
+        // 계획외: 목표 행이 없는 공사의 실적. %는 없고 금액만 — 이 줄이 있어야 담당자 칸들의 합이 도넛 숫자와 같아진다
+        const unplanned = (v) => (v === null ? '-' : fmt(v));
+        const unplannedHtml = `<div class="mgr-unplanned"><span class="mgr-name-sm">계획외 실적</span>` +
+            `<span>시공 <b>${unplanned(construction.unplannedThousand)}</b></span>` +
+            (showSettle ? `<span>정산 <b>${unplanned(settlement.unplannedThousand)}</b></span>` : '') +
+            `<span class="text-muted">목표에 없는 공사</span></div>`;
+        listEl.innerHTML = rowsHtml + unplannedHtml;
     }
 
     // 캡션의 ' / 목표천원' 조각. 누르면 그 종류의 목표 상세가 열린다.
@@ -496,7 +569,8 @@
         const t = totalProgressState.targets;
         if (!s || !t) return { state: 'nodata' };
         if (!t.settlement.rows.length) return { state: 'notarget' };
-        const value = Math.max(0, Math.min(100, Math.round((s.totalThousand / t.settlement.totalThousand) * 1000) / 10));
+        // 100%에서 자르지 않는다 — 계획을 얼마나 넘겼는지가 다음 달 계획을 고치는 근거다(링은 100%에서 가득 찬다)
+        const value = Math.max(0, Math.round((s.totalThousand / t.settlement.totalThousand) * 1000) / 10);
         return { state: 'ok', value };
     }
 
@@ -507,7 +581,8 @@
         const actual = Number(totalProgressState.actualAmountThousand);
         const target = getConstructionTargetThousand();
         if (target === null || !Number.isFinite(actual)) return null;
-        return Math.max(0, Math.min(100, Math.round((actual / target) * 1000) / 10));
+        // 정산과 같은 이유로 100%에서 자르지 않는다. ERP 장애용 수동 공정률(위)은 사람이 넣는 값이라 0~100 그대로 둔다
+        return Math.max(0, Math.round((actual / target) * 1000) / 10);
     }
 
     function formatKpiUpdatedAt(value) {
@@ -608,6 +683,7 @@
         if (cfg.label) totalProgressState.label = String(cfg.label).trim();
         if (Number.isFinite(progress)) totalProgressState.totalProgress = progress;
         totalProgressState.targets = normalizeTargets(cfg.targets);
+        if (Array.isArray(cfg.managers)) totalProgressState.managers = cfg.managers.map((m) => String(m || '').trim()).filter(Boolean);
         return true;
     }
 
@@ -622,10 +698,36 @@
                     jijungNo: String(r.jijungNo || ''),
                     name: String(r.name || ''),
                     amountThousand: Number(r.amountThousand) || 0,
+                    manager: String(r.manager || '').trim(),
                 }));
             return { rows, totalThousand: rows.reduce((sum, r) => sum + r.amountThousand, 0) };
         };
         return { construction: one(raw.construction), settlement: one(raw.settlement) };
+    }
+
+    // 담당자별 진척(한 종류: 시공 또는 정산).
+    //   목표 = 그 담당자 목표 행의 합
+    //   실적 = 같은 종류 목표 행 중 지중No가 같은 행의 담당자에게 붙인다.
+    //   목표 행이 없는 공사(계획외)의 실적은 unplannedThousand 로 따로 센다 — 담당을 정할 행이 없으니 누구에게도 못 붙인다.
+    //   ('' 칸 = 담당 칸이 생기기 전에 넣은 옛 미지정 행. 새 행은 담당 없이 못 들어온다)
+    // 어느 실적 행도 버리지 않으므로 '담당자 칸들 + 계획외' = actual.totalThousand(도넛 캡션 숫자)다 — 사장님 조건과 같은 규칙.
+    // actual 이 null(못 받음)이면 실적은 null 로 둔다 — 0 으로 두면 '이번 달 실적 0'과 구분이 안 된다.
+    function buildManagerProgress(target, actual) {
+        const ownerByNo = new Map(target.rows.map((r) => [r.jijungNo, r.manager]));
+        const buckets = new Map();
+        const bucket = (name) => {
+            if (!buckets.has(name)) buckets.set(name, { targetThousand: 0, actualThousand: actual ? 0 : null });
+            return buckets.get(name);
+        };
+        target.rows.forEach((r) => { bucket(r.manager).targetThousand += r.amountThousand; });
+        let unplannedThousand = actual ? 0 : null;
+        if (actual) {
+            actual.rows.forEach((r) => {
+                if (ownerByNo.has(r.jijungNo)) bucket(ownerByNo.get(r.jijungNo)).actualThousand += r.amountThousand;
+                else unplannedThousand += r.amountThousand;
+            });
+        }
+        return { buckets, unplannedThousand };
     }
 
     async function loadMonthlyProgressConfigHome() {
