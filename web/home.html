@@ -457,6 +457,40 @@
             line-height: 1.55;
         }
 
+        /* ── 총 공정률 카드(중앙): 왼쪽 도넛 + 오른쪽 담당자별 진척 ── */
+        .tp-split { display: flex; gap: 18px; flex: 1 1 auto; min-height: 0; }
+        .tp-split-donut { flex: 0 0 220px; display: flex; flex-direction: column; justify-content: center; }
+        .tp-split-managers { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid #e3ebf4; padding-left: 16px; }
+        .mgr-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.84rem; color: #1f3045; margin-bottom: 6px; }
+        .mgr-legend { font-size: 0.74rem; color: #4f6278; }
+        .mgr-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding-right: 2px; }
+        .mgr-row { border: 1px solid #e3ebf4; border-radius: 10px; background: #f9fbff; padding: 6px 10px; margin-bottom: 6px; }
+        .mgr-row.unassigned { background: #fff; border-style: dashed; }
+        .mgr-name { font-size: 0.86rem; font-weight: 800; color: #1f3045; display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+        .mgr-name i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+        .mgr-line { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 8px; font-size: 0.76rem; color: #4f6278; }
+        .mgr-bar { height: 8px; border-radius: 999px; background: #e8eef5; overflow: hidden; }
+        .mgr-bar span { display: block; height: 100%; border-radius: 999px; background: #2f8df7; }
+        .mgr-line.settlement .mgr-bar span { background: #2f9e44; }
+        /* 퍼센트·금액 아래에 부족/초과를 한 줄 더 — 한 줄에 다 넣으면 좁은 화면에서 카드 밖으로 잘린다 */
+        .mgr-val { font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+        .mgr-val b { color: #1f3045; font-size: 0.82rem; margin-right: 4px; }
+        .mgr-bar { position: relative; overflow: visible; }
+        .mgr-bar > span { overflow: hidden; }
+        .mgr-goal { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #1f3045; border-radius: 1px; }
+        .mgr-diff { font-size: 0.72rem; font-weight: 700; }
+        .mgr-diff.over { color: #c2410c; }
+        .mgr-diff.short { color: #7a8fa3; }
+        .mgr-unplanned { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: 0.78rem; color: #4f6278; padding: 6px 10px; border: 1px dashed #d5dfeb; border-radius: 10px; }
+        .mgr-unplanned b { color: #1f3045; font-variant-numeric: tabular-nums; }
+        .mgr-name-sm { font-weight: 800; color: #1f3045; }
+
+        /* 자재 현황(오른쪽 좁은 칸): 케이블 1단, 기타 자재 2단, 숫자 타일 축소 */
+        .mat-narrow .cable-cols { column-count: 1; }
+        .mat-narrow .etc-grid { grid-template-columns: 1fr 1fr; }
+        .mat-narrow .cable-stat { padding: 3px 8px; }
+        .mat-narrow .cable-stat .v { font-size: 1.1rem; }
+
         /* ── 총 공정률 상세 팝업 (실적/목표 캡션 클릭) ── */
         /* 캡션 줄을 '눌러도 되는 글자'로 보이게 한다 — 안 그러면 클릭할 수 있는 줄 알 방법이 없다 */
         .tp-clickable {
@@ -925,6 +959,9 @@
             /* 좁은 화면: 케이블 2단 → 1단, 기타 자재 4단 → 2단 */
             .cable-cols { column-count: 1; }
             .etc-grid { grid-template-columns: 1fr 1fr; }
+            .tp-split { flex-direction: column; }
+            .tp-split-donut { flex: 0 0 auto; }
+            .tp-split-managers { border-left: 0; padding-left: 0; }
         }
     </style>
 </head>
@@ -1000,11 +1037,59 @@
                 </div>
             </div>
 
-            <!-- 중앙: 자재 현황 (주시 빈도 1순위 예정 — 접기 없이 전부 노출) + 바로가기 -->
+            <!-- 중앙: 총 공정률(전체 + 담당자별) + 바로가기 -->
             <div class="col-12 col-xl-6">
                 <div class="d-flex flex-column gap-2 h-100">
-                    <!-- 자재 현황 — yjs_erp 자재관리 실시간 연동 (/api/erp/materials, home.js가 렌더) -->
+                    <!-- 총 공정률 — 사장님 요청(2026-10-12)으로 자재 현황과 자리를 바꿨다(자주 보는 쪽을 넓은 중앙에).
+                         왼쪽 = 전체 도넛, 오른쪽 = 담당자별 진척(home.js renderManagerProgressHome) -->
                     <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 76%; min-height: 0;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div id="totalProgressTitle" class="section-title">6월 총 공정률</div>
+                            <span class="badge text-bg-light border">목표 대비</span>
+                        </div>
+                        <div class="tp-split">
+                            <div class="tp-split-donut">
+                                <div id="totalProgressDonut" class="total-progress-donut no-settle">
+                                    <div id="totalProgressInner" class="total-progress-inner"></div>
+                                    <div class="total-progress-center">
+                                        <div class="tp-center-row"><span class="k">시공</span><span id="totalProgressValue" class="total-progress-value">-</span></div>
+                                        <div class="tp-center-row" id="totalProgressSettleRow"><span class="k">정산</span><span id="totalProgressSettleValue" class="total-progress-settle">-</span></div>
+                                    </div>
+                                </div>
+                                <div class="total-progress-legend">
+                                    <span><i class="dot-chip construction"></i>바깥 시공</span>
+                                    <span id="totalProgressLegendSettle"><i class="dot-chip settlement"></i>안쪽 정산</span>
+                                </div>
+                                <div id="totalProgressAmount" class="total-progress-caption" style="margin-top:6px;font-weight:700;color:#1f3045;font-size:0.84rem;line-height:1.6;"></div>
+                            </div>
+                            <div class="tp-split-managers">
+                                <div class="mgr-head">
+                                    <span class="fw-bold">담당자별 진척</span>
+                                    <span class="mgr-legend"><i class="dot-chip construction"></i>시공 <i class="dot-chip settlement"></i>정산</span>
+                                </div>
+                                <div id="managerProgressList" class="mgr-scroll">
+                                    <div class="text-muted small">불러오는 중...</div>
+                                </div>
+                                <div class="cable-foot">담당자 = 관리자 페이지 월간 목표 행에서 지정 · 막대 = 실적 / 그 담당자 목표 합계 · 계획외 = 목표 행이 없는 공사의 실적(담당자 칸들 + 계획외 = 도넛 숫자) · 눈금 = 목표 지점, 오른쪽은 초과분</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 바로가기 (id 유지로 home.js 렌더링 그대로 동작) -->
+                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 24%; min-height: 0;">
+                        <div class="section-title mb-2">바로가기 모음</div>
+                        <div id="homeFrequentSiteList" class="mini-link-grid">
+                            <div class="text-muted small">불러오는 중...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 우: 자재 현황 + 진행중 공사 지도(축소) -->
+            <div class="col-12 col-xl-3">
+                <div class="d-flex flex-column gap-2 h-100">
+                    <!-- 자재 현황 — 2026-10-12 공정률과 자리를 바꿔 오른쪽 좁은 칸으로(mat-narrow: 케이블 1단·기타 자재 2단). yjs_erp 자재관리 실시간 연동 (/api/erp/materials, home.js가 렌더) -->
+                    <div class="home-card p-3 d-flex flex-column mat-narrow" style="flex: 1 1 62%; min-height: 0;">
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                             <div class="d-flex align-items-center gap-3 flex-wrap">
                                 <div class="section-title">자재 현황</div>
@@ -1035,40 +1120,8 @@
                         </div>
                     </div>
 
-                    <!-- 바로가기 (id 유지로 home.js 렌더링 그대로 동작) -->
-                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 24%; min-height: 0;">
-                        <div class="section-title mb-2">바로가기 모음</div>
-                        <div id="homeFrequentSiteList" class="mini-link-grid">
-                            <div class="text-muted small">불러오는 중...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 우: 총 공정률 + 진행중 공사 지도(축소) -->
-            <div class="col-12 col-xl-3">
-                <div class="d-flex flex-column gap-2 h-100">
-                    <div class="home-card p-3" style="flex: 0 0 auto;">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div id="totalProgressTitle" class="section-title">6월 총 공정률</div>
-                            <span class="badge text-bg-light border">목표 대비</span>
-                        </div>
-                        <div id="totalProgressDonut" class="total-progress-donut no-settle">
-                            <div id="totalProgressInner" class="total-progress-inner"></div>
-                            <div class="total-progress-center">
-                                <div class="tp-center-row"><span class="k">시공</span><span id="totalProgressValue" class="total-progress-value">-</span></div>
-                                <div class="tp-center-row" id="totalProgressSettleRow"><span class="k">정산</span><span id="totalProgressSettleValue" class="total-progress-settle">-</span></div>
-                            </div>
-                        </div>
-                        <div class="total-progress-legend">
-                            <span><i class="dot-chip construction"></i>바깥 시공</span>
-                            <span id="totalProgressLegendSettle"><i class="dot-chip settlement"></i>안쪽 정산</span>
-                        </div>
-                        <div id="totalProgressAmount" class="total-progress-caption" style="margin-top:6px;font-weight:700;color:#1f3045;font-size:0.84rem;line-height:1.6;"></div>
-                    </div>
-
-                    <!-- 진행중 공사 지도 — 자재 현황이 중앙으로 오면서 축소 이동 (id 유지로 home.js 그대로 동작) -->
-                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 auto; min-height: 0;">
+                    <!-- 진행중 공사 지도 — 오른쪽 칸에서 자재 현황 아래 (id 유지로 home.js 그대로 동작) -->
+                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 38%; min-height: 0;">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <div class="section-title">진행중 공사 지도</div>
                             <div class="d-flex align-items-center gap-2">
@@ -1215,7 +1268,7 @@
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20260930b"></script>
+    <script src="/home.js?v=20261012c"></script>
 </body>
 
 </html>

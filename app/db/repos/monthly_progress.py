@@ -9,6 +9,10 @@ DEFAULT_TOTAL_PROGRESS = 34.8
 
 TARGET_KINDS = ("construction", "settlement")
 
+# 담당자 선택지(빈 문자열 = 미지정). 사람이 바뀌면 여기 한 줄을 고친다.
+# 홈 지도 핀 색상(home.js MANAGER_STYLE)과 같은 이름이어야 그래프 색이 맞는다.
+TARGET_MANAGERS = ("김무선", "김상훈", "이재규", "김단후")
+
 
 def current_month_key() -> str:
     return date.today().strftime("%Y-%m")
@@ -19,6 +23,15 @@ def month_label(month: str) -> str:
         return f"{int(str(month).split('-')[1])}월"
     except Exception:
         return ""
+
+
+def _require_manager(manager: str) -> str:
+    value = (manager or "").strip()
+    if not value:
+        raise ValueError("담당자를 선택하세요.")
+    if value not in TARGET_MANAGERS:
+        raise ValueError("등록되지 않은 담당자입니다.")
+    return value
 
 
 class MonthlyProgressRepository:
@@ -47,6 +60,8 @@ class MonthlyProgressRepository:
         # 목표 총액은 여기서 합산해 보내지 않는다. 행만 보내고 화면이 행에서 합계를 만든다 —
         # 도넛 분모와 목표 상세 표의 합계가 같은 배열에서 나와야 둘이 갈라질 자리가 없다.
         cfg["targets"] = self.list_target_rows(key)
+        # 관리자 드롭다운과 홈 그래프 순서가 같은 목록에서 나오게 함께 보낸다
+        cfg["managers"] = list(TARGET_MANAGERS)
         return cfg
 
     def list_target_rows(self, month: str) -> Dict[str, List[Dict[str, Any]]]:
@@ -54,7 +69,7 @@ class MonthlyProgressRepository:
         with get_conn(self._db_path) as conn:
             rows = conn.execute(
                 """
-                SELECT id, kind, jijung_no, name, amount_thousand
+                SELECT id, kind, jijung_no, name, amount_thousand, manager
                 FROM monthly_target_rows
                 WHERE month=?
                 ORDER BY id
@@ -68,6 +83,7 @@ class MonthlyProgressRepository:
                 "jijungNo": r["jijung_no"],
                 "name": r["name"],
                 "amountThousand": r["amount_thousand"],
+                "manager": r["manager"] or "",
             })
         return grouped
 
@@ -78,23 +94,26 @@ class MonthlyProgressRepository:
         jijung_no: str,
         name: str,
         amount_thousand: int,
+        manager: str,
         created_by: str = "",
     ) -> Dict[str, List[Dict[str, Any]]]:
         """행 하나를 추가하고 그 달의 목표 행 전체를 돌려준다.
 
         같은 달·같은 종류·같은 지중No가 이미 있으면 sqlite3.IntegrityError 가 올라간다(호출부가 409로 바꾼다).
+        담당자가 없거나 목록 밖이면 ValueError — 담당 없는 행은 홈 담당자별 그래프 어디에도 속하지 못한다.
         """
         if kind not in TARGET_KINDS:
             raise ValueError("kind must be construction or settlement.")
+        manager = _require_manager(manager)
         with get_conn(self._db_path) as conn:
             with conn:
                 conn.execute(
                     """
                     INSERT INTO monthly_target_rows
-                    (month, kind, jijung_no, name, amount_thousand, created_by)
-                    VALUES (?,?,?,?,?,?)
+                    (month, kind, jijung_no, name, amount_thousand, manager, created_by)
+                    VALUES (?,?,?,?,?,?,?)
                     """,
-                    (month, kind, jijung_no.strip(), name.strip(), int(amount_thousand), created_by),
+                    (month, kind, jijung_no.strip(), name.strip(), int(amount_thousand), manager, created_by),
                 )
         return self.list_target_rows(month)
 
@@ -108,6 +127,23 @@ class MonthlyProgressRepository:
                 if not row:
                     return None
                 conn.execute("DELETE FROM monthly_target_rows WHERE id=?", (row_id,))
+        return row["month"]
+
+    def set_target_row_manager(self, row_id: int, manager: str) -> Optional[str]:
+        """행의 담당자만 바꾸고 그 행의 month 를 돌려준다. 없는 id 면 None.
+
+        금액·지중No 는 건드리지 않는다 — 담당 지정이 목표 숫자를 바꿀 자리를 남기지 않는다.
+        미지정으로 되돌리는 길은 없다(추가 때와 같은 규칙). 미지정 행은 칸 추가 전에 있던 옛 행뿐이다.
+        """
+        value = _require_manager(manager)
+        with get_conn(self._db_path) as conn:
+            with conn:
+                row = conn.execute(
+                    "SELECT month FROM monthly_target_rows WHERE id=?", (row_id,)
+                ).fetchone()
+                if not row:
+                    return None
+                conn.execute("UPDATE monthly_target_rows SET manager=? WHERE id=?", (value, row_id))
         return row["month"]
 
     def upsert_config(
