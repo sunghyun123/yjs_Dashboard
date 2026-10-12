@@ -9,9 +9,6 @@ DEFAULT_TOTAL_PROGRESS = 34.8
 
 TARGET_KINDS = ("construction", "settlement")
 
-# 담당자 선택지(빈 문자열 = 미지정). 사람이 바뀌면 여기 한 줄을 고친다.
-# 홈 지도 핀 색상(home.js MANAGER_STYLE)과 같은 이름이어야 그래프 색이 맞는다.
-TARGET_MANAGERS = ("김무선", "김상훈", "이재규", "김단후")
 
 
 def current_month_key() -> str:
@@ -23,15 +20,6 @@ def month_label(month: str) -> str:
         return f"{int(str(month).split('-')[1])}월"
     except Exception:
         return ""
-
-
-def _require_manager(manager: str) -> str:
-    value = (manager or "").strip()
-    if not value:
-        raise ValueError("담당자를 선택하세요.")
-    if value not in TARGET_MANAGERS:
-        raise ValueError("등록되지 않은 담당자입니다.")
-    return value
 
 
 class MonthlyProgressRepository:
@@ -61,8 +49,83 @@ class MonthlyProgressRepository:
         # 도넛 분모와 목표 상세 표의 합계가 같은 배열에서 나와야 둘이 갈라질 자리가 없다.
         cfg["targets"] = self.list_target_rows(key)
         # 관리자 드롭다운과 홈 그래프 순서가 같은 목록에서 나오게 함께 보낸다
-        cfg["managers"] = list(TARGET_MANAGERS)
+        cfg["managers"] = [m["name"] for m in self.list_managers()]
+        cfg["unplannedAssignments"] = self.list_unplanned_assignments(key)
         return cfg
+
+    # ── 담당자 목록 ──
+    def list_managers(self) -> List[Dict[str, Any]]:
+        with get_conn(self._db_path) as conn:
+            rows = conn.execute("SELECT id, name FROM target_managers ORDER BY id").fetchall()
+        return [{"id": r["id"], "name": r["name"]} for r in rows]
+
+    def add_manager(self, name: str) -> List[Dict[str, Any]]:
+        """같은 이름이 있으면 sqlite3.IntegrityError(호출부가 409로 바꾼다)."""
+        value = (name or "").strip()
+        if not value:
+            raise ValueError("담당자 이름을 입력하세요.")
+        with get_conn(self._db_path) as conn:
+            with conn:
+                conn.execute("INSERT INTO target_managers (name) VALUES (?)", (value,))
+        return self.list_managers()
+
+    def delete_manager(self, manager_id: int) -> Optional[List[Dict[str, Any]]]:
+        """목록에서만 지운다. 이미 목표 행·계획외 지정에 적힌 이름은 그대로 둔다 — 지난달 그래프를 보존한다."""
+        with get_conn(self._db_path) as conn:
+            with conn:
+                cur = conn.execute("DELETE FROM target_managers WHERE id=?", (manager_id,))
+        return self.list_managers() if cur.rowcount else None
+
+    def _require_manager(self, manager: str) -> str:
+        value = (manager or "").strip()
+        if not value:
+            raise ValueError("담당자를 선택하세요.")
+        if value not in {m["name"] for m in self.list_managers()}:
+            raise ValueError("등록되지 않은 담당자입니다.")
+        return value
+
+    # ── 계획외 공사 담당 지정 ──
+    def list_unplanned_assignments(self, month: str) -> List[Dict[str, Any]]:
+        with get_conn(self._db_path) as conn:
+            rows = conn.execute(
+                "SELECT jijung_no, manager FROM monthly_unplanned_assignments WHERE month=? ORDER BY id",
+                ((month or "").strip(),),
+            ).fetchall()
+        return [{"jijungNo": r["jijung_no"], "manager": r["manager"]} for r in rows]
+
+    def set_unplanned_assignment(
+        self, month: str, jijung_no: str, manager: str, updated_by: str = ""
+    ) -> List[Dict[str, Any]]:
+        """manager 가 빈 문자열이면 지정을 지운다(그 공사 실적은 다시 '계획외 실적' 줄로 간다).
+
+        목표 행과 달리 미지정으로 되돌리는 길을 열어둔다 — 계획외 실적은 담당이 없는 상태가 정상이기도 하다.
+        """
+        key = (month or "").strip()
+        no = (jijung_no or "").strip()
+        if not no:
+            raise ValueError("지중No가 없습니다.")
+        value = (manager or "").strip()
+        if value:
+            value = self._require_manager(value)
+        with get_conn(self._db_path) as conn:
+            with conn:
+                if not value:
+                    conn.execute(
+                        "DELETE FROM monthly_unplanned_assignments WHERE month=? AND jijung_no=?", (key, no)
+                    )
+                else:
+                    conn.execute(
+                        """
+                        INSERT INTO monthly_unplanned_assignments (month, jijung_no, manager, updated_by, updated_at)
+                        VALUES (?,?,?,?,CURRENT_TIMESTAMP)
+                        ON CONFLICT(month, jijung_no) DO UPDATE SET
+                            manager=excluded.manager,
+                            updated_by=excluded.updated_by,
+                            updated_at=CURRENT_TIMESTAMP
+                        """,
+                        (key, no, value, updated_by),
+                    )
+        return self.list_unplanned_assignments(key)
 
     def list_target_rows(self, month: str) -> Dict[str, List[Dict[str, Any]]]:
         key = (month or "").strip()
@@ -104,7 +167,7 @@ class MonthlyProgressRepository:
         """
         if kind not in TARGET_KINDS:
             raise ValueError("kind must be construction or settlement.")
-        manager = _require_manager(manager)
+        manager = self._require_manager(manager)
         with get_conn(self._db_path) as conn:
             with conn:
                 conn.execute(
@@ -135,7 +198,7 @@ class MonthlyProgressRepository:
         금액·지중No 는 건드리지 않는다 — 담당 지정이 목표 숫자를 바꿀 자리를 남기지 않는다.
         미지정으로 되돌리는 길은 없다(추가 때와 같은 규칙). 미지정 행은 칸 추가 전에 있던 옛 행뿐이다.
         """
-        value = _require_manager(manager)
+        value = self._require_manager(manager)
         with get_conn(self._db_path) as conn:
             with conn:
                 row = conn.execute(

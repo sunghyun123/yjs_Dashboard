@@ -472,15 +472,12 @@
         .mgr-bar { height: 8px; border-radius: 999px; background: #e8eef5; overflow: hidden; }
         .mgr-bar span { display: block; height: 100%; border-radius: 999px; background: #2f8df7; }
         .mgr-line.settlement .mgr-bar span { background: #2f9e44; }
-        /* 퍼센트·금액 아래에 부족/초과를 한 줄 더 — 한 줄에 다 넣으면 좁은 화면에서 카드 밖으로 잘린다 */
-        .mgr-val { font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+        .mgr-val { font-variant-numeric: tabular-nums; white-space: nowrap; }
         .mgr-val b { color: #1f3045; font-size: 0.82rem; margin-right: 4px; }
+        .mgr-extra { margin-left: 6px; color: #7048e8; font-weight: 700; }
         .mgr-bar { position: relative; overflow: visible; }
         .mgr-bar > span { overflow: hidden; }
         .mgr-goal { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #1f3045; border-radius: 1px; }
-        .mgr-diff { font-size: 0.72rem; font-weight: 700; }
-        .mgr-diff.over { color: #c2410c; }
-        .mgr-diff.short { color: #7a8fa3; }
         .mgr-unplanned { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: 0.78rem; color: #4f6278; padding: 6px 10px; border: 1px dashed #d5dfeb; border-radius: 10px; }
         .mgr-unplanned b { color: #1f3045; font-variant-numeric: tabular-nums; }
         .mgr-name-sm { font-weight: 800; color: #1f3045; }
@@ -1070,7 +1067,6 @@
                                 <div id="managerProgressList" class="mgr-scroll">
                                     <div class="text-muted small">불러오는 중...</div>
                                 </div>
-                                <div class="cable-foot">담당자 = 관리자 페이지 월간 목표 행에서 지정 · 막대 = 실적 / 그 담당자 목표 합계 · 계획외 = 목표 행이 없는 공사의 실적(담당자 칸들 + 계획외 = 도넛 숫자) · 눈금 = 목표 지점, 오른쪽은 초과분</div>
                             </div>
                         </div>
                     </div>
@@ -1268,7 +1264,7 @@
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20261012c"></script>
+    <script src="/home.js?v=20261012e"></script>
 </body>
 
 </html>

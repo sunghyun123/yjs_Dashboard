@@ -43,8 +43,10 @@
         // null 은 '아직 못 받음'이고, 행이 0개인 것('목표 미등록')과는 다른 상황이다.
         // 목표 총액은 따로 저장하지 않는다 — 도넛 분모도 팝업 합계도 이 rows 의 합에서만 나온다.
         targets: null,
-        // 담당자 선택지(서버 TARGET_MANAGERS). 그래프는 이 순서로 그리고 '미지정'을 맨 끝에 붙인다.
+        // 담당자 선택지(서버 target_managers 표). 그래프는 이 순서로 그리고 '미지정'을 맨 끝에 붙인다.
         managers: [],
+        // 계획외 공사의 담당 지정 { 지중No → 담당 }. 시공·정산 둘 다 이 담당에게 '+ 계획외'로 붙는다(목표·%에는 안 들어감)
+        unplannedOwner: new Map(),
     };
     // 목표 상세 팝업이 지금 보여주는 종류(시공/정산). 정렬 상태는 tableSortState 에 따로 둔다.
     const targetModalState = { kind: 'construction' };
@@ -58,6 +60,8 @@
         '김단후': { color: '#ae3ec9', short: '단후' },
     };
     const DEFAULT_MANAGER_STYLE = { color: '#64748b', short: '담당' };
+    // 담당자별 진척 그래프에서 MANAGER_STYLE 에 없는 담당자에게 주는 예비 색
+    const EXTRA_MANAGER_COLORS = ['#0ca678', '#f08c00', '#1098ad', '#d6336c', '#5c7cfa', '#868e96'];
 
     // 안양시청 부근 — 키워드 검색 위치 보정 / 지도 초기 중심
     const ANYANG_CENTER = { lat: 37.3943, lng: 126.9568 };
@@ -221,6 +225,7 @@
     }
 
     // 담당자 한 줄(시공 또는 정산). 100%에서 자르지 않는다 — 계획보다 얼마나 부족/초과했는지가 다음 달 계획을 고치는 근거다.
+    // (부족/초과 금액 글씨는 사장님 요청으로 뺐다 — %와 '실적 / 목표'로 읽는다)
     // 넘치면 막대 전체를 실적 기준으로 줄이고, 목표 지점에 세로 눈금을 세운다(눈금 오른쪽이 초과분).
     function buildManagerLineHtml(kindClass, label, cell) {
         const fmt = (n) => Number(n).toLocaleString('ko-KR');
@@ -233,16 +238,11 @@
         const width = pct === null ? 0 : (pct / scale) * 100;
         const marker = pct !== null && pct > 100
             ? `<i class="mgr-goal" style="left:${(100 / scale) * 100}%"></i>` : '';
-        let diffHtml = '';
-        if (pct !== null) {
-            const diff = cell.actualThousand - cell.targetThousand;
-            diffHtml = diff >= 0
-                ? `<span class="mgr-diff over">+${fmt(diff)} 초과</span>`
-                : `<span class="mgr-diff short">${fmt(-diff)} 부족</span>`;
-        }
+        // 계획외 담당분은 %·막대에 넣지 않는다 — 계획 정확도와 실제 일한 양을 따로 읽게(사장님 결정)
+        const extraHtml = cell.unplannedThousand ? `<span class="mgr-extra">+ 계획외 ${fmt(cell.unplannedThousand)}</span>` : '';
         return `<div class="mgr-line ${kindClass}"><span>${label}</span>` +
             `<div class="mgr-bar"><span style="width:${width}%"></span>${marker}</div>` +
-            `<span class="mgr-val"><span><b>${pct === null ? '-' : `${pct}%`}</b>${actualText} / ${cell.targetThousand ? fmt(cell.targetThousand) : '목표 없음'}</span>${diffHtml}</span></div>`;
+            `<span class="mgr-val"><b>${pct === null ? '-' : `${pct}%`}</b>${actualText} / ${cell.targetThousand ? fmt(cell.targetThousand) : '목표 없음'}${extraHtml}</span></div>`;
     }
 
     function renderManagerProgressHome() {
@@ -258,10 +258,11 @@
             return;
         }
         // 대체값 화면(ERP 시공 실적 없음)에선 breakdown 이 null — 실적 '-'로 목표만 보여준다
-        const construction = buildManagerProgress(t.construction, totalProgressState.breakdown);
+        const owner = totalProgressState.unplannedOwner;
+        const construction = buildManagerProgress(t.construction, totalProgressState.breakdown, owner);
         const showSettle = totalProgressState.settlementEnabled;
-        const settlement = buildManagerProgress(t.settlement, showSettle ? totalProgressState.settlement : null);
-        const empty = (actual) => ({ targetThousand: 0, actualThousand: actual ? 0 : null });
+        const settlement = buildManagerProgress(t.settlement, showSettle ? totalProgressState.settlement : null, owner);
+        const empty = (actual) => ({ targetThousand: 0, actualThousand: actual ? 0 : null, unplannedThousand: actual ? 0 : null });
         const cell = (map, name, actual) => map.get(name) || empty(actual);
         const fmt = (n) => Number(n).toLocaleString('ko-KR');
 
@@ -271,8 +272,9 @@
         // 옛 미지정 행이 남아 있을 때만 그 칸을 그린다(관리자 화면에서 지정하면 사라진다) — 안 그리면 그 금액이 합계에서 빠진다
         if (construction.buckets.has('') || settlement.buckets.has('')) names.push('');
 
-        const rowsHtml = names.map((name) => {
-            const color = name ? managerStyle(name).color : '#aab8c6';
+        const rowsHtml = names.map((name, idx) => {
+            // MANAGER_STYLE 에 없는 새 담당자(관리자 화면에서 추가)는 회색이면 구분이 안 되므로 예비 색을 순서대로 준다
+            const color = !name ? '#aab8c6' : (MANAGER_STYLE[name] ? MANAGER_STYLE[name].color : EXTRA_MANAGER_COLORS[idx % EXTRA_MANAGER_COLORS.length]);
             return `<div class="mgr-row${name ? '' : ' unassigned'}">` +
                 `<div class="mgr-name"><i style="background:${color}"></i>${escapeHtml(name || '담당 미지정')}</div>` +
                 buildManagerLineHtml('construction', '시공', cell(construction.buckets, name, totalProgressState.breakdown)) +
@@ -684,6 +686,12 @@
         if (Number.isFinite(progress)) totalProgressState.totalProgress = progress;
         totalProgressState.targets = normalizeTargets(cfg.targets);
         if (Array.isArray(cfg.managers)) totalProgressState.managers = cfg.managers.map((m) => String(m || '').trim()).filter(Boolean);
+        if (Array.isArray(cfg.unplannedAssignments)) {
+            totalProgressState.unplannedOwner = new Map(cfg.unplannedAssignments
+                .filter((a) => a && typeof a === 'object')
+                .map((a) => [String(a.jijungNo || '').trim(), String(a.manager || '').trim()])
+                .filter(([no, m]) => no && m));
+        }
         return true;
     }
 
@@ -706,24 +714,29 @@
     }
 
     // 담당자별 진척(한 종류: 시공 또는 정산).
-    //   목표 = 그 담당자 목표 행의 합
-    //   실적 = 같은 종류 목표 행 중 지중No가 같은 행의 담당자에게 붙인다.
-    //   목표 행이 없는 공사(계획외)의 실적은 unplannedThousand 로 따로 센다 — 담당을 정할 행이 없으니 누구에게도 못 붙인다.
+    //   목표           = 그 담당자 목표 행의 합
+    //   실적(계획분)   = 같은 종류 목표 행 중 지중No가 같은 행의 담당자에게 붙인다 → % 는 이것 / 목표 (계획을 얼마나 지켰나)
+    //   계획외(담당분) = 목표 행이 없는 공사 중 관리자가 담당을 지정한 것 → % 에 넣지 않고 따로 붙인다 (실제로 얼마나 일했나)
+    //   계획외(남은 것) = 담당도 목표도 없는 실적 → unplannedThousand, '계획외 실적' 줄
     //   ('' 칸 = 담당 칸이 생기기 전에 넣은 옛 미지정 행. 새 행은 담당 없이 못 들어온다)
-    // 어느 실적 행도 버리지 않으므로 '담당자 칸들 + 계획외' = actual.totalThousand(도넛 캡션 숫자)다 — 사장님 조건과 같은 규칙.
+    // 어느 실적 행도 버리지 않으므로 '담당자 칸들(계획분+계획외) + 계획외 실적' = actual.totalThousand(도넛 캡션 숫자)다.
     // actual 이 null(못 받음)이면 실적은 null 로 둔다 — 0 으로 두면 '이번 달 실적 0'과 구분이 안 된다.
-    function buildManagerProgress(target, actual) {
+    function buildManagerProgress(target, actual, unplannedOwner) {
         const ownerByNo = new Map(target.rows.map((r) => [r.jijungNo, r.manager]));
         const buckets = new Map();
         const bucket = (name) => {
-            if (!buckets.has(name)) buckets.set(name, { targetThousand: 0, actualThousand: actual ? 0 : null });
+            if (!buckets.has(name)) {
+                buckets.set(name, { targetThousand: 0, actualThousand: actual ? 0 : null, unplannedThousand: actual ? 0 : null });
+            }
             return buckets.get(name);
         };
         target.rows.forEach((r) => { bucket(r.manager).targetThousand += r.amountThousand; });
         let unplannedThousand = actual ? 0 : null;
         if (actual) {
             actual.rows.forEach((r) => {
+                // 목표 행이 우선이다 — 같은 공사가 목표에도 있고 계획외 지정에도 남아 있으면 계획분으로만 센다(두 번 세지 않게)
                 if (ownerByNo.has(r.jijungNo)) bucket(ownerByNo.get(r.jijungNo)).actualThousand += r.amountThousand;
+                else if (unplannedOwner.has(r.jijungNo)) bucket(unplannedOwner.get(r.jijungNo)).unplannedThousand += r.amountThousand;
                 else unplannedThousand += r.amountThousand;
             });
         }
