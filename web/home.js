@@ -45,7 +45,7 @@
         targets: null,
         // 담당자 선택지(서버 target_managers 표). 그래프는 이 순서로 그리고 '미지정'을 맨 끝에 붙인다.
         managers: [],
-        // 계획외 공사의 담당 지정 { 지중No → 담당 }. 시공·정산 둘 다 이 담당에게 '+ 계획외'로 붙는다(목표·%에는 안 들어감)
+        // 계획외 공사의 담당 지정 { 지중No → 담당 }. 시공·정산 둘 다 이 담당의 실적에 합쳐진다(목표에는 안 들어감)
         unplannedOwner: new Map(),
     };
     // 목표 상세 팝업이 지금 보여주는 종류(시공/정산). 정렬 상태는 tableSortState 에 따로 둔다.
@@ -238,11 +238,9 @@
         const width = pct === null ? 0 : (pct / scale) * 100;
         const marker = pct !== null && pct > 100
             ? `<i class="mgr-goal" style="left:${(100 / scale) * 100}%"></i>` : '';
-        // 계획외 담당분은 %·막대에 넣지 않는다 — 계획 정확도와 실제 일한 양을 따로 읽게(사장님 결정)
-        const extraHtml = cell.unplannedThousand ? `<span class="mgr-extra">+ 계획외 ${fmt(cell.unplannedThousand)}</span>` : '';
         return `<div class="mgr-line ${kindClass}"><span>${label}</span>` +
             `<div class="mgr-bar"><span style="width:${width}%"></span>${marker}</div>` +
-            `<span class="mgr-val"><b>${pct === null ? '-' : `${pct}%`}</b>${actualText} / ${cell.targetThousand ? fmt(cell.targetThousand) : '목표 없음'}${extraHtml}</span></div>`;
+            `<span class="mgr-val"><b>${pct === null ? '-' : `${pct}%`}</b>${actualText} / ${cell.targetThousand ? fmt(cell.targetThousand) : '목표 없음'}</span></div>`;
     }
 
     function renderManagerProgressHome() {
@@ -262,7 +260,7 @@
         const construction = buildManagerProgress(t.construction, totalProgressState.breakdown, owner);
         const showSettle = totalProgressState.settlementEnabled;
         const settlement = buildManagerProgress(t.settlement, showSettle ? totalProgressState.settlement : null, owner);
-        const empty = (actual) => ({ targetThousand: 0, actualThousand: actual ? 0 : null, unplannedThousand: actual ? 0 : null });
+        const empty = (actual) => ({ targetThousand: 0, actualThousand: actual ? 0 : null });
         const cell = (map, name, actual) => map.get(name) || empty(actual);
         const fmt = (n) => Number(n).toLocaleString('ko-KR');
 
@@ -715,18 +713,19 @@
 
     // 담당자별 진척(한 종류: 시공 또는 정산).
     //   목표           = 그 담당자 목표 행의 합
-    //   실적(계획분)   = 같은 종류 목표 행 중 지중No가 같은 행의 담당자에게 붙인다 → % 는 이것 / 목표 (계획을 얼마나 지켰나)
-    //   계획외(담당분) = 목표 행이 없는 공사 중 관리자가 담당을 지정한 것 → % 에 넣지 않고 따로 붙인다 (실제로 얼마나 일했나)
-    //   계획외(남은 것) = 담당도 목표도 없는 실적 → unplannedThousand, '계획외 실적' 줄
+    //   실적           = 목표 행의 공사(지중No) 실적 + 관리자가 그 담당자에게 지정한 계획외 공사 실적 → % 는 이것 / 목표
+    //                    (2026-10-13 요청: '+ 계획외'를 따로 적으니 금액이 눈에 안 들어온다 → 실적에 합침.
+    //                     대가: %가 '계획을 얼마나 지켰나'가 아니라 '목표 대비 얼마나 일했나'가 된다)
+    //   계획외(남은 것) = 담당도 목표도 없는 실적 → unplannedThousand, '계획외 실적' 줄 (붙일 담당자가 없어 따로 남긴다)
     //   ('' 칸 = 담당 칸이 생기기 전에 넣은 옛 미지정 행. 새 행은 담당 없이 못 들어온다)
-    // 어느 실적 행도 버리지 않으므로 '담당자 칸들(계획분+계획외) + 계획외 실적' = actual.totalThousand(도넛 캡션 숫자)다.
+    // 어느 실적 행도 버리지 않으므로 '담당자 칸들 + 계획외 실적' = actual.totalThousand(도넛 캡션 숫자)다.
     // actual 이 null(못 받음)이면 실적은 null 로 둔다 — 0 으로 두면 '이번 달 실적 0'과 구분이 안 된다.
     function buildManagerProgress(target, actual, unplannedOwner) {
         const ownerByNo = new Map(target.rows.map((r) => [r.jijungNo, r.manager]));
         const buckets = new Map();
         const bucket = (name) => {
             if (!buckets.has(name)) {
-                buckets.set(name, { targetThousand: 0, actualThousand: actual ? 0 : null, unplannedThousand: actual ? 0 : null });
+                buckets.set(name, { targetThousand: 0, actualThousand: actual ? 0 : null });
             }
             return buckets.get(name);
         };
@@ -736,7 +735,7 @@
             actual.rows.forEach((r) => {
                 // 목표 행이 우선이다 — 같은 공사가 목표에도 있고 계획외 지정에도 남아 있으면 계획분으로만 센다(두 번 세지 않게)
                 if (ownerByNo.has(r.jijungNo)) bucket(ownerByNo.get(r.jijungNo)).actualThousand += r.amountThousand;
-                else if (unplannedOwner.has(r.jijungNo)) bucket(unplannedOwner.get(r.jijungNo)).unplannedThousand += r.amountThousand;
+                else if (unplannedOwner.has(r.jijungNo)) bucket(unplannedOwner.get(r.jijungNo)).actualThousand += r.amountThousand;
                 else unplannedThousand += r.amountThousand;
             });
         }

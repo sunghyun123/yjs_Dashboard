@@ -375,7 +375,7 @@
             --settle: 0;
             --track: #e8eef5;
             width: 100%;
-            max-width: 168px;
+            max-width: 200px;
             aspect-ratio: 1 / 1;
             margin: 0 auto;
             border-radius: 50%;
@@ -424,9 +424,9 @@
         }
 
         .tp-center-row { white-space: nowrap; }
-        .tp-center-row .k { font-size: 0.68rem; font-weight: 700; color: #62758b; margin-right: 3px; }
-        .total-progress-value { font-size: 1.12rem; font-weight: 800; color: #1f5fb8; }
-        .total-progress-settle { font-size: 0.95rem; font-weight: 800; color: #25803a; }
+        .tp-center-row .k { font-size: 0.78rem; font-weight: 700; color: #62758b; margin-right: 3px; }
+        .total-progress-value { font-size: 1.35rem; font-weight: 800; color: #1f5fb8; }
+        .total-progress-settle { font-size: 1.15rem; font-weight: 800; color: #25803a; }
 
         .total-progress-legend {
             display: flex;
@@ -459,26 +459,26 @@
 
         /* ── 총 공정률 카드(중앙): 왼쪽 도넛 + 오른쪽 담당자별 진척 ── */
         .tp-split { display: flex; gap: 18px; flex: 1 1 auto; min-height: 0; }
-        .tp-split-donut { flex: 0 0 220px; display: flex; flex-direction: column; justify-content: center; }
+        .tp-split-donut { flex: 0 0 240px; display: flex; flex-direction: column; justify-content: center; }
         .tp-split-managers { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid #e3ebf4; padding-left: 16px; }
-        .mgr-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.84rem; color: #1f3045; margin-bottom: 6px; }
-        .mgr-legend { font-size: 0.74rem; color: #4f6278; }
-        .mgr-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding-right: 2px; }
-        .mgr-row { border: 1px solid #e3ebf4; border-radius: 10px; background: #f9fbff; padding: 6px 10px; margin-bottom: 6px; }
+        .mgr-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; color: #1f3045; margin-bottom: 8px; }
+        .mgr-legend { font-size: 0.8rem; color: #4f6278; }
+        /* 담당자 칸들이 카드 높이를 나눠 갖는다 — 아래 여백이 남지 않게(칸이 많아 넘치면 그때 스크롤) */
+        .mgr-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; padding-right: 2px; display: flex; flex-direction: column; gap: 8px; }
+        .mgr-row { flex: 1 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 4px; border: 1px solid #e3ebf4; border-radius: 10px; background: #f9fbff; padding: 8px 12px; }
         .mgr-row.unassigned { background: #fff; border-style: dashed; }
-        .mgr-name { font-size: 0.86rem; font-weight: 800; color: #1f3045; display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
-        .mgr-name i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-        .mgr-line { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 8px; font-size: 0.76rem; color: #4f6278; }
-        .mgr-bar { height: 8px; border-radius: 999px; background: #e8eef5; overflow: hidden; }
+        .mgr-name { font-size: 1rem; font-weight: 800; color: #1f3045; display: flex; align-items: center; gap: 7px; }
+        .mgr-name i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+        .mgr-line { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; font-size: 0.9rem; color: #4f6278; }
+        .mgr-bar { height: 12px; border-radius: 999px; background: #e8eef5; overflow: hidden; }
         .mgr-bar span { display: block; height: 100%; border-radius: 999px; background: #2f8df7; }
         .mgr-line.settlement .mgr-bar span { background: #2f9e44; }
-        .mgr-val { font-variant-numeric: tabular-nums; white-space: nowrap; }
-        .mgr-val b { color: #1f3045; font-size: 0.82rem; margin-right: 4px; }
-        .mgr-extra { margin-left: 6px; color: #7048e8; font-weight: 700; }
+        .mgr-val { font-variant-numeric: tabular-nums; white-space: nowrap; color: #2c3e55; font-weight: 600; }
+        .mgr-val b { color: #1f3045; font-size: 1.02rem; margin-right: 6px; }
         .mgr-bar { position: relative; overflow: visible; }
         .mgr-bar > span { overflow: hidden; }
-        .mgr-goal { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #1f3045; border-radius: 1px; }
-        .mgr-unplanned { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: 0.78rem; color: #4f6278; padding: 6px 10px; border: 1px dashed #d5dfeb; border-radius: 10px; }
+        .mgr-goal { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: #1f3045; border-radius: 1px; }
+        .mgr-unplanned { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; font-size: 0.88rem; color: #4f6278; padding: 6px 10px; border: 1px dashed #d5dfeb; border-radius: 10px; }
         .mgr-unplanned b { color: #1f3045; font-variant-numeric: tabular-nums; }
         .mgr-name-sm { font-weight: 800; color: #1f3045; }
 
@@ -1264,7 +1264,7 @@
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20261013a"></script>
+    <script src="/home.js?v=20261013b"></script>
 </body>
 
 </html>
