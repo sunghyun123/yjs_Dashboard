@@ -1469,7 +1469,7 @@
                 renderShortcutGridHome([]);
                 return;
             }
-            const normalized = rows.slice(0, 8).map((row) => ({
+            const normalized = rows.slice(0, 12).map((row) => ({
                 title: row.title || '이름 없는 사이트',
                 url: row.url || '#',
                 icon: '🔗',
