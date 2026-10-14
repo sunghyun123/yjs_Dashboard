@@ -481,6 +481,9 @@
         .mgr-unplanned { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; font-size: 0.88rem; color: #4f6278; padding: 6px 10px; border: 1px dashed #d5dfeb; border-radius: 10px; }
         .mgr-unplanned b { color: #1f3045; font-variant-numeric: tabular-nums; }
         .mgr-name-sm { font-weight: 800; color: #1f3045; }
+        /* 담당자 줄 안의 누르는 숫자 — 칸이 좁아 캡션용 여백을 줄인다 */
+        .mgr-val .tp-clickable, .mgr-unplanned .tp-clickable { padding: 0 3px; margin: 0; }
+        .mgr-val .tp-clickable::after, .mgr-unplanned .tp-clickable::after { margin-left: 2px; }
 
         /* 자재 현황(오른쪽 좁은 칸): 케이블 1단, 기타 자재 2단, 숫자 타일 축소 */
         .mat-narrow .cable-cols { column-count: 1; }
@@ -1264,7 +1267,7 @@
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20261013b"></script>
+    <script src="/home.js?v=20261014a"></script>
 </body>
 
 </html>

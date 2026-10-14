@@ -50,6 +50,8 @@
     };
     // 목표 상세 팝업이 지금 보여주는 종류(시공/정산). 정렬 상태는 tableSortState 에 따로 둔다.
     const targetModalState = { kind: 'construction' };
+    // 상세 팝업 셋이 지금 누구 몫을 보여주는지. type: 'all'(도넛 캡션) | 'manager'(담당자 줄, name) | 'unplanned'(계획외 실적 줄)
+    const detailScopeState = { type: 'all', name: '' };
     // ─────────────────────────────────────────────────────────────────────────
 
     // 담당자별 핀 색상/약칭 (메모리 project-home-renewal 확정값)
@@ -227,10 +229,17 @@
     // 담당자 한 줄(시공 또는 정산). 100%에서 자르지 않는다 — 계획보다 얼마나 부족/초과했는지가 다음 달 계획을 고치는 근거다.
     // (부족/초과 금액 글씨는 사장님 요청으로 뺐다 — %와 '실적 / 목표'로 읽는다)
     // 넘치면 막대 전체를 실적 기준으로 줄이고, 목표 지점에 세로 눈금을 세운다(눈금 오른쪽이 초과분).
-    function buildManagerLineHtml(kindClass, label, cell) {
+    // 실적·목표 숫자는 누르면 그 담당자 몫의 상세가 뜬다(도넛 캡션과 같은 자리 규칙). 보여줄 행이 없는 숫자('-'·'목표 없음')는 누르지 않게 둔다.
+    function buildManagerLineHtml(kindClass, label, cell, name) {
         const fmt = (n) => Number(n).toLocaleString('ko-KR');
         const hasActual = cell.actualThousand !== null;
-        const actualText = hasActual ? fmt(cell.actualThousand) : '-';
+        const scopeAttr = `data-tp-scope="manager" data-tp-mgr="${escapeHtml(name)}"`;
+        const clickable = (open, text) =>
+            `<span class="tp-clickable" role="button" tabindex="0" data-tp-open="${open}" ${scopeAttr}>${text}</span>`;
+        const actualText = hasActual
+            ? clickable(kindClass === 'construction' ? 'actual' : 'settlement', fmt(cell.actualThousand))
+            : '-';
+        const targetText = cell.targetThousand ? clickable(`target-${kindClass}`, fmt(cell.targetThousand)) : '목표 없음';
         const pct = hasActual && cell.targetThousand > 0
             ? Math.round((cell.actualThousand / cell.targetThousand) * 1000) / 10
             : null;
@@ -240,7 +249,7 @@
             ? `<i class="mgr-goal" style="left:${(100 / scale) * 100}%"></i>` : '';
         return `<div class="mgr-line ${kindClass}"><span>${label}</span>` +
             `<div class="mgr-bar"><span style="width:${width}%"></span>${marker}</div>` +
-            `<span class="mgr-val"><b>${pct === null ? '-' : `${pct}%`}</b>${actualText} / ${cell.targetThousand ? fmt(cell.targetThousand) : '목표 없음'}</span></div>`;
+            `<span class="mgr-val"><b>${pct === null ? '-' : `${pct}%`}</b>${actualText} / ${targetText}</span></div>`;
     }
 
     function renderManagerProgressHome() {
@@ -256,10 +265,9 @@
             return;
         }
         // 대체값 화면(ERP 시공 실적 없음)에선 breakdown 이 null — 실적 '-'로 목표만 보여준다
-        const owner = totalProgressState.unplannedOwner;
-        const construction = buildManagerProgress(t.construction, totalProgressState.breakdown, owner);
+        const construction = getManagerProgress('construction');
         const showSettle = totalProgressState.settlementEnabled;
-        const settlement = buildManagerProgress(t.settlement, showSettle ? totalProgressState.settlement : null, owner);
+        const settlement = getManagerProgress('settlement');
         const empty = (actual) => ({ targetThousand: 0, actualThousand: actual ? 0 : null });
         const cell = (map, name, actual) => map.get(name) || empty(actual);
         const fmt = (n) => Number(n).toLocaleString('ko-KR');
@@ -275,16 +283,19 @@
             const color = !name ? '#aab8c6' : (MANAGER_STYLE[name] ? MANAGER_STYLE[name].color : EXTRA_MANAGER_COLORS[idx % EXTRA_MANAGER_COLORS.length]);
             return `<div class="mgr-row${name ? '' : ' unassigned'}">` +
                 `<div class="mgr-name"><i style="background:${color}"></i>${escapeHtml(name || '담당 미지정')}</div>` +
-                buildManagerLineHtml('construction', '시공', cell(construction.buckets, name, totalProgressState.breakdown)) +
-                (showSettle ? buildManagerLineHtml('settlement', '정산', cell(settlement.buckets, name, totalProgressState.settlement)) : '') +
+                buildManagerLineHtml('construction', '시공', cell(construction.buckets, name, totalProgressState.breakdown), name) +
+                (showSettle ? buildManagerLineHtml('settlement', '정산', cell(settlement.buckets, name, totalProgressState.settlement), name) : '') +
                 `</div>`;
         }).join('');
 
         // 계획외: 목표 행이 없는 공사의 실적. %는 없고 금액만 — 이 줄이 있어야 담당자 칸들의 합이 도넛 숫자와 같아진다
-        const unplanned = (v) => (v === null ? '-' : fmt(v));
+        // 누르면 담당도 목표도 없는 공사만 모은 상세가 뜬다 — 관리자 화면에서 누구에게 지정할지 고를 때 보는 목록
+        const unplanned = (open, label, v) => (v === null
+            ? `<span>${label} <b>-</b></span>`
+            : `<span class="tp-clickable" role="button" tabindex="0" data-tp-open="${open}" data-tp-scope="unplanned">${label} <b>${fmt(v)}</b></span>`);
         const unplannedHtml = `<div class="mgr-unplanned"><span class="mgr-name-sm">계획외 실적</span>` +
-            `<span>시공 <b>${unplanned(construction.unplannedThousand)}</b></span>` +
-            (showSettle ? `<span>정산 <b>${unplanned(settlement.unplannedThousand)}</b></span>` : '') +
+            unplanned('actual', '시공', construction.unplannedThousand) +
+            (showSettle ? unplanned('settlement', '정산', settlement.unplannedThousand) : '') +
             `<span class="text-muted">목표에 없는 공사</span></div>`;
         listEl.innerHTML = rowsHtml + unplannedHtml;
     }
@@ -316,13 +327,35 @@
         return `<span class="tp-days">${text}</span>`;
     }
 
+    // 팝업 제목에 끼울 '누구 몫' 글자. 전체면 빈 문자열.
+    function detailScopeText() {
+        if (detailScopeState.type === 'manager') return `${detailScopeState.name || '담당 미지정'} `;
+        if (detailScopeState.type === 'unplanned') return '계획외 ';
+        return '';
+    }
+
+    // 지금 범위에 해당하는 행. 담당자·계획외는 그래프가 쓰는 getManagerProgress 의 목록을 그대로 꺼낸다 — 거르는 규칙을 여기서 다시 쓰지 않는다.
+    //   kind:  'construction' | 'settlement'
+    //   which: 'actual'(실적 행) | 'target'(목표 행)
+    //   allRows: 전체 범위일 때 쓸 원본 행
+    function scopedDetailRows(kind, which, allRows) {
+        if (detailScopeState.type === 'all') return allRows;
+        const progress = getManagerProgress(kind);
+        if (!progress) return [];
+        if (detailScopeState.type === 'unplanned') return which === 'actual' ? progress.unplannedRows : [];
+        const b = progress.buckets.get(detailScopeState.name);
+        if (!b) return [];
+        return which === 'actual' ? b.actualRows : b.targetRows;
+    }
+
     function renderProgressActualModal() {
         const label = totalProgressState.label || '';
         const titleEl = document.getElementById('progressActualTitle');
         const subEl = document.getElementById('progressActualSub');
         const bodyEl = document.getElementById('progressActualBody');
         if (!bodyEl) return;
-        if (titleEl) titleEl.textContent = totalProgressState.actualFromErp ? `${label} 시공 상세` : `${label} 실적 상세`;
+        const who = detailScopeText();
+        if (titleEl) titleEl.textContent = totalProgressState.actualFromErp ? `${label} ${who}시공 상세` : `${label} ${who}실적 상세`;
         if (subEl) subEl.textContent = `ERP 최신화 ${totalProgressState.updatedAt || '-'}`;
 
         const breakdown = totalProgressState.breakdown;
@@ -333,12 +366,14 @@
             return;
         }
         // 반대로 진짜로 0건인 달은 그렇게 말한다. 위 에러 문구를 재활용하면 없는 고장을 있다고 하는 것.
-        if (breakdown.rows.length === 0) {
-            bodyEl.innerHTML = `<div class="tp-empty">${escapeHtml(label)}에 등록된 실적이 아직 없습니다.</div>`;
+        // 합계는 보여주는 행의 합으로 다시 만든다 — 전체면 도넛 캡션 숫자, 담당자면 그 막대의 실적 숫자와 같은 배열에서 나온다
+        const rows = scopedDetailRows('construction', 'actual', breakdown.rows);
+        if (rows.length === 0) {
+            bodyEl.innerHTML = `<div class="tp-empty">${escapeHtml(label)} ${escapeHtml(who)}실적이 아직 없습니다.</div>`;
             return;
         }
 
-        const rowsHtml = sortDetailRows(breakdown.rows, 'actual').map((r) => `<tr>` +
+        const rowsHtml = sortDetailRows(rows, 'actual').map((r) => `<tr>` +
             `<td class="tp-no">${escapeHtml(r.jijungNo)}</td>` +
             `<td class="tp-name">${escapeHtml(r.name)}${buildProgressDaysHtml(r)}</td>` +
             `<td class="tp-amt ${r.amountThousand < 0 ? 'minus' : ''}">` +
@@ -355,9 +390,9 @@
                 `<tbody>${rowsHtml}</tbody>` +
             `</table></div>` +
             `<div class="tp-foot">` +
-                `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${breakdown.rows.length}건)</span>` +
+                `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${rows.length}건)</span>` +
                     `<span class="match">       </span></span>` +
-                `<span class="v">${breakdown.totalThousand.toLocaleString('ko-KR')} 천원</span>` +
+                `<span class="v">${sumThousand(rows).toLocaleString('ko-KR')} 천원</span>` +
             `</div>`;
     }
 
@@ -367,7 +402,8 @@
         const subEl = document.getElementById('progressSettlementSub');
         const bodyEl = document.getElementById('progressSettlementBody');
         if (!bodyEl) return;
-        if (titleEl) titleEl.textContent = `${label} 정산 상세`;
+        const who = detailScopeText();
+        if (titleEl) titleEl.textContent = `${label} ${who}정산 상세`;
         if (subEl) subEl.textContent = `기성·준공 계산서 · ERP 최신화 ${totalProgressState.updatedAt || '-'}`;
 
         const s = totalProgressState.settlement;
@@ -376,12 +412,14 @@
             return;
         }
         // 진짜로 0건인 달은 그렇게 말한다 — 위 에러 문구를 재활용하면 없는 고장을 있다고 하는 것
-        if (s.rows.length === 0) {
-            bodyEl.innerHTML = `<div class="tp-empty">${escapeHtml(label)}에 끊은 계산서가 아직 없습니다.</div>`;
+        // 합계는 보여주는 행의 합 — 담당자 범위면 그 담당자 정산 막대의 실적 숫자와 같은 배열이다
+        const rows = scopedDetailRows('settlement', 'actual', s.rows);
+        if (rows.length === 0) {
+            bodyEl.innerHTML = `<div class="tp-empty">${escapeHtml(label)} ${escapeHtml(who)}끊은 계산서가 아직 없습니다.</div>`;
             return;
         }
 
-        const rowsHtml = sortDetailRows(s.rows, 'settlement').map((r) => `<tr>` +
+        const rowsHtml = sortDetailRows(rows, 'settlement').map((r) => `<tr>` +
             `<td class="tp-no">${escapeHtml(r.jijungNo)}</td>` +
             `<td class="tp-name">${escapeHtml(r.name)}</td>` +
             `<td class="tp-kind">${escapeHtml(r.kind)}</td>` +
@@ -402,9 +440,9 @@
                 `<tbody>${rowsHtml}</tbody>` +
             `</table></div>` +
             `<div class="tp-foot">` +
-                `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${s.rows.length}건)</span>` +
+                `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${rows.length}건)</span>` +
                     `<span class="match">       </span></span>` +
-                `<span class="v">${s.totalThousand.toLocaleString('ko-KR')} 천원</span>` +
+                `<span class="v">${sumThousand(rows).toLocaleString('ko-KR')} 천원</span>` +
             `</div>`;
     }
 
@@ -462,7 +500,8 @@
         const titleEl = document.getElementById('progressTargetTitle');
         const bodyEl = document.getElementById('progressTargetBody');
         if (!bodyEl) return;
-        if (titleEl) titleEl.textContent = `${label} ${kindText} 목표 상세`;
+        const who = detailScopeText();
+        if (titleEl) titleEl.textContent = `${label} ${who}${kindText} 목표 상세`;
 
         const t = totalProgressState.targets;
         if (!t) {
@@ -476,7 +515,14 @@
             return;
         }
 
-        const rowsHtml = sortDetailRows(target.rows, 'target').map((r) => `<tr>` +
+        // 담당자 범위면 그 담당자 목표 행만 — 합계가 막대의 목표 숫자와 같은 배열에서 나온다
+        const rows = scopedDetailRows(kind, 'target', target.rows);
+        if (rows.length === 0) {
+            bodyEl.innerHTML = `<div class="tp-empty">${escapeHtml(label)} ${escapeHtml(who)}${kindText} 목표 행이 없습니다.</div>`;
+            return;
+        }
+
+        const rowsHtml = sortDetailRows(rows, 'target').map((r) => `<tr>` +
             `<td class="tp-no">${escapeHtml(r.jijungNo)}</td>` +
             `<td class="tp-name">${escapeHtml(r.name)}</td>` +
             `<td class="tp-amt">${r.amountThousand.toLocaleString('ko-KR')}</td>` +
@@ -492,12 +538,16 @@
                 `<tbody>${rowsHtml}</tbody>` +
             `</table></div>` +
             `<div class="tp-foot">` +
-                `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${target.rows.length}건)</span></span>` +
-                `<span class="v">${target.totalThousand.toLocaleString('ko-KR')} 천원</span>` +
+                `<span class="lb">합계 <span style="font-weight:500;color:#4a7ab5;">(${rows.length}건)</span></span>` +
+                `<span class="v">${sumThousand(rows).toLocaleString('ko-KR')} 천원</span>` +
             `</div>`;
     }
 
-    function openProgressDetail(which) {
+    // scopeEl: 누른 글자. data-tp-scope 가 없으면(도넛 캡션) 전체 범위로 연다 — 직전에 담당자 팝업을 열었어도 범위가 남지 않게.
+    function openProgressDetail(which, scopeEl) {
+        const scope = scopeEl && scopeEl.dataset.tpScope;
+        detailScopeState.type = scope === 'manager' || scope === 'unplanned' ? scope : 'all';
+        detailScopeState.name = scope === 'manager' ? (scopeEl.dataset.tpMgr || '') : '';
         if (which === 'actual') {
             renderProgressActualModal();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('progressActualModal')).show();
@@ -534,18 +584,21 @@
                     toggleDetailSort(table, th.dataset.tpSort);
                 });
             });
-        const amtEl = document.getElementById('totalProgressAmount');
-        if (!amtEl) return;
-        amtEl.addEventListener('click', (e) => {
-            const el = e.target.closest('[data-tp-open]');
-            if (el) openProgressDetail(el.dataset.tpOpen);
-        });
-        amtEl.addEventListener('keydown', (e) => {
-            if (e.key !== 'Enter' && e.key !== ' ') return;
-            const el = e.target.closest('[data-tp-open]');
-            if (!el) return;
-            e.preventDefault();
-            openProgressDetail(el.dataset.tpOpen);
+        // 도넛 캡션과 담당자 그래프(계획외 줄 포함). 둘 다 innerHTML 로 다시 그려지므로 바뀌지 않는 부모에 건다
+        ['totalProgressAmount', 'managerProgressList'].forEach((id) => {
+            const host = document.getElementById(id);
+            if (!host) return;
+            host.addEventListener('click', (e) => {
+                const el = e.target.closest('[data-tp-open]');
+                if (el) openProgressDetail(el.dataset.tpOpen, el);
+            });
+            host.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                const el = e.target.closest('[data-tp-open]');
+                if (!el) return;
+                e.preventDefault();
+                openProgressDetail(el.dataset.tpOpen, el);
+            });
         });
     }
 
@@ -720,26 +773,45 @@
     //   ('' 칸 = 담당 칸이 생기기 전에 넣은 옛 미지정 행. 새 행은 담당 없이 못 들어온다)
     // 어느 실적 행도 버리지 않으므로 '담당자 칸들 + 계획외 실적' = actual.totalThousand(도넛 캡션 숫자)다.
     // actual 이 null(못 받음)이면 실적은 null 로 둔다 — 0 으로 두면 '이번 달 실적 0'과 구분이 안 된다.
+    // 칸마다 금액뿐 아니라 그 금액을 만든 행 목록(targetRows·actualRows)도 담는다 — 담당자별 상세 팝업은 이 목록을 그대로 그린다.
+    // 금액은 목록의 합으로만 만들므로 '막대 숫자 = 팝업 합계'가 계산이 아니라 구조로 보장된다(규칙이 이 함수 하나에만 산다).
     function buildManagerProgress(target, actual, unplannedOwner) {
         const ownerByNo = new Map(target.rows.map((r) => [r.jijungNo, r.manager]));
         const buckets = new Map();
         const bucket = (name) => {
-            if (!buckets.has(name)) {
-                buckets.set(name, { targetThousand: 0, actualThousand: actual ? 0 : null });
-            }
+            if (!buckets.has(name)) buckets.set(name, { targetRows: [], actualRows: [] });
             return buckets.get(name);
         };
-        target.rows.forEach((r) => { bucket(r.manager).targetThousand += r.amountThousand; });
-        let unplannedThousand = actual ? 0 : null;
+        target.rows.forEach((r) => { bucket(r.manager).targetRows.push(r); });
+        const unplannedRows = [];
         if (actual) {
             actual.rows.forEach((r) => {
                 // 목표 행이 우선이다 — 같은 공사가 목표에도 있고 계획외 지정에도 남아 있으면 계획분으로만 센다(두 번 세지 않게)
-                if (ownerByNo.has(r.jijungNo)) bucket(ownerByNo.get(r.jijungNo)).actualThousand += r.amountThousand;
-                else if (unplannedOwner.has(r.jijungNo)) bucket(unplannedOwner.get(r.jijungNo)).actualThousand += r.amountThousand;
-                else unplannedThousand += r.amountThousand;
+                if (ownerByNo.has(r.jijungNo)) bucket(ownerByNo.get(r.jijungNo)).actualRows.push(r);
+                else if (unplannedOwner.has(r.jijungNo)) bucket(unplannedOwner.get(r.jijungNo)).actualRows.push(r);
+                else unplannedRows.push(r);
             });
         }
-        return { buckets, unplannedThousand };
+        buckets.forEach((b) => {
+            b.targetThousand = sumThousand(b.targetRows);
+            b.actualThousand = actual ? sumThousand(b.actualRows) : null;
+        });
+        return { buckets, unplannedRows, unplannedThousand: actual ? sumThousand(unplannedRows) : null };
+    }
+
+    function sumThousand(rows) {
+        return rows.reduce((sum, r) => sum + r.amountThousand, 0);
+    }
+
+    // 한 종류(시공/정산)의 담당자별 진척. 그래프와 상세 팝업이 둘 다 이 호출을 거친다 — 입력(실적 원본)이 갈리지 않게.
+    // 대체값 화면(ERP 시공 실적 없음)에선 breakdown 이 null, 정산을 안 받는 화면에선 정산 실적이 null 이다.
+    function getManagerProgress(kind) {
+        const t = totalProgressState.targets;
+        if (!t) return null;
+        const actual = kind === 'construction'
+            ? totalProgressState.breakdown
+            : (totalProgressState.settlementEnabled ? totalProgressState.settlement : null);
+        return buildManagerProgress(t[kind], actual, totalProgressState.unplannedOwner);
     }
 
     async function loadMonthlyProgressConfigHome() {
