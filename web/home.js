@@ -39,6 +39,12 @@
         settlement: null,
         // split.construction 을 받았을 때만 true — 대체값으로 그리는 중에는 정산 줄 자체를 안 그린다
         settlementEnabled: false,
+        // ERP split 의 달('YYYY-MM')과 집계 기간 [from, to). 달력 월이 아니라 금요일 기준 주차의 달이다
+        // (ERP 공무 화면·주간업무 보고서와 같은 규칙 — 9/28(월)부터 10월). 목표도 이 달로 불러온다.
+        // '' 이면 옛 ERP·대체값 — 목표는 서버의 달력 월로 불러온다.
+        erpMonth: '',
+        periodFrom: '',
+        periodTo: '',
         // 관리자 페이지에서 넣은 그 달 목표 행. { construction:{rows,totalThousand}, settlement:{...} }
         // null 은 '아직 못 받음'이고, 행이 0개인 것('목표 미등록')과는 다른 상황이다.
         // 목표 총액은 따로 저장하지 않는다 — 도넛 분모도 팝업 합계도 이 rows 의 합에서만 나온다.
@@ -313,18 +319,49 @@
 
     // ══════════ 총 공정률 실적 상세 팝업 ══════════
 
-    // 공사명 아래 진행 날짜 한 줄. 월은 카드 제목에 이미 있으므로 '일'만 적는다.
+    // 날짜 한 칸의 표기. 기간이 금요일 기준 주차라 달을 넘나든다(9월 표에 8/31) —
+    // 카드 제목의 달과 같은 날짜는 '일'만, 다른 달 날짜는 '월/일'로 적어 31일이 어느 달인지 헷갈리지 않게 한다.
+    function formatPeriodDay(ymd) {
+        const m = Number(ymd.slice(5, 7));
+        const d = Number(ymd.slice(8, 10));
+        const month = totalProgressState.erpMonth;
+        return month && ymd.slice(0, 7) !== month ? `${m}/${d}` : String(d);
+    }
+
+    // 정산 표의 '일' 칸. 같은 달이면 '23일', 다른 달 계산서(주차 기간이 달을 넘음)면 '8/31'. 옛 ERP 응답이면 day 로.
+    function formatSettlementDay(r) {
+        if (r.date) {
+            const text = formatPeriodDay(r.date);
+            return text.includes('/') ? text : `${text}일`;
+        }
+        return r.day === null ? '' : `${r.day}일`;
+    }
+
+    // 공사명 아래 진행 날짜 한 줄.
     // 날짜가 없으면(그 달 작업 없이 준공만 반영된 공사) 줄 자체를 안 그린다 — 빈 줄도 시선을 뺏는다.
     function buildProgressDaysHtml(row) {
-        const days = row.days || [];
-        if (!days.length) return '';
-        const nightSet = new Set(row.nightDays || []);
-        const text = days
-            .map((d) => (nightSet.has(d)
-                ? `<span class="night">${d}(야간)</span>`
-                : `<span class="n">${d}</span>`))
+        // 전체 날짜(dates)가 있으면 그것으로, 옛 ERP 응답이면 '일'(days)로 그린다
+        const items = (row.dates && row.dates.length)
+            ? row.dates.map((ymd) => ({ text: formatPeriodDay(ymd), night: row.nightDates.includes(ymd) }))
+            : (row.days || []).map((d) => ({ text: String(d), night: (row.nightDays || []).includes(d) }));
+        if (!items.length) return '';
+        const text = items
+            .map((it) => (it.night
+                ? `<span class="night">${it.text}(야간)</span>`
+                : `<span class="n">${it.text}</span>`))
             .join('<span class="n">, </span>');
         return `<span class="tp-days">${text}</span>`;
+    }
+
+    // 팝업 부제에 붙일 집계 기간. 달력 월과 다르다는 걸 그 자리에서 말한다 — 안 그러면 ERP 홈 KPI(달력 월)와 숫자가 달라 보일 때 이유를 알 길이 없다.
+    function periodSubText() {
+        const { periodFrom: from, periodTo: to } = totalProgressState;
+        if (!from || !to) return '';
+        // to 는 미포함 — 마지막 날은 그 전날(일요일)이다. 날짜 산술은 UTC 자정에서만 해 기기 시간대에 흔들리지 않게 한다
+        const last = new Date(`${to}T00:00:00Z`);
+        last.setUTCDate(last.getUTCDate() - 1);
+        const md = (ymd) => `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
+        return ` · 기간 ${md(from)}~${md(last.toISOString().slice(0, 10))} (금요일 기준 주차)`;
     }
 
     // 팝업 제목에 끼울 '누구 몫' 글자. 전체면 빈 문자열.
@@ -356,7 +393,7 @@
         if (!bodyEl) return;
         const who = detailScopeText();
         if (titleEl) titleEl.textContent = totalProgressState.actualFromErp ? `${label} ${who}시공 상세` : `${label} ${who}실적 상세`;
-        if (subEl) subEl.textContent = `ERP 최신화 ${totalProgressState.updatedAt || '-'}`;
+        if (subEl) subEl.textContent = `ERP 최신화 ${totalProgressState.updatedAt || '-'}${periodSubText()}`;
 
         const breakdown = totalProgressState.breakdown;
         // 못 불러온 경우 빈 표를 띄우지 않는다 — 빈 표는 "실적이 0건"과 화면상 구분이 안 된다.
@@ -404,7 +441,7 @@
         if (!bodyEl) return;
         const who = detailScopeText();
         if (titleEl) titleEl.textContent = `${label} ${who}정산 상세`;
-        if (subEl) subEl.textContent = `기성·준공 계산서 · ERP 최신화 ${totalProgressState.updatedAt || '-'}`;
+        if (subEl) subEl.textContent = `기성·준공 계산서 · ERP 최신화 ${totalProgressState.updatedAt || '-'}${periodSubText()}`;
 
         const s = totalProgressState.settlement;
         if (!s) {
@@ -423,7 +460,7 @@
             `<td class="tp-no">${escapeHtml(r.jijungNo)}</td>` +
             `<td class="tp-name">${escapeHtml(r.name)}</td>` +
             `<td class="tp-kind">${escapeHtml(r.kind)}</td>` +
-            `<td class="tp-kind" style="text-align:right;">${r.day === null ? '' : `${r.day}일`}</td>` +
+            `<td class="tp-kind" style="text-align:right;">${formatSettlementDay(r)}</td>` +
             `<td class="tp-amt ${r.amountThousand < 0 ? 'minus' : ''}">` +
                 `${r.amountThousand.toLocaleString('ko-KR')}</td>` +
             `</tr>`).join('');
@@ -664,6 +701,9 @@
         totalProgressState.breakdown = null;
         totalProgressState.settlement = null;
         totalProgressState.settlementEnabled = false;
+        totalProgressState.erpMonth = '';
+        totalProgressState.periodFrom = '';
+        totalProgressState.periodTo = '';
     }
 
     function applyErpMonthlyKpi(data) {
@@ -675,7 +715,15 @@
         const construction = normalizeBreakdown(split && split.construction);
         if (!construction) return false;
 
-        totalProgressState.label = String(data.label || totalProgressState.label || '6월').trim();
+        // split.month 는 금요일 기준 주차의 달이다. data.label 은 달력 월(ERP 홈 KPI용)이라 9/28~30 엔 한 달 어긋난다 —
+        // split.month 가 있으면 제목도 그 달로 쓴다(그 달 목표를 불러오면 관리자가 정한 라벨로 다시 덮인다)
+        const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(split.month || '')) ? split.month : '';
+        totalProgressState.erpMonth = month;
+        totalProgressState.periodFrom = month ? toDateStrings([split.from])[0] || '' : '';
+        totalProgressState.periodTo = month ? toDateStrings([split.to])[0] || '' : '';
+        totalProgressState.label = month
+            ? `${Number(month.slice(5, 7))}월`
+            : String(data.label || totalProgressState.label || '6월').trim();
         totalProgressState.actualAmountThousand = construction.totalThousand;
         totalProgressState.actualFromErp = true;
         totalProgressState.actualDetailText = '';
@@ -690,6 +738,12 @@
     function toDayNumbers(value) {
         if (!Array.isArray(value)) return [];
         return value.map(Number).filter((d) => Number.isInteger(d) && d >= 1 && d <= 31);
+    }
+
+    // 'YYYY-MM-DD' 모양만 남긴다 — 화면(innerHTML)에 찍히는 값이라 태그가 될 문자열이 들어올 자리를 남기지 않는다
+    function toDateStrings(value) {
+        if (!Array.isArray(value)) return [];
+        return value.map((v) => String(v || '')).filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s));
     }
 
     // 서버가 이미 모양을 맞춰 보내지만, 여기서도 총액을 '행의 합'으로 다시 만든다.
@@ -707,6 +761,9 @@
             // 문자열이 이 경로로 들어올 자리를 아예 남기지 않는다.
             days: toDayNumbers(r.days),
             nightDays: toDayNumbers(r.nightDays),
+            // 주차 기간은 달을 넘나든다 — 어느 달의 31일인지 그리려면 전체 날짜가 필요하다(옛 ERP면 빈 배열 → days 로 그림)
+            dates: toDateStrings(r.dates),
+            nightDates: toDateStrings(r.nightDates),
         }));
         return { rows, totalThousand: rows.reduce((sum, r) => sum + r.amountThousand, 0) };
     }
@@ -723,6 +780,7 @@
                 kind: String(r.kind || ''),
                 // innerHTML 로 들어가는 값이라 숫자로 못 박는다(서버가 이미 걸렀어도 자리를 남기지 않는다)
                 day: day.length ? day[0] : null,
+                date: toDateStrings([r.date])[0] || '',
                 amountThousand: Number(r.amountThousand) || 0,
             };
         });
@@ -814,12 +872,15 @@
         return buildManagerProgress(t[kind], actual, totalProgressState.unplannedOwner);
     }
 
+    // 목표는 ERP 가 정한 달(금요일 기준 주차의 달)로 부른다 — 서버의 달력 월로 부르면 9/28~30 에 10월 실적 / 9월 목표가 된다.
+    // erpMonth 가 비면(옛 ERP·대체값) 서버 기본(달력 월)으로 부른다.
     async function loadMonthlyProgressConfigHome() {
         try {
-            const res = await fetch(MONTHLY_PROGRESS_CONFIG_API);
+            const month = totalProgressState.erpMonth;
+            const url = month ? `${MONTHLY_PROGRESS_CONFIG_API}?month=${encodeURIComponent(month)}` : MONTHLY_PROGRESS_CONFIG_API;
+            const res = await fetch(url);
             if (!res.ok) throw new Error('monthly progress config unavailable');
-            const data = await res.json();
-            if (applyMonthlyProgressConfig(data)) renderTotalProgressChartHome();
+            applyMonthlyProgressConfig(await res.json());
         } catch (_e) {
             // Keep built-in fallback config.
         }
@@ -832,10 +893,17 @@
             const data = await res.json();
             // 응답은 왔지만 시공 실적이 없으면 앞선 성공의 잔재를 걷어내고 대체값으로 다시 그린다
             if (!applyErpMonthlyKpi(data)) resetErpMonthlyKpiToFallback();
-            renderTotalProgressChartHome();
         } catch (_e) {
             // Keep the initial hardcoded fallback when ERP is unavailable.
         }
+    }
+
+    // 실적을 먼저 받아 달을 정하고, 그 달의 목표를 받은 뒤 한 번만 그린다.
+    // 둘을 따로 그리면 달이 바뀌는 순간 '새 달 실적 / 옛 달 목표'인 도넛이 잠깐 그려진다.
+    async function loadTotalProgressHome() {
+        await loadErpMonthlyKpiHome();
+        await loadMonthlyProgressConfigHome();
+        renderTotalProgressChartHome();
     }
 
     // ═══════════════════════════ 자재 현황 (ERP 실시간) ═══════════════════════════
@@ -1568,16 +1636,14 @@
         updateNowLabel();
         await fetchMeAndPaint();
         renderTotalProgressChartHome();
-        loadMonthlyProgressConfigHome();
-        loadErpMonthlyKpiHome();
+        loadTotalProgressHome();
         loadMaterialsHome();
         renderWeatherPlaceholder();
         initMapHome();
         await Promise.all([loadWorkerStatusHome(), loadFrequentSitesHome(), loadWeatherHome()]);
         setInterval(() => {
             updateNowLabel();
-            loadMonthlyProgressConfigHome();
-            loadErpMonthlyKpiHome();
+            loadTotalProgressHome();
             loadMaterialsHome();
             loadWorkerStatusHome();
             loadFrequentSitesHome();
