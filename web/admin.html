@@ -573,7 +573,7 @@
     // 계획외 지정 목록을 만들 재료. 목표 행이 바뀌면(추가/삭제) '목표에 없는 공사'도 바뀌므로 표를 다시 그린다
     let adminTargets = { construction: [], settlement: [] };
     let adminUnplannedAssignments = [];
-    // ERP 이번 달 실적({label, construction rows, settlement rows}). null = 못 받음
+    // ERP 이번 달 실적({month, label, construction rows, settlement rows}). month = 금요일 기준 주차의 달. null = 못 받음
     let adminErpActual = null;
 
     function buildManagerSelectHtml(row) {
@@ -687,8 +687,12 @@
             const split = data && data.split && typeof data.split === 'object' ? data.split : null;
             const rowsOf = (part) => (part && Array.isArray(part.rows) ? part.rows : null);
             const construction = rowsOf(split && split.construction);
+            // 실적이 어느 달 것인지는 split.month(금요일 기준 주차의 달)로 정한다. data.label 은 달력 월이라
+            // 9/28~30 엔 '9월'인데 행은 10월 주차 실적이다 — 라벨로 맞추면 10월 실적이 9월 계획외 후보로 보인다.
+            // 옛 ERP(split.month 없음)는 예전처럼 달력 월로 본다.
+            const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String((split && split.month) || '')) ? split.month : currentMonthValue();
             adminErpActual = construction
-                ? { label: String(data.label || '').trim(), construction, settlement: rowsOf(split.settlement) || [] }
+                ? { month, label: defaultMonthLabel(month), construction, settlement: rowsOf(split.settlement) || [] }
                 : null;
         } catch (_e) {
             adminErpActual = null;
@@ -719,8 +723,7 @@
         const body = document.getElementById('adminUnplannedBody');
         const status = document.getElementById('adminUnplannedStatus');
         if (!body) return;
-        const isErpMonth = adminErpActual && adminTargetMonth === currentMonthValue()
-            && adminErpActual.label === defaultMonthLabel(adminTargetMonth);
+        const isErpMonth = adminErpActual && adminTargetMonth === adminErpActual.month;
         const rows = isErpMonth ? collectUnplannedRows() : new Map();
         // 이미 지정했는데 지금 ERP 목록에 없는 공사(다른 달·목표가 새로 생김·ERP 조회 실패)도 줄로 남긴다 — 안 보이면 해제할 수 없다
         adminUnplannedAssignments.forEach((a) => {
@@ -728,7 +731,7 @@
         });
         const managerOf = new Map(adminUnplannedAssignments.map((a) => [a.jijungNo, a.manager]));
         status.textContent = !adminErpActual ? 'ERP 실적을 불러오지 못했습니다(지정된 것만 표시)'
-            : !isErpMonth ? `ERP 실적은 이번 달(${adminErpActual.label})만 불러옵니다 — 지정된 것만 표시`
+            : !isErpMonth ? `ERP 실적은 이번 주가 속한 달(${adminErpActual.label}, 금요일 기준)만 불러옵니다 — 지정된 것만 표시`
             : '';
         const list = [...rows.values()].sort((a, b) => a.jijungNo.localeCompare(b.jijungNo, 'ko', { numeric: true }));
         const amount = (v) => (v === null ? '-' : Number(v).toLocaleString('ko-KR'));
@@ -1119,11 +1122,17 @@
         loadFieldStaffAdmin();
         loadOutingStaffAdmin();
         loadFrequentSiteAdmin();
-        loadMonthlyProgressConfigAdmin();
+        // 기본 달은 ERP 실적의 달(금요일 기준 주차)로 연다 — 달력 월로 열면 9/28~30 엔 홈(10월)과 다른 달의 목표를 보게 된다.
+        // 그 달은 ERP 응답을 받아야 알 수 있어 순서대로 부른다. ERP 를 못 받으면 설정 조회가 예전처럼 달력 월로 연다.
+        // .catch: ERP 쪽이 어떻게 실패해도 목표 설정 조회는 반드시 돌게 한다
+        loadErpActualAdmin().catch(() => {}).then(() => {
+            const monthInput = document.getElementById('monthlyProgressMonthInput');
+            if (adminErpActual && !monthInput.value) monthInput.value = adminErpActual.month;
+            loadMonthlyProgressConfigAdmin();
+        });
         bindTargetAutofill();
         loadAdminConstructionList();
         loadTargetManagersAdmin();
-        loadErpActualAdmin();
         loadLoginAccessRequests();
     });
 </script>

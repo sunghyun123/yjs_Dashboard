@@ -52,13 +52,13 @@ def test_정상_응답은_두_섹션을_영문_키로_넘긴다():
     c = out["construction"]
     assert c["rows"][0] == {
         "jijungNo": "JG26-041", "name": "안양 평촌대로 지중화",
-        "amountThousand": 32450, "days": [1, 2], "nightDays": [2],
+        "amountThousand": 32450, "days": [1, 2], "nightDays": [2], "dates": [], "nightDates": [],
     }
     assert c["totalThousand"] == 32450
 
     s = out["settlement"]
     assert s["rows"][0] == {
-        "jijungNo": "JG26-018", "name": "군포 산본로", "kind": "기성 2차", "day": 23, "amountThousand": 30000,
+        "jijungNo": "JG26-018", "name": "군포 산본로", "kind": "기성 2차", "day": 23, "date": None, "amountThousand": 30000,
     }
     assert s["rows"][1]["amountThousand"] == -1182
     assert s["totalThousand"] == 28818
@@ -105,3 +105,45 @@ def test_기존_breakdown_칸은_split과_무관하게_그대로():
     out = _normalize_monthly_kpi(body)
     assert out["breakdown"]["totalThousand"] == 700
     assert out["amounts"]["monthlyRevenue"] == 293_816_000
+
+
+# ── 금요일 기준 주차 (2026-10-23) ──
+# split 의 기간은 달력 월이 아니라 그 주 금요일의 달이다(ERP 공무 화면과 같은 규칙). home.js 는 month 로 목표를 부른다.
+
+def test_month_from_to를_넘기고_모양이_틀리면_None():
+    ok = _normalize_monthly_kpi(_payload({
+        "month": "2026-10", "from": "2026-09-28", "to": "2026-11-02",
+        "construction": {"rows": [], "totalThousand": 0}, "settlement": {"rows": [], "totalThousand": 0},
+    }))["split"]
+    assert (ok["month"], ok["from"], ok["to"]) == ("2026-10", "2026-09-28", "2026-11-02")
+
+    bad = _normalize_monthly_kpi(_payload({
+        "month": "2026-13", "from": "<img>", "to": "2026/11/02",
+        "construction": {"rows": [], "totalThousand": 0}, "settlement": {"rows": [], "totalThousand": 0},
+    }))["split"]
+    assert (bad["month"], bad["from"], bad["to"]) == (None, None, None)
+
+
+def test_옛_ERP_split에는_month가_없어_None():
+    out = _normalize_monthly_kpi(_payload({
+        "construction": {"rows": [], "totalThousand": 0}, "settlement": {"rows": [], "totalThousand": 0},
+    }))["split"]
+    assert out["month"] is None
+
+
+def test_달을_넘는_날짜는_전체_날짜로_넘기고_모양이_틀린_값은_버린다():
+    row = _c_row(days=[31, 1], nights=[31])
+    row["날짜"] = ["2026-08-31", "2026-09-01", "<script>"]
+    row["야간날짜"] = ["2026-08-31"]
+    s = _s_row(day=31)
+    s["날짜"] = "2026-08-31"
+    out = _normalize_monthly_kpi(_payload({
+        "month": "2026-09", "from": "2026-08-31", "to": "2026-09-28",
+        "construction": {"rows": [row], "totalThousand": 32450},
+        "settlement": {"rows": [s], "totalThousand": 30000},
+    }))["split"]
+    c = out["construction"]["rows"][0]
+    assert c["dates"] == ["2026-08-31", "2026-09-01"]
+    assert c["nightDates"] == ["2026-08-31"]
+    assert out["settlement"]["rows"][0]["date"] == "2026-08-31"
+

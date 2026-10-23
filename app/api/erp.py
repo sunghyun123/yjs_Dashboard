@@ -1,5 +1,6 @@
 # app/api/erp.py
 import logging
+import re
 from typing import Any, Dict, Optional
 
 import httpx
@@ -50,6 +51,26 @@ def _as_day(value: Any) -> Optional[int]:
     return days[0] if days else None
 
 
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_MONTH_RE = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
+
+
+def _as_date(value: Any) -> Optional[str]:
+    # 'YYYY-MM-DD' 모양만 통과 — 화면에 찍히는 값이라 태그로 해석될 문자열이 들어올 자리를 남기지 않는다
+    s = _as_str(value)
+    return s if _DATE_RE.fullmatch(s) else None
+
+
+def _as_date_list(value: Any) -> list:
+    return [d for d in (_as_date(item) for item in _as_list(value)) if d]
+
+
+def _as_month(value: Any) -> Optional[str]:
+    # 목표 행을 고르는 열쇠('YYYY-MM')로 쓰인다 — 모양이 틀리면 None(화면은 달력 월로 돌아간다)
+    s = _as_str(value)
+    return s if _MONTH_RE.fullmatch(s) else None
+
+
 def _construction_row(item: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "jijungNo": _as_str(item.get("지중no")),
@@ -57,6 +78,9 @@ def _construction_row(item: Dict[str, Any]) -> Dict[str, Any]:
         "amountThousand": _as_int(item.get("금액천원")),
         "days": _as_day_list(item.get("일자")),
         "nightDays": _as_day_list(item.get("야간일자")),
+        # split 은 금요일 기준 주차로 잘라 달을 넘나든다(9월 실적에 8/31) — '일'만으로는 달을 모른다
+        "dates": _as_date_list(item.get("날짜")),
+        "nightDates": _as_date_list(item.get("야간날짜")),
     }
 
 
@@ -66,6 +90,7 @@ def _settlement_row(item: Dict[str, Any]) -> Dict[str, Any]:
         "name": _as_str(item.get("공사명")),
         "kind": _as_str(item.get("구분")),
         "day": _as_day(item.get("일")),
+        "date": _as_date(item.get("날짜")),
         "amountThousand": _as_int(item.get("금액천원")),
     }
 
@@ -104,11 +129,17 @@ def _normalize_split(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     시공 실적 / 정산 분리 (2026-09-28). 섹션마다 따로 판정한다 — 정산이 깨졌다고 시공(도넛)까지 버리지 않는다.
     split 자체가 없으면(옛 ERP) None. home.js 는 그때 monthlyRevenue 로 대신 채우지 않고 대체값 경로로 간다.
+
+    month/from/to (2026-10-23): split 의 기간은 달력 월이 아니라 금요일 기준 주차의 달이다(ERP 공무 화면과 같은 규칙).
+    home.js 는 month 로 그 달의 목표 행을 불러온다 — 실적과 목표가 같은 달을 보게. 옛 ERP 면 None(달력 월로 동작).
     """
     raw = payload.get("split")
     if not isinstance(raw, dict):
         return None
     return {
+        "month": _as_month(raw.get("month")),
+        "from": _as_date(raw.get("from")),
+        "to": _as_date(raw.get("to")),
         "construction": _normalize_section(raw.get("construction"), _construction_row, "split.construction"),
         "settlement": _normalize_section(raw.get("settlement"), _settlement_row, "split.settlement"),
     }
