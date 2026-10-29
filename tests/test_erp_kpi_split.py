@@ -60,6 +60,7 @@ def test_정상_응답은_두_섹션을_영문_키로_넘긴다():
     s = out["settlement"]
     assert s["rows"][0] == {
         "jijungNo": "JG26-018", "name": "군포 산본로", "kind": "기성 2차", "day": 23, "date": None, "amountThousand": 30000,
+        "manager": None,
     }
     assert s["rows"][1]["amountThousand"] == -1182
     assert s["totalThousand"] == 28818
@@ -192,3 +193,28 @@ def test_담당별_합이_공사_금액과_다르면_그_행의_담당별을_버
     out = _split_with([row])
     assert out["rows"][0]["managers"] is None
     assert out["totalThousand"] == 5002
+
+
+# ── 정산 담당 (2026-10-29) ── 정산 담당은 ERP 수주.정산담당자_id 한 곳에서 정한다(공사 하나 = 한 사람).
+
+def _settle(rows):
+    return _normalize_monthly_kpi(_payload({
+        "construction": {"rows": [], "totalThousand": 0},
+        "settlement": {"rows": rows, "totalThousand": sum(r["금액천원"] for r in rows)},
+    }))["split"]["settlement"]
+
+
+def test_정산_담당이_있으면_manager로_넘긴다():
+    row = _s_row()
+    row["담당"] = "김도윤"
+    assert _settle([row])["rows"][0]["manager"] == "김도윤"
+
+
+def test_정산_미지정은_빈_이름으로_남긴다():
+    row = _s_row()
+    row["담당"] = ""
+    assert _settle([row])["rows"][0]["manager"] == ""
+
+
+def test_정산_담당_칸이_없으면_None_옛_ERP():
+    assert _settle([_s_row()])["rows"][0]["manager"] is None

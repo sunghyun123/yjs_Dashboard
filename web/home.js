@@ -299,12 +299,14 @@
         const unplanned = (open, label, v) => (v === null
             ? `<span>${label} <b>-</b></span>`
             : `<span class="tp-clickable" role="button" tabindex="0" data-tp-open="${open}" data-tp-scope="unplanned">${label} <b>${fmt(v)}</b></span>`);
-        // 시공 행이 전부 ERP 담당별을 달고 오면 시공 계획외는 구조상 늘 0이다 — '0'을 그리면 "목표에 없는 공사가 없다"로 읽히니 칸째 뺀다.
-        // (옛 ERP 이거나 담당별을 버린 행이 하나라도 있으면 옛 규칙이 살아 있으므로 그린다)
+        // 행이 전부 ERP 담당을 달고 오면 그 종류의 계획외는 구조상 늘 0이다 — '0'을 그리면 "목표에 없는 공사가 없다"로 읽히니 칸째 뺀다.
+        // (옛 ERP 이거나 담당을 버린 행이 하나라도 있으면 옛 규칙이 살아 있으므로 그린다)
         const breakdownRows = totalProgressState.breakdown ? totalProgressState.breakdown.rows : [];
         const constructionByErp = breakdownRows.length > 0 && breakdownRows.every((r) => Array.isArray(r.managers));
+        const settlementRows = totalProgressState.settlement ? totalProgressState.settlement.rows : [];
+        const settlementByErp = settlementRows.length > 0 && settlementRows.every((r) => typeof r.manager === 'string');
         const unplannedParts = (constructionByErp ? '' : unplanned('actual', '시공', construction.unplannedThousand)) +
-            (showSettle ? unplanned('settlement', '정산', settlement.unplannedThousand) : '');
+            (showSettle && !settlementByErp ? unplanned('settlement', '정산', settlement.unplannedThousand) : '');
         const unplannedHtml = unplannedParts
             ? `<div class="mgr-unplanned"><span class="mgr-name-sm">계획외 실적</span>` + unplannedParts +
                 `<span class="text-muted">목표에 없는 공사</span></div>`
@@ -797,6 +799,8 @@
                 day: day.length ? day[0] : null,
                 date: toDateStrings([r.date])[0] || '',
                 amountThousand: Number(r.amountThousand) || 0,
+                // 정산 담당(ERP 수주.정산담당자_id). '' = 정산 미지정, null = 옛 ERP → 옛 규칙(목표 행 → 계획외 지정)
+                manager: typeof r.manager === 'string' ? r.manager : null,
             };
         });
         return { rows, totalThousand: rows.reduce((sum, r) => sum + r.amountThousand, 0) };
@@ -847,6 +851,8 @@
     //      목표 행 담당·계획외 지정은 보지 않는다 — 시공 담당은 ERP 한 곳에서 정해야 공무 화면과 숫자가 같다.
     //      목표 행 담당과 ERP 담당이 다르면 목표는 목표 행 담당에, 실적은 ERP 담당에 붙는다(%가 낮게 보이는 쪽이 목표 행을 고칠 신호).
     //      그래서 계획외 지정(공사 하나에 한 명)은 사실상 정산 전용이다 — 시공·정산을 한 명에게 묶으면 정산 담당에게 시공이 딸려갔다.
+    //   ⚠️ 정산 실적도 같다: 행에 manager(ERP 수주.정산담당자_id)가 있으면 그 칸으로만 간다. 둘 다 오면 이 화면은 담당을 판단하지 않고
+    //      ERP 가 정한 대로 그리기만 한다 — 아래 '목표 행 → 계획외 지정' 규칙은 옛 ERP 응답(담당 칸 없음)을 위한 것이다.
     //   ('' 칸 = 담당 칸이 생기기 전에 넣은 옛 미지정 행. 새 행은 담당 없이 못 들어온다)
     // 어느 실적 행도 버리지 않으므로 '담당자 칸들 + 계획외 실적' = actual.totalThousand(도넛 캡션 숫자)다.
     // actual 이 null(못 받음)이면 실적은 null 로 둔다 — 0 으로 두면 '이번 달 실적 0'과 구분이 안 된다.
@@ -868,6 +874,11 @@
                     r.managers.forEach((m) => {
                         bucket(m.name).actualRows.push({ ...r, amountThousand: m.amountThousand, dates: m.dates, nightDates: m.nightDates, days: [], nightDays: [] });
                     });
+                    return;
+                }
+                if (typeof r.manager === 'string') {
+                    // 정산 행: 그 공사의 정산 담당 칸으로만 간다('' = 담당 미지정 칸)
+                    bucket(r.manager).actualRows.push(r);
                     return;
                 }
                 // 목표 행이 우선이다 — 같은 공사가 목표에도 있고 계획외 지정에도 남아 있으면 계획분으로만 센다(두 번 세지 않게)

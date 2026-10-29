@@ -708,8 +708,9 @@
         const add = (kind, rows) => {
             const planned = new Set(adminTargets[kind].map((r) => String(r.jijungNo)));
             rows.forEach((r) => {
-                // 담당별(ERP 공사이력.담당공무_id)이 붙은 시공 행은 ERP 가 담당을 정했다 — 여기서 지정할 대상이 아니다(홈과 같은 규칙)
-                if (Array.isArray(r.managers)) return;
+                // ERP 가 담당을 정한 행은 여기서 지정할 대상이 아니다(홈과 같은 규칙) —
+                // 시공 = 담당별(공사이력.담당공무_id), 정산 = manager(수주.정산담당자_id, '' 도 ERP 가 '미지정'이라 정한 것)
+                if (Array.isArray(r.managers) || typeof r.manager === 'string') return;
                 const no = String(r.jijungNo || '').trim();
                 if (!no || planned.has(no)) return;  // 지중No 가 없는 실적은 지정할 열쇠가 없다
                 if (!byNo.has(no)) byNo.set(no, { jijungNo: no, name: String(r.name || ''), construction: 0, settlement: 0 });
