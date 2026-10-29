@@ -71,16 +71,45 @@ def _as_month(value: Any) -> Optional[str]:
     return s if _MONTH_RE.fullmatch(s) else None
 
 
+def _construction_managers(item: Dict[str, Any], amount: int) -> Optional[list]:
+    """
+    시공 행의 담당별(2026-10-29). 시공 담당은 ERP 공사이력.담당공무_id 한 곳에서 정하고, 대시보드는 그 나눔을 그대로 쓴다.
+    없으면(옛 ERP) None — home.js 가 그 행만 옛 규칙(목표 행 → 계획외 지정)으로 나눈다.
+    담당별 합이 공사 금액과 다르면 그 행의 담당별만 버린다(None): 담당자 칸의 합이 도넛과 어긋나는 것보다
+    옛 규칙으로 나누는 쪽이 낫고, 섹션 전체를 버리면 도넛까지 대체값으로 떨어진다.
+    """
+    raw = item.get("담당별")
+    if not isinstance(raw, list):
+        return None
+    managers = [
+        {
+            "name": _as_str(m.get("담당")),  # '' = 담당 미지정
+            "amountThousand": _as_int(m.get("금액천원")),
+            "dates": _as_date_list(m.get("날짜")),
+            "nightDates": _as_date_list(m.get("야간날짜")),
+        }
+        for m in raw
+        if isinstance(m, dict)
+    ]
+    if len(managers) != len(raw) or sum(m["amountThousand"] for m in managers) != amount:
+        logger.warning("ERP KPI split.construction %s: 담당별이 공사 금액과 맞지 않아 버린다", _as_str(item.get("지중no")))
+        return None
+    return managers
+
+
 def _construction_row(item: Dict[str, Any]) -> Dict[str, Any]:
+    amount = _as_int(item.get("금액천원"))
     return {
         "jijungNo": _as_str(item.get("지중no")),
         "name": _as_str(item.get("공사명")),
-        "amountThousand": _as_int(item.get("금액천원")),
+        "amountThousand": amount,
         "days": _as_day_list(item.get("일자")),
         "nightDays": _as_day_list(item.get("야간일자")),
         # split 은 금요일 기준 주차로 잘라 달을 넘나든다(9월 실적에 8/31) — '일'만으로는 달을 모른다
         "dates": _as_date_list(item.get("날짜")),
         "nightDates": _as_date_list(item.get("야간날짜")),
+        # 허용목록이라 이 줄이 없으면 ERP 가 보낸 담당별이 브라우저에 도착하지 않는다
+        "managers": _construction_managers(item, amount),
     }
 
 

@@ -299,10 +299,16 @@
         const unplanned = (open, label, v) => (v === null
             ? `<span>${label} <b>-</b></span>`
             : `<span class="tp-clickable" role="button" tabindex="0" data-tp-open="${open}" data-tp-scope="unplanned">${label} <b>${fmt(v)}</b></span>`);
-        const unplannedHtml = `<div class="mgr-unplanned"><span class="mgr-name-sm">계획외 실적</span>` +
-            unplanned('actual', '시공', construction.unplannedThousand) +
-            (showSettle ? unplanned('settlement', '정산', settlement.unplannedThousand) : '') +
-            `<span class="text-muted">목표에 없는 공사</span></div>`;
+        // 시공 행이 전부 ERP 담당별을 달고 오면 시공 계획외는 구조상 늘 0이다 — '0'을 그리면 "목표에 없는 공사가 없다"로 읽히니 칸째 뺀다.
+        // (옛 ERP 이거나 담당별을 버린 행이 하나라도 있으면 옛 규칙이 살아 있으므로 그린다)
+        const breakdownRows = totalProgressState.breakdown ? totalProgressState.breakdown.rows : [];
+        const constructionByErp = breakdownRows.length > 0 && breakdownRows.every((r) => Array.isArray(r.managers));
+        const unplannedParts = (constructionByErp ? '' : unplanned('actual', '시공', construction.unplannedThousand)) +
+            (showSettle ? unplanned('settlement', '정산', settlement.unplannedThousand) : '');
+        const unplannedHtml = unplannedParts
+            ? `<div class="mgr-unplanned"><span class="mgr-name-sm">계획외 실적</span>` + unplannedParts +
+                `<span class="text-muted">목표에 없는 공사</span></div>`
+            : '';
         listEl.innerHTML = rowsHtml + unplannedHtml;
     }
 
@@ -764,6 +770,15 @@
             // 주차 기간은 달을 넘나든다 — 어느 달의 31일인지 그리려면 전체 날짜가 필요하다(옛 ERP면 빈 배열 → days 로 그림)
             dates: toDateStrings(r.dates),
             nightDates: toDateStrings(r.nightDates),
+            // 시공 담당별(ERP 공사이력.담당공무_id). null = 옛 ERP 이거나 합이 안 맞아 중계가 버린 행 → 옛 규칙으로 나눈다
+            managers: Array.isArray(r.managers)
+                ? r.managers.map((m) => ({
+                    name: String(m.name || ''),
+                    amountThousand: Number(m.amountThousand) || 0,
+                    dates: toDateStrings(m.dates),
+                    nightDates: toDateStrings(m.nightDates),
+                }))
+                : null,
         }));
         return { rows, totalThousand: rows.reduce((sum, r) => sum + r.amountThousand, 0) };
     }
@@ -828,6 +843,10 @@
     //                    (2026-10-13 요청: '+ 계획외'를 따로 적으니 금액이 눈에 안 들어온다 → 실적에 합침.
     //                     대가: %가 '계획을 얼마나 지켰나'가 아니라 '목표 대비 얼마나 일했나'가 된다)
     //   계획외(남은 것) = 담당도 목표도 없는 실적 → unplannedThousand, '계획외 실적' 줄 (붙일 담당자가 없어 따로 남긴다)
+    //   ⚠️ 시공 실적은 예외(2026-10-29): 행에 managers(ERP 공사이력.담당공무_id 로 나눈 몫)가 있으면 그 담당 칸으로만 간다.
+    //      목표 행 담당·계획외 지정은 보지 않는다 — 시공 담당은 ERP 한 곳에서 정해야 공무 화면과 숫자가 같다.
+    //      목표 행 담당과 ERP 담당이 다르면 목표는 목표 행 담당에, 실적은 ERP 담당에 붙는다(%가 낮게 보이는 쪽이 목표 행을 고칠 신호).
+    //      그래서 계획외 지정(공사 하나에 한 명)은 사실상 정산 전용이다 — 시공·정산을 한 명에게 묶으면 정산 담당에게 시공이 딸려갔다.
     //   ('' 칸 = 담당 칸이 생기기 전에 넣은 옛 미지정 행. 새 행은 담당 없이 못 들어온다)
     // 어느 실적 행도 버리지 않으므로 '담당자 칸들 + 계획외 실적' = actual.totalThousand(도넛 캡션 숫자)다.
     // actual 이 null(못 받음)이면 실적은 null 로 둔다 — 0 으로 두면 '이번 달 실적 0'과 구분이 안 된다.
@@ -844,6 +863,13 @@
         const unplannedRows = [];
         if (actual) {
             actual.rows.forEach((r) => {
+                if (Array.isArray(r.managers)) {
+                    // 몫마다 그 담당의 금액·날짜만 담은 행으로 쪼갠다 — 담당자 상세 팝업이 이 행을 그대로 그린다. '' = 담당 미지정 칸
+                    r.managers.forEach((m) => {
+                        bucket(m.name).actualRows.push({ ...r, amountThousand: m.amountThousand, dates: m.dates, nightDates: m.nightDates, days: [], nightDays: [] });
+                    });
+                    return;
+                }
                 // 목표 행이 우선이다 — 같은 공사가 목표에도 있고 계획외 지정에도 남아 있으면 계획분으로만 센다(두 번 세지 않게)
                 if (ownerByNo.has(r.jijungNo)) bucket(ownerByNo.get(r.jijungNo)).actualRows.push(r);
                 else if (unplannedOwner.has(r.jijungNo)) bucket(unplannedOwner.get(r.jijungNo)).actualRows.push(r);

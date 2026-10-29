@@ -230,7 +230,8 @@ def run_migrations(db_path: str) -> None:
                 conn.execute("INSERT INTO app_meta (key, value) VALUES ('target_managers_seeded', '1')")
             # 계획외 공사(그 달 목표 행이 없는 공사)의 담당 지정. 목표 표와 따로 둔다 —
             # 목표 0원 행으로 넣으면 목표 상세에 '목표가 있다'는 인상만 주는 행이 섞인다.
-            # (월, 지중No) 하나에 담당 한 명: 시공·정산 둘 다 이 담당에게 간다.
+            # (월, 지중No) 하나에 담당 한 명. 2026-10-29부터 시공 실적은 ERP 공사이력.담당공무_id 로 나뉘어 오므로
+            # 이 지정은 정산(과 담당별이 없는 옛 ERP 시공 행)에만 쓰인다 — 한 명이 시공·정산을 다 가져가던 사고 때문.
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS monthly_unplanned_assignments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
