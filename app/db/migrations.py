@@ -232,6 +232,7 @@ def run_migrations(db_path: str) -> None:
             # 목표 0원 행으로 넣으면 목표 상세에 '목표가 있다'는 인상만 주는 행이 섞인다.
             # (월, 지중No) 하나에 담당 한 명. 2026-10-29부터 시공 실적은 ERP 공사이력.담당공무_id 로 나뉘어 오므로
             # 이 지정은 정산(과 담당별이 없는 옛 ERP 시공 행)에만 쓰인다 — 한 명이 시공·정산을 다 가져가던 사고 때문.
+            # 2026-10-29 이후 ERP 는 정산 행에도 담당(수주.정산담당자_id)을 실어 보내므로, 새 ERP 와 붙어 있으면 이 표는 쓰이지 않는다(옛 응답 호환용).
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS monthly_unplanned_assignments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,

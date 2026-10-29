@@ -121,6 +121,9 @@ def _settlement_row(item: Dict[str, Any]) -> Dict[str, Any]:
         "day": _as_day(item.get("일")),
         "date": _as_date(item.get("날짜")),
         "amountThousand": _as_int(item.get("금액천원")),
+        # 정산 담당(2026-10-29) = ERP 수주.정산담당자_id. '' = 정산 미지정, None = 옛 ERP(칸 없음 → home.js 가 옛 규칙으로 나눔).
+        # 허용목록이라 이 줄이 없으면 ERP 가 보낸 담당이 브라우저에 도착하지 않는다
+        "manager": _as_str(item.get("담당")) if "담당" in item else None,
     }
 
 
