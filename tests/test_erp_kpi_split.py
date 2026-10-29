@@ -53,6 +53,7 @@ def test_정상_응답은_두_섹션을_영문_키로_넘긴다():
     assert c["rows"][0] == {
         "jijungNo": "JG26-041", "name": "안양 평촌대로 지중화",
         "amountThousand": 32450, "days": [1, 2], "nightDays": [2], "dates": [], "nightDates": [],
+        "managers": None,
     }
     assert c["totalThousand"] == 32450
 
@@ -147,3 +148,47 @@ def test_달을_넘는_날짜는_전체_날짜로_넘기고_모양이_틀린_값
     assert c["nightDates"] == ["2026-08-31"]
     assert out["settlement"]["rows"][0]["date"] == "2026-08-31"
 
+
+# ── 시공 담당별 (2026-10-29) ── 시공 담당은 ERP 공사이력.담당공무_id 한 곳에서 정한다.
+# 대시보드는 그 나눔을 그대로 받아 담당자 칸에 넣는다(자체 배정표로 다시 나누지 않는다).
+
+def _m(name, amount, dates=None, nights=None, mid=7):
+    return {"담당공무_id": mid, "담당": name, "금액천원": amount,
+            "날짜": dates if dates is not None else ["2026-10-02"], "야간날짜": nights if nights is not None else []}
+
+
+def _split_with(rows):
+    total = sum(r["금액천원"] for r in rows)
+    return _normalize_monthly_kpi(_payload({
+        "construction": {"rows": rows, "totalThousand": total},
+        "settlement": {"rows": [], "totalThousand": 0},
+    }))["split"]["construction"]
+
+
+def test_담당별이_있으면_영문_키로_넘긴다():
+    row = _c_row(amount=5002)
+    row["담당별"] = [_m("이재규", 5000, ["2026-10-05"], ["2026-10-05"], mid=8), _m("김상훈", 2, ["2026-10-03", "2026-10-04"])]
+    out = _split_with([row])
+    assert out["rows"][0]["managers"] == [
+        {"name": "이재규", "amountThousand": 5000, "dates": ["2026-10-05"], "nightDates": ["2026-10-05"]},
+        {"name": "김상훈", "amountThousand": 2, "dates": ["2026-10-03", "2026-10-04"], "nightDates": []},
+    ]
+
+
+def test_미지정_담당은_빈_이름으로_남긴다():
+    row = _c_row(amount=3000)
+    row["담당별"] = [_m("", 3000, mid=None)]
+    assert _split_with([row])["rows"][0]["managers"][0]["name"] == ""
+
+
+def test_담당별이_없으면_None_옛_ERP():
+    assert _split_with([_c_row()])["rows"][0]["managers"] is None
+
+
+def test_담당별_합이_공사_금액과_다르면_그_행의_담당별을_버린다():
+    # 담당자 칸의 합이 도넛과 어긋나느니, 그 행은 옛 규칙(목표 행·계획외)으로 나누는 게 낫다 — 섹션은 살린다
+    row = _c_row(amount=5002)
+    row["담당별"] = [_m("이재규", 5000)]
+    out = _split_with([row])
+    assert out["rows"][0]["managers"] is None
+    assert out["totalThousand"] == 5002
