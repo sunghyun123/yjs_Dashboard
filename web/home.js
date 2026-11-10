@@ -10,6 +10,11 @@
     const ERP_MONTHLY_KPI_API = '/api/erp/monthly-kpi';
     const ERP_MATERIALS_API = '/api/erp/materials';
     const MONTHLY_PROGRESS_CONFIG_API = '/api/erp/monthly-progress-config';
+    // 계획/실적 표 ‹ › 왼쪽 끝. ERP gongmu/_lib/주차.ts 의 최소월과 같은 값 — 바꾸면 ERP 도 같이(어긋나면 ERP 가 400 으로 알린다)
+    const MIN_PLAN_MONTH = '2026-09';
+    // 지난 달을 보다 이만큼 지나면 이번 달로 돌아온다 — 전자칠판에 지난 달이 하루 종일 떠 있지 않게
+    const VIEW_RETURN_MS = 5 * 60 * 1000;
+    const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
     let kakaoMapJsKey = ''; // /api/public-config에서 런타임 주입
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -55,6 +60,16 @@
         unplannedOwner: new Map(),
     };
     // 목표 상세 팝업이 지금 보여주는 종류(시공/정산). 정렬 상태는 tableSortState 에 따로 둔다.
+    // 표·도넛·담당자 그래프·팝업이 함께 보는 달.
+    //   latestMonth : month 없는 응답의 split.month(금요일 기준 금주 달) = ‹ › 오른쪽 끝. '' = 아직 모름 → ‹ › 둘 다 막음
+    //   viewMonth   : '' = 이번 달(latestMonth 를 따름), 'YYYY-MM' = 지난 달을 보는 중
+    //   loading     : ‹ › 직후 응답 전 — 옛 달 숫자를 새 달 제목 아래 남겨 두지 않으려고 '…'로 비운다
+    //   actualError : 지난 달 실적(month 경로)을 못 받음 — 0 이나 6월 대체값으로 채우지 않는다
+    const monthNavState = { latestMonth: '', viewMonth: '', viewSince: 0, loading: false, actualError: false };
+    // 로드 순번. 응답을 기다린 뒤 이 값이 바뀌어 있으면(그 사이 ‹ › 나 60초 갱신이 새로 시작됨) 아무것도 적용하지 않는다
+    let totalProgressLoadSeq = 0;
+    // 지금 targets 가 어느 달의 목표인지. 목표 조회가 실패했을 때 다른 달 목표를 남겨 두지 않으려고 기억한다
+    let targetsMonth = '';
     const targetModalState = { kind: 'construction' };
     // 상세 팝업 셋이 지금 누구 몫을 보여주는지. type: 'all'(도넛 캡션) | 'manager'(담당자 줄, name) | 'unplanned'(계획외 실적 줄)
     const detailScopeState = { type: 'all', name: '' };
@@ -75,73 +90,11 @@
     const ANYANG_CENTER = { lat: 37.3943, lng: 126.9568 };
     const GEO_CACHE_KEY = 'yjs_geo_cache_v1';
 
-    let workerReturnTimeModal = null;
-    let workerReturnTimeTargetUser = '';
     let mapInstance = null;
     let activeTooltipOverlay = null;
 
     function managerStyle(name) {
         return MANAGER_STYLE[String(name || '').trim()] || DEFAULT_MANAGER_STYLE;
-    }
-
-    function statusLabelText(status) {
-        if (status === '야간작업') return '야간 작업';
-        return status || '사무실';
-    }
-
-    function statusBadgeClass(status) {
-        if (status === '외출') return 'bg-warning text-dark';
-        if (status === '야간작업') return 'bg-danger';
-        if (status === '휴가') return 'bg-secondary';
-        return 'bg-success';
-    }
-
-    function nextStatus(current) {
-        if (current === '사무실') return '외출';
-        if (current === '외출') return '야간작업';
-        if (current === '야간작업') return '휴가';
-        return '사무실';
-    }
-
-    function parseTimeText(value) {
-        const raw = String(value || '').trim();
-        if (!raw) return '';
-        const m = raw.match(/^(\d{2}):(\d{2})$/);
-        if (!m) return '';
-        const hh = Number(m[1]);
-        const mm = Number(m[2]);
-        if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || (mm !== 0 && mm !== 30)) return '';
-        return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-    }
-
-    function halfHourIndexToTimeText(index) {
-        const safe = Math.max(0, Math.min(47, Number(index) || 0));
-        const hh = Math.floor(safe / 2);
-        const mm = safe % 2 === 0 ? 0 : 30;
-        return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-    }
-
-    function timeTextToHalfHourIndex(value) {
-        const normalized = parseTimeText(value);
-        if (!normalized) return 18;
-        const [hhText, mmText] = normalized.split(':');
-        const hh = Number(hhText);
-        const mm = Number(mmText);
-        return hh * 2 + (mm === 30 ? 1 : 0);
-    }
-
-    function formatReturnTime(untilTime) {
-        const raw = String(untilTime || '').trim();
-        if (!raw) return '';
-        const normalized = raw.replace(' ', 'T');
-        const dt = new Date(normalized);
-        if (!Number.isNaN(dt.getTime())) {
-            const hh = String(dt.getHours()).padStart(2, '0');
-            const mm = String(dt.getMinutes()).padStart(2, '0');
-            return `${hh}:${mm}`;
-        }
-        const matched = raw.match(/(\d{2}):(\d{2})/);
-        return matched ? `${matched[1]}:${matched[2]}` : raw;
     }
 
     function updateNowLabel() {
@@ -188,7 +141,8 @@
         if (titleEl) titleEl.textContent = `${label} 총 공정률`;
         // 못 받음(targets=null)과 목표 미등록(행 0개)은 캡션과 같은 말로 구분한다 — 고칠 곳이 다르다.
         // 도넛 가운데는 좁아서 '목표 미등록' 대신 '미등록'으로 줄인다(캡션에 전체 문구가 있다).
-        const noTargetText = totalProgressState.targets ? '미등록' : '-';
+        // 실적을 못 받았는데 목표가 있으면 '미등록'이 찍힌다 — 고칠 곳(관리자 입력)을 잘못 가리키므로 실적 쪽 사정이 먼저다
+        const noTargetText = (monthNavState.loading || monthNavState.actualError || !totalProgressState.targets) ? '-' : '미등록';
         donutEl.style.setProperty('--progress', String(percent === null ? 0 : Math.min(100, percent)));
         valueEl.textContent = percent === null ? noTargetText : `${percent}%`;
 
@@ -203,6 +157,16 @@
                 : settle.state === 'notarget' ? '미등록' : '-';
         }
         if (amtEl) {
+            // 지난 달 로딩·실패 — 0 을 찍지 않는다(진짜 0 과 구분되게). 목표 조각은 그대로 붙여 목표는 보이게 한다
+            if (monthNavState.loading || monthNavState.actualError) {
+                const msg = monthNavState.loading ? '불러오는 중…' : '실적 불러오지 못함';
+                amtEl.innerHTML =
+                    `<span style="color:${monthNavState.loading ? '#8a99ab' : '#b42318'};">${msg}</span>` +
+                    buildTargetFractionHtml('construction');
+                renderManagerProgressHome();
+                renderPlanActualTableHome();
+                return;
+            }
             const detailHtml = totalProgressState.actualDetailText
                 ? `<br><span style="font-size:0.74rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">${escapeHtml(totalProgressState.actualDetailText)}</span>`
                 : '';
@@ -230,6 +194,7 @@
         }
         // 담당자 그래프는 도넛과 같은 상태(targets·breakdown·settlement)에서 그린다 — 도넛이 다시 그려질 때 항상 같이
         renderManagerProgressHome();
+        renderPlanActualTableHome();
     }
 
     // 담당자 한 줄(시공 또는 정산). 100%에서 자르지 않는다 — 계획보다 얼마나 부족/초과했는지가 다음 달 계획을 고치는 근거다.
@@ -263,7 +228,9 @@
         if (!listEl) return;
         const t = totalProgressState.targets;
         if (!t) {
-            listEl.innerHTML = '<div class="text-muted small">목표를 불러오지 못했습니다.</div>';
+            // 달을 옮기는 중엔 목표를 비워 둔 것이지 실패가 아니다 — 같은 모양으로 '불러오는 중'을 보인다
+            const msg = monthNavState.loading ? '불러오는 중…' : '목표를 불러오지 못했습니다.';
+            listEl.innerHTML = `<div class="text-muted small">${msg}</div>`;
             return;
         }
         if (!t.construction.rows.length && !t.settlement.rows.length) {
@@ -312,6 +279,66 @@
                 `<span class="text-muted">목표에 없는 공사</span></div>`
             : '';
         listEl.innerHTML = rowsHtml + unplannedHtml;
+    }
+
+    // ══════════ 계획/실적 표 (PR-3) ══════════
+    // 도넛·담당자 그래프와 같은 상태에서 그린다. 실행률은 도넛과 같은 함수(getTotalProgressPercent·getSettlementPercent)로 —
+    // 표의 % 와 도넛의 % 가 같은 계산에서 나와 갈라질 자리가 없다. 100% 에서 자르지 않는다(설계 §7-3), 계획 0 이면 '—'(§7-5).
+    function renderPlanActualTableHome() {
+        const bodyEl = document.getElementById('planActualBody');
+        if (!bodyEl) return;
+        const fmt = (n) => Number(n).toLocaleString('ko-KR');
+        const open = (which, text) => `<span class="tp-clickable" role="button" tabindex="0" data-tp-open="${which}">${text}</span>`;
+        const nav = monthNavState;
+        const shown = shownMonth();
+
+        const monthEl = document.getElementById('planActualMonth');
+        if (monthEl) monthEl.textContent = shown ? monthLabel(shown) : totalProgressState.label;
+        const prevEl = document.getElementById('planActualPrev');
+        const nextEl = document.getElementById('planActualNext');
+        if (prevEl) prevEl.disabled = !shown || !nav.latestMonth || shiftMonth(shown, -1) < MIN_PLAN_MONTH;
+        if (nextEl) nextEl.disabled = !shown || !nav.latestMonth || shown >= nav.latestMonth;
+        const periodEl = document.getElementById('planActualPeriod');
+        if (periodEl) periodEl.textContent = `단위 천원${periodSubText()}`;
+        const noticeEl = document.getElementById('planActualNotice');
+        if (noticeEl) {
+            noticeEl.style.display = nav.actualError ? '' : 'none';
+            noticeEl.textContent = nav.actualError ? 'ERP 실적을 불러오지 못했습니다 · 1분 뒤 다시 시도합니다' : '';
+        }
+
+        const t = totalProgressState.targets;
+        const planCell = (kind) => {
+            if (!t) return '<span class="pa-dim">-</span>';
+            if (!t[kind].rows.length) return '<span class="pa-dim">미등록</span>';
+            return open(`target-${kind}`, fmt(t[kind].totalThousand));
+        };
+        const actualCell = (kind) => {
+            if (nav.loading) return '<span class="pa-dim">…</span>';
+            if (nav.actualError) return '<span class="pa-fail">못 불러옴</span>';
+            if (kind === 'construction') {
+                // 대체값 화면(ERP 시공 실적 없음)에선 6월 숫자를 표로 옮기지 않는다
+                const b = totalProgressState.actualFromErp ? totalProgressState.breakdown : null;
+                return b ? open('actual', fmt(b.totalThousand)) : '<span class="pa-dim">-</span>';
+            }
+            if (!totalProgressState.settlementEnabled) return '<span class="pa-dim">-</span>';
+            const s = totalProgressState.settlement;
+            return s ? open('settlement', fmt(s.totalThousand)) : '<span class="pa-fail">못 불러옴</span>';
+        };
+        const rateCell = (kind) => {
+            if (nav.loading) return '<span class="pa-dim">…</span>';
+            if (kind === 'construction') {
+                const pct = totalProgressState.actualFromErp ? getTotalProgressPercent() : null;
+                return pct === null ? '<span class="pa-dim">—</span>' : `${pct}%`;
+            }
+            const s = getSettlementPercent();
+            return s.state === 'ok' ? `${s.value}%` : '<span class="pa-dim">—</span>';
+        };
+
+        const row = (kind, label) =>
+            `<div class="pa-k ${kind}">${label}</div><div>${planCell(kind)}</div><div>${actualCell(kind)}</div><div class="pa-rate">${rateCell(kind)}</div>`;
+        bodyEl.innerHTML =
+            '<div class="pa-h"></div><div class="pa-h">계획</div><div class="pa-h">실적</div><div class="pa-h">실행률</div>' +
+            row('construction', '시공') + row('settlement', '정산');
     }
 
     // 캡션의 ' / 목표천원' 조각. 누르면 그 종류의 목표 상세가 열린다.
@@ -630,7 +657,7 @@
                 });
             });
         // 도넛 캡션과 담당자 그래프(계획외 줄 포함). 둘 다 innerHTML 로 다시 그려지므로 바뀌지 않는 부모에 건다
-        ['totalProgressAmount', 'managerProgressList'].forEach((id) => {
+        ['totalProgressAmount', 'managerProgressList', 'planActualBody'].forEach((id) => {
             const host = document.getElementById(id);
             if (!host) return;
             host.addEventListener('click', (e) => {
@@ -673,6 +700,8 @@
     }
 
     function getTotalProgressPercent() {
+        // 지난 달 로딩·실패 중엔 숫자가 없다 — 아래 대체값 분기(수동 공정률)로 떨어지지 않게 먼저 막는다
+        if (monthNavState.loading || monthNavState.actualError) return null;
         if (!totalProgressState.actualFromErp) {
             return Math.max(0, Math.min(100, Number(totalProgressState.totalProgress) || 0));
         }
@@ -681,6 +710,21 @@
         if (target === null || !Number.isFinite(actual)) return null;
         // 정산과 같은 이유로 100%에서 자르지 않는다. ERP 장애용 수동 공정률(위)은 사람이 넣는 값이라 0~100 그대로 둔다
         return Math.max(0, Math.round((actual / target) * 1000) / 10);
+    }
+
+    // 'YYYY-MM' 을 delta 달만큼 옮긴다. Date 를 쓰지 않는다 — 기기 시간대에 따라 달력이 바뀌는 자리를 만들지 않으려고
+    function shiftMonth(ym, delta) {
+        const idx = Number(ym.slice(0, 4)) * 12 + (Number(ym.slice(5, 7)) - 1) + delta;
+        return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`;
+    }
+
+    // 지금 화면이 보여주는 달. 'YYYY-MM' 끼리는 문자열 비교가 곧 날짜 비교다
+    function shownMonth() {
+        return monthNavState.viewMonth || monthNavState.latestMonth;
+    }
+
+    function monthLabel(ym) {
+        return `${Number(ym.slice(5, 7))}월`;
     }
 
     function formatKpiUpdatedAt(value) {
@@ -712,6 +756,59 @@
         totalProgressState.erpMonth = '';
         totalProgressState.periodFrom = '';
         totalProgressState.periodTo = '';
+    }
+
+    // ‹ › 를 누른 직후. 옛 달의 숫자·목표를 새 달 제목 아래 남기지 않는다 — 표·도넛·캡션이 모두 '…'/'-'가 된다
+    function showMonthLoading(month) {
+        monthNavState.loading = true;
+        monthNavState.actualError = false;
+        totalProgressState.label = monthLabel(month);
+        totalProgressState.erpMonth = month;
+        totalProgressState.periodFrom = '';
+        totalProgressState.periodTo = '';
+        totalProgressState.actualAmountThousand = null;
+        totalProgressState.actualFromErp = true;
+        totalProgressState.actualDetailText = '';
+        totalProgressState.updatedAt = '';
+        totalProgressState.sourceLabel = '';
+        totalProgressState.breakdown = null;
+        totalProgressState.settlement = null;
+        totalProgressState.settlementEnabled = true;
+        totalProgressState.targets = null;
+        targetsMonth = '';
+    }
+
+    // 지난 달 응답 { status, month, split } 적용. 요청한 달과 다르거나 시공 실적이 없으면 false(→ 실패로 그림)
+    function applyErpMonthSplit(data, month) {
+        if (!data || data.month !== month) return false;
+        const split = data.split && typeof data.split === 'object' ? data.split : null;
+        if (!split || split.month !== month) return false;
+        const construction = normalizeBreakdown(split.construction);
+        if (!construction) return false;
+        monthNavState.actualError = false;
+        totalProgressState.erpMonth = month;
+        totalProgressState.periodFrom = toDateStrings([split.from])[0] || '';
+        totalProgressState.periodTo = toDateStrings([split.to])[0] || '';
+        totalProgressState.label = monthLabel(month);
+        totalProgressState.actualAmountThousand = construction.totalThousand;
+        totalProgressState.actualFromErp = true;
+        totalProgressState.actualDetailText = '';
+        // month 응답엔 updatedAt 이 없다. 비워 두면 formatKpiUpdatedAt 이 대체값 날짜(2026-06-18)를 찍으므로 받은 시각을 적는다
+        // (기존 최신화 표기와 같은 브라우저 시계 — 국내 상황판 가정)
+        totalProgressState.updatedAt = formatKpiUpdatedAt(new Date().toISOString());
+        totalProgressState.sourceLabel = '(ERP)';
+        totalProgressState.breakdown = construction;
+        totalProgressState.settlement = normalizeSettlement(split.settlement);
+        totalProgressState.settlementEnabled = true;
+        return true;
+    }
+
+    // 지난 달 실적을 못 받음. 대체값 경로(resetErpMonthlyKpiToFallback)로 보내지 않는다 —
+    // 그 경로는 6월 숫자를 그리므로 '9월' 제목 아래 6월 실적이 에러 없이 찍힌다. 실적 칸은 '못 불러옴', 목표는 그대로 보인다.
+    function markErpMonthFailed(month) {
+        showMonthLoading(month);
+        monthNavState.loading = false;
+        monthNavState.actualError = true;
     }
 
     function applyErpMonthlyKpi(data) {
@@ -909,38 +1006,101 @@
         return buildManagerProgress(t[kind], actual, totalProgressState.unplannedOwner);
     }
 
-    // 목표는 ERP 가 정한 달(금요일 기준 주차의 달)로 부른다 — 서버의 달력 월로 부르면 9/28~30 에 10월 실적 / 9월 목표가 된다.
-    // erpMonth 가 비면(옛 ERP·대체값) 서버 기본(달력 월)으로 부른다.
-    async function loadMonthlyProgressConfigHome() {
+    // 받아오기만 한다(적용은 loadTotalProgressHome 이 순번을 확인한 뒤). 실패는 { ok:false } — 400 과 503 을 화면에선 같은 '못 불러옴'으로 그린다
+    async function fetchJson(url) {
         try {
-            const month = totalProgressState.erpMonth;
-            const url = month ? `${MONTHLY_PROGRESS_CONFIG_API}?month=${encodeURIComponent(month)}` : MONTHLY_PROGRESS_CONFIG_API;
             const res = await fetch(url);
-            if (!res.ok) throw new Error('monthly progress config unavailable');
-            applyMonthlyProgressConfig(await res.json());
+            if (!res.ok) return { ok: false, status: res.status };
+            return { ok: true, data: await res.json() };
         } catch (_e) {
-            // Keep built-in fallback config.
+            return { ok: false, status: 0 };
         }
     }
 
-    async function loadErpMonthlyKpiHome() {
-        try {
-            const res = await fetch(ERP_MONTHLY_KPI_API);
-            if (!res.ok) throw new Error('ERP monthly KPI unavailable');
-            const data = await res.json();
-            // 응답은 왔지만 시공 실적이 없으면 앞선 성공의 잔재를 걷어내고 대체값으로 다시 그린다
-            if (!applyErpMonthlyKpi(data)) resetErpMonthlyKpiToFallback();
-        } catch (_e) {
-            // Keep the initial hardcoded fallback when ERP is unavailable.
-        }
+    // 목표는 화면이 보는 달(ERP 금요일 기준 달)로 부른다 — 서버의 달력 월로 부르면 9/28~30 에 10월 실적 / 9월 목표가 된다.
+    // month 가 비면(옛 ERP·대체값) 서버 기본(달력 월)으로 부른다.
+    function monthlyProgressConfigUrl(month) {
+        return month ? `${MONTHLY_PROGRESS_CONFIG_API}?month=${encodeURIComponent(month)}` : MONTHLY_PROGRESS_CONFIG_API;
     }
 
-    // 실적을 먼저 받아 달을 정하고, 그 달의 목표를 받은 뒤 한 번만 그린다.
-    // 둘을 따로 그리면 달이 바뀌는 순간 '새 달 실적 / 옛 달 목표'인 도넛이 잠깐 그려진다.
+    // 실적을 먼저 받아 달을 정하고, 그 달의 목표를 받은 뒤 한 번만 그린다(새 달 실적 / 옛 달 목표가 잠깐 그려지지 않게).
+    // 60초 갱신과 ‹ › 가 같은 함수를 부른다 — 늦게 끝난 쪽이 먼저 시작한 쪽 결과를 덮지 않게 순번으로 거른다.
     async function loadTotalProgressHome() {
-        await loadErpMonthlyKpiHome();
-        await loadMonthlyProgressConfigHome();
+        const seq = ++totalProgressLoadSeq;
+        // 5분 복귀로 이번 달 화면이 됐는데 아래 ①이 실패하면, 화면엔 아직 지난 달 숫자(또는 지난 달 실패 상태)가 남아 있다 → 그것도 실패로 그린다
+        let leftPast = false;
+        if (monthNavState.viewMonth && Date.now() - monthNavState.viewSince >= VIEW_RETURN_MS) {
+            monthNavState.viewMonth = '';
+            monthNavState.actualError = false;
+            leftPast = true;
+        }
+
+        // ① 이번 달(month 없음) — 오른쪽 끝을 알려면 지난 달을 보는 중에도 항상 부른다
+        const current = await fetchJson(ERP_MONTHLY_KPI_API);
+        if (seq !== totalProgressLoadSeq) return;
+        if (current.ok) {
+            const split = current.data && current.data.split;
+            // 시공 칸을 못 쓰는 응답의 달은 받지 않는다 — 마지막으로 알던 오른쪽 끝을 유지해 ‹ › 는 계속 동작한다
+            const usable = split && normalizeBreakdown(split.construction) !== null;
+            const latest = usable && MONTH_RE.test(String(split.month || '')) ? split.month : '';
+            if (latest) {
+                monthNavState.latestMonth = latest;
+                // 금주 달이 넘어가 보던 달과 같아졌으면 이번 달 화면으로 친다
+                if (monthNavState.viewMonth && monthNavState.viewMonth >= latest) monthNavState.viewMonth = '';
+            }
+        }
+
+        const viewing = monthNavState.viewMonth;
+        if (!viewing) {
+            // '마지막 값'이 이번 달의 진짜 값이 아닌 경우: ›직후(로딩), 직전에도 실패(연속 실패), 지난 달에서 복귀
+            const wasBlank = monthNavState.loading || monthNavState.actualError || leftPast;
+            monthNavState.loading = false;
+            monthNavState.actualError = false;
+            // 비워지지 않은 화면은 기존 동작 그대로: 응답은 왔는데 시공 실적이 없으면 대체값, fetch 실패면 마지막 값 유지(백로그 B안 범위)
+            if (current.ok) {
+                if (!applyErpMonthlyKpi(current.data)) {
+                    // 비워진 화면(복귀·로딩·연속 실패)에선 대체값 경로가 label 을 되돌리지 않아 지난 달 제목 아래 6월 숫자가 찍힌다 → 실패로 그린다
+                    if (wasBlank) markErpMonthFailed(monthNavState.latestMonth || totalProgressState.erpMonth);
+                    else resetErpMonthlyKpiToFallback();
+                }
+            } else if (wasBlank) {
+                // › 로 이번 달에 돌아온 직후 실패 — showMonthLoading 이 '마지막 값'을 이미 비웠다.
+                // 그대로 두면 actualAmountThousand=null 이 캡션에서 '시공 0'으로 찍히므로 실패로 그린다.
+                // 달은 latestMonth — 5분 복귀면 erpMonth 는 아직 지난 달이다
+                markErpMonthFailed(monthNavState.latestMonth || totalProgressState.erpMonth);
+            }
+        } else {
+            // ② 지난 달(month 경로)
+            const past = await fetchJson(`${ERP_MONTHLY_KPI_API}?month=${encodeURIComponent(viewing)}`);
+            if (seq !== totalProgressLoadSeq) return;
+            monthNavState.loading = false;
+            if (!past.ok || !applyErpMonthSplit(past.data, viewing)) markErpMonthFailed(viewing);
+        }
+
+        // ③ 그 달의 목표
+        const month = totalProgressState.erpMonth;
+        const cfg = await fetchJson(monthlyProgressConfigUrl(month));
+        if (seq !== totalProgressLoadSeq) return;
+        if (cfg.ok && applyMonthlyProgressConfig(cfg.data)) {
+            targetsMonth = month;
+        } else if (targetsMonth !== month) {
+            // 같은 달이면 마지막 목표를 유지(일시 장애로 흔들리지 않게), 다른 달이면 비운다 — 다른 달 계획을 이 달 계획으로 그리지 않게
+            totalProgressState.targets = null;
+        }
         renderTotalProgressChartHome();
+    }
+
+    // ‹ › 한 칸. 범위 밖이면 아무것도 안 한다(버튼도 막혀 있다)
+    function goPlanActualMonth(delta) {
+        const base = shownMonth();
+        if (!base || !monthNavState.latestMonth) return;
+        const next = shiftMonth(base, delta);
+        if (next < MIN_PLAN_MONTH || next > monthNavState.latestMonth) return;
+        monthNavState.viewMonth = next === monthNavState.latestMonth ? '' : next;
+        monthNavState.viewSince = Date.now();
+        showMonthLoading(next);
+        renderTotalProgressChartHome();
+        loadTotalProgressHome();
     }
 
     // ═══════════════════════════ 자재 현황 (ERP 실시간) ═══════════════════════════
@@ -1467,168 +1627,6 @@
         }
     }
 
-    // ═══════════════════════════ 외출/행선표 ═══════════════════════════
-
-    async function saveWorkerStatusPatch(userName, patch) {
-        const currentRowsRes = await fetch('/api/schedules/worker-status');
-        const currentRowsJson = await currentRowsRes.json();
-        const rows = currentRowsJson.data || [];
-        const row = rows.find((r) => String(r.user_name) === String(userName)) || {
-            user_name: userName,
-            status: '사무실',
-            location: '',
-            until_time: '',
-            note: '',
-        };
-        const payload = {
-            user_name: userName,
-            status: patch.status ?? row.status ?? '사무실',
-            location: patch.location ?? row.location ?? '',
-            until_time: patch.until_time ?? row.until_time ?? '',
-            note: '',
-        };
-        const response = await fetch('/api/schedules/worker-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-            showSaveToast(data.detail || '상태 저장 실패', 'error');
-            return false;
-        }
-        return true;
-    }
-
-    async function loadWorkerStatusHome() {
-        const list = document.getElementById('workerStatusListHome');
-        try {
-            const [statusRes, outingRes] = await Promise.all([
-                fetch('/api/schedules/worker-status'),
-                fetch('/api/schedules/outing-staff'),
-            ]);
-            const data = await statusRes.json();
-            const outingData = await outingRes.json();
-            if (!statusRes.ok || !outingRes.ok) {
-                list.innerHTML = '<div class="text-danger small">상태 조회 실패</div>';
-                return;
-            }
-            const statusMap = new Map((data.data || []).map((r) => [String(r.user_name), r]));
-            const outingStaff = outingData.data || [];
-            if (!outingStaff.length) {
-                list.innerHTML = '<div class="text-muted small">등록된 인원이 없습니다.</div>';
-                return;
-            }
-            list.innerHTML = outingStaff.map((staff) => {
-                const row = statusMap.get(String(staff.name)) || {
-                    user_name: staff.name,
-                    status: '사무실',
-                    location: '',
-                    until_time: '',
-                };
-                const locationLabel = row.location ? `행선: ${escapeHtml(row.location)}` : '행선 입력';
-                const returnLabel = row.until_time ? `복귀 ${escapeHtml(formatReturnTime(row.until_time))}` : '복귀 미정';
-                const isOuting = String(row.status || '') === '외출';
-                const outingMetaHtml = isOuting
-                    ? `
-                            <span class="worker-outing-meta">
-                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
-                                    onclick="handleWorkerLocationClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.location || '')}')">${locationLabel}</button>
-                                <span>|</span>
-                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
-                                    onclick="handleWorkerUntilClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.until_time || '')}')">${returnLabel}</button>
-                            </span>
-                    `
-                    : '';
-                return `
-                    <div class="worker-row">
-                        <div class="d-flex justify-content-between align-items-center gap-2">
-                            <div class="worker-main-line">
-                                <b class="worker-name">${escapeHtml(row.user_name)}</b>
-                                ${outingMetaHtml}
-                            </div>
-                            <button type="button" class="btn btn-sm badge ${statusBadgeClass(row.status)}"
-                                onclick="handleWorkerStatusClickHome('${encodeURIComponent(row.user_name)}','${encodeURIComponent(row.status || '사무실')}')">
-                                ${statusLabelText(row.status)}
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        } catch (_e) {
-            list.innerHTML = '<div class="text-danger small">상태 조회 실패</div>';
-        }
-    }
-
-    async function handleWorkerStatusClickHome(userName, currentStatus) {
-        const decodedName = decodeURIComponent(userName || '');
-        const decodedStatus = decodeURIComponent(currentStatus || '사무실');
-        const ok = await saveWorkerStatusPatch(decodedName, { status: nextStatus(decodedStatus) });
-        if (!ok) return;
-        await loadWorkerStatusHome();
-    }
-
-    async function handleWorkerLocationClickHome(userName, currentLocation) {
-        const decodedName = decodeURIComponent(userName || '');
-        const decodedLocation = decodeURIComponent(currentLocation || '');
-        const next = prompt('행선(목적지)을 입력하세요.', decodedLocation || '');
-        if (next === null) return;
-        const ok = await saveWorkerStatusPatch(decodedName, { location: next.trim() });
-        if (!ok) return;
-        await loadWorkerStatusHome();
-    }
-
-    async function handleWorkerUntilClickHome(userName, currentUntil) {
-        const decodedName = decodeURIComponent(userName || '');
-        const decodedUntil = decodeURIComponent(currentUntil || '');
-        const currentText = formatReturnTime(decodedUntil);
-        workerReturnTimeTargetUser = decodedName;
-        const sliderEl = document.getElementById('workerReturnTimeSlider');
-        if (!sliderEl) return;
-        sliderEl.value = String(timeTextToHalfHourIndex(currentText || ''));
-        updateWorkerReturnTimePreviewHome();
-        if (workerReturnTimeModal) workerReturnTimeModal.show();
-    }
-
-    function shiftWorkerReturnTimeHome(deltaMinutes) {
-        const sliderEl = document.getElementById('workerReturnTimeSlider');
-        if (!sliderEl) return;
-        const step = deltaMinutes >= 0 ? 1 : -1;
-        const current = Number(sliderEl.value) || 0;
-        const next = ((current + step) % 48 + 48) % 48;
-        sliderEl.value = String(next);
-        updateWorkerReturnTimePreviewHome();
-    }
-
-    function updateWorkerReturnTimePreviewHome() {
-        const sliderEl = document.getElementById('workerReturnTimeSlider');
-        const previewEl = document.getElementById('workerReturnTimePreview');
-        if (!sliderEl || !previewEl) return;
-        previewEl.textContent = halfHourIndexToTimeText(sliderEl.value);
-    }
-
-    async function saveWorkerReturnTimeHome() {
-        const target = workerReturnTimeTargetUser;
-        if (!target) return;
-        const sliderEl = document.getElementById('workerReturnTimeSlider');
-        if (!sliderEl) return;
-        const normalized = halfHourIndexToTimeText(sliderEl.value);
-        const nextUntil = normalized ? `${formatLocalDateYYYYMMDD()}T${normalized}` : '';
-        const ok = await saveWorkerStatusPatch(target, { until_time: nextUntil });
-        if (!ok) return;
-        if (workerReturnTimeModal) workerReturnTimeModal.hide();
-        await loadWorkerStatusHome();
-    }
-
-    async function clearWorkerReturnTimeHome() {
-        const target = workerReturnTimeTargetUser;
-        if (!target) return;
-        const ok = await saveWorkerStatusPatch(target, { until_time: '' });
-        if (!ok) return;
-        if (workerReturnTimeModal) workerReturnTimeModal.hide();
-        await loadWorkerStatusHome();
-    }
-
     async function loadFrequentSitesHome() {
         const box = document.getElementById('homeFrequentSiteList');
         try {
@@ -1661,15 +1659,12 @@
     async function initializeHomePage() {
         window.dashboardLoginModal = new bootstrap.Modal(document.getElementById('dashboardLoginModal'));
         bindProgressDetailHandlers();
-        workerReturnTimeModal = new bootstrap.Modal(document.getElementById('workerReturnTimeModal'));
+        const paPrev = document.getElementById('planActualPrev');
+        const paNext = document.getElementById('planActualNext');
+        if (paPrev) paPrev.addEventListener('click', () => goPlanActualMonth(-1));
+        if (paNext) paNext.addEventListener('click', () => goPlanActualMonth(1));
         const ok = await ensureSession();
         if (!ok) return;
-        const returnTimeSliderEl = document.getElementById('workerReturnTimeSlider');
-        if (returnTimeSliderEl) {
-            returnTimeSliderEl.addEventListener('input', updateWorkerReturnTimePreviewHome);
-            returnTimeSliderEl.addEventListener('change', updateWorkerReturnTimePreviewHome);
-        }
-        updateWorkerReturnTimePreviewHome();
         updateNowLabel();
         await fetchMeAndPaint();
         renderTotalProgressChartHome();
@@ -1677,25 +1672,16 @@
         loadMaterialsHome();
         renderWeatherPlaceholder();
         initMapHome();
-        await Promise.all([loadWorkerStatusHome(), loadFrequentSitesHome(), loadWeatherHome()]);
+        await Promise.all([loadFrequentSitesHome(), loadWeatherHome()]);
         setInterval(() => {
             updateNowLabel();
             loadTotalProgressHome();
             loadMaterialsHome();
-            loadWorkerStatusHome();
             loadFrequentSitesHome();
             loadWeatherHome();
         }, 60000);
     }
 
-    window.loadWorkerStatusHome = loadWorkerStatusHome;
-    window.handleWorkerStatusClickHome = handleWorkerStatusClickHome;
-    window.handleWorkerLocationClickHome = handleWorkerLocationClickHome;
-    window.handleWorkerUntilClickHome = handleWorkerUntilClickHome;
-    window.shiftWorkerReturnTimeHome = shiftWorkerReturnTimeHome;
-    window.updateWorkerReturnTimePreviewHome = updateWorkerReturnTimePreviewHome;
-    window.saveWorkerReturnTimeHome = saveWorkerReturnTimeHome;
-    window.clearWorkerReturnTimeHome = clearWorkerReturnTimeHome;
     window.loadFrequentSitesHome = loadFrequentSitesHome;
 
     window.addEventListener('load', initializeHomePage);
