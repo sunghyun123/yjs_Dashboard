@@ -1,28 +1,19 @@
 (function () {
     // ═══════════════════════════════════════════════════════════════════════
-    //  연동 키 (사용자 발급 후 입력) ─ 이 두 값만 채우면 지도/날씨가 동작합니다.
+    //  연동 주소
     // ───────────────────────────────────────────────────────────────────────
-    //  카카오맵 JS 키는 서버 .env(KAKAO_MAP_JS_KEY)에 두고 `/api/public-config`로 받아온다.
-    //    (도메인 제한이 걸린 공개 키이지만 코드/깃에 하드코딩하지 않기 위함)
     //  WEATHER_API_BASE: 날씨는 CORS/키 보호를 위해 백엔드 프록시(`/api/weather/current`) 경유.
-    //    백엔드 엔드포인트가 준비되면 자동으로 실데이터가 표시됩니다.
+    //  자재 현황·진행중 공사 지도는 2026-11-12 홈에서 제거(연간 PR-3) — 연간 표 자리를 만들고,
+    //  안 보이는 카드가 ERP 자재 API·카카오 지오코딩을 60초마다 계속 부르지 않게 로더째 뺐다.
     const WEATHER_API_BASE = '/api/weather/current';
     const ERP_MONTHLY_KPI_API = '/api/erp/monthly-kpi';
-    const ERP_MATERIALS_API = '/api/erp/materials';
     const MONTHLY_PROGRESS_CONFIG_API = '/api/erp/monthly-progress-config';
     // 계획/실적 표 ‹ › 왼쪽 끝. ERP gongmu/_lib/주차.ts 의 최소월과 같은 값 — 바꾸면 ERP 도 같이(어긋나면 ERP 가 400 으로 알린다)
     const MIN_PLAN_MONTH = '2026-09';
     // 지난 달을 보다 이만큼 지나면 이번 달로 돌아온다 — 전자칠판에 지난 달이 하루 종일 떠 있지 않게
     const VIEW_RETURN_MS = 5 * 60 * 1000;
     const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
-    let kakaoMapJsKey = ''; // /api/public-config에서 런타임 주입
     // ═══════════════════════════════════════════════════════════════════════
-
-    // ─── 지도 핀 데이터 소스 ────────────────────────────────────────────────
-    // 서버 `/api/progress-sites`(data/progress_sites.json)에서 받아온다.
-    // 위치는 다음 우선순위로 결정: ① lat/lng(관리 페이지에서 핀 고정) → ② addr(주소 지오코딩)
-    //   → ③ 공사명에서 자동 추출(폴백). 관리 화면: /map-admin.html
-    let MONTHLY_PROGRESS_DATA = [];
 
     // 6월 총 공정현황 (2026-06-18 기준)
     const JUN_DATA_UPDATED      = '2026-06-18';
@@ -75,7 +66,7 @@
     const detailScopeState = { type: 'all', name: '' };
     // ─────────────────────────────────────────────────────────────────────────
 
-    // 담당자별 핀 색상/약칭 (메모리 project-home-renewal 확정값)
+    // 담당자별 색상/약칭 (담당자별 진척 그래프)
     const MANAGER_STYLE = {
         '김무선': { color: '#2f6fed', short: '무선' },
         '김상훈': { color: '#e8590c', short: '상훈' },
@@ -85,13 +76,6 @@
     const DEFAULT_MANAGER_STYLE = { color: '#64748b', short: '담당' };
     // 담당자별 진척 그래프에서 MANAGER_STYLE 에 없는 담당자에게 주는 예비 색
     const EXTRA_MANAGER_COLORS = ['#0ca678', '#f08c00', '#1098ad', '#d6336c', '#5c7cfa', '#868e96'];
-
-    // 안양시청 부근 — 키워드 검색 위치 보정 / 지도 초기 중심
-    const ANYANG_CENTER = { lat: 37.3943, lng: 126.9568 };
-    const GEO_CACHE_KEY = 'yjs_geo_cache_v1';
-
-    let mapInstance = null;
-    let activeTooltipOverlay = null;
 
     function managerStyle(name) {
         return MANAGER_STYLE[String(name || '').trim()] || DEFAULT_MANAGER_STYLE;
@@ -1103,414 +1087,6 @@
         loadTotalProgressHome();
     }
 
-    // ═══════════════════════════ 자재 현황 (ERP 실시간) ═══════════════════════════
-    // 계약: /api/erp/materials → { cable:{stats, groups[]}, etc:{groups[]}, updatedAt }
-    // 재고 타일은 stats(창고 실재고, 출고중 제외)를 그대로 쓴다. lines/chips는 출고중 포함이라
-    // 타일과 합이 다를 수 있음(ERP가 명시한 의도된 차이) — lines에서 재집계하지 않는다.
-    let materialsEverLoaded = false;
-
-    function matStatTile(label, value, unit) {
-        return `<div class="cable-stat"><div class="lb">${label}</div>` +
-            `<div class="v">${Number(value || 0).toLocaleString('ko-KR')}<small>${unit}</small></div></div>`;
-    }
-
-    function matCableChip(chip) {
-        // 잔재(창고 복귀 잔여) / 출고중(현재 반출)은 배타적 상태 — 각자 다른 태그
-        const tag = chip.remnant ? '<span class="rtag">잔재</span>'
-            : chip.shipping ? '<span class="stag">출고중</span>' : '';
-        const cls = 'cable-chip' + (chip.remnant ? ' rem' : chip.shipping ? ' shipping' : '');
-        const maker = chip.maker ? escapeHtml(chip.maker) : '';
-        return `<span class="${cls}"><b>${Number(chip.remaining || 0).toLocaleString('ko-KR')}m ×${Number(chip.count || 0)}</b>${maker}${tag}</span>`;
-    }
-
-    function matCableBars(chip) {
-        // 칩 하나 = 드럼 count개 → 막대 count개, 길이 --w = 남은 미터수
-        const cls = chip.remnant ? ' class="rem"' : chip.shipping ? ' class="shipping"' : '';
-        const w = Number(chip.remaining || 0);
-        const n = Number(chip.count || 0);
-        let out = '';
-        for (let i = 0; i < n; i++) out += `<span style="--w:${w}"${cls}></span>`;
-        return out;
-    }
-
-    function matCableLine(line, isLv) {
-        const chips = Array.isArray(line.chips) ? line.chips : [];
-        // "잔재만 남음" = 이 선종의 남은 드럼이 전부 잔재일 때(대시보드가 chips로 자체 판정)
-        const allRemnant = chips.length > 0 && chips.every((c) => c.remnant);
-        const flag = allRemnant ? '<span class="cable-flag">잔재만 남음</span>' : '';
-        return `<div class="cable-row${isLv ? ' lv' : ''}">` +
-            `<div class="cable-row-top"><span class="cable-code">${escapeHtml(line.code || '')}</span>${flag}` +
-            `<span class="cable-total"><b>${Number(line.totalRemaining || 0).toLocaleString('ko-KR')}m</b> · ${Number(line.drumCount || 0)}드럼</span></div>` +
-            `<div class="cable-drumbar">${chips.map(matCableBars).join('')}</div>` +
-            `<div class="cable-drums">${chips.map(matCableChip).join('')}</div>` +
-            `</div>`;
-    }
-
-    function renderMaterials(data) {
-        const statsEl = document.getElementById('matCableStats');
-        const colsEl = document.getElementById('matCableCols');
-        const etcEl = document.getElementById('matEtcGrid');
-        const srcEl = document.getElementById('matSource');
-        if (!statsEl || !colsEl || !etcEl) return;
-
-        const cable = data.cable || {};
-        const stats = cable.stats || {};
-        const groups = Array.isArray(cable.groups) ? cable.groups : [];
-        const etcGroups = data.etc && Array.isArray(data.etc.groups) ? data.etc.groups : [];
-
-        statsEl.innerHTML =
-            matStatTile('고압 재고', stats.highVoltageStock, 'm') +
-            matStatTile('저압 재고', stats.lowVoltageStock, 'm') +
-            matStatTile('잔재 드럼', stats.remnantDrums, '개');
-
-        // 케이블: 전압 그룹 제목 + 선종 행. 저압은 lv 스타일. 순서는 ERP가 이미 정렬해 보냄.
-        const hasCable = groups.some((g) => Array.isArray(g.lines) && g.lines.length);
-        if (hasCable) {
-            colsEl.innerHTML = groups.map((g) => {
-                const lines = Array.isArray(g.lines) ? g.lines : [];
-                if (!lines.length) return '';
-                const isLv = g.voltage === '저압';
-                const title = `<div class="cable-group-title${isLv ? ' lv' : ''}"><span class="gd"></span>${escapeHtml(g.voltage || '')}</div>`;
-                return title + lines.map((l) => matCableLine(l, isLv)).join('');
-            }).join('');
-        } else {
-            colsEl.innerHTML = '<div class="text-muted small" style="padding:12px 2px;">케이블 재고가 없습니다.</div>';
-        }
-
-        // 기타 자재: 분류 그룹별. 수량 0 품목은 ERP가 이미 제외해서 보냄.
-        if (etcGroups.length) {
-            etcEl.innerHTML = etcGroups.map((grp) => {
-                const items = Array.isArray(grp.items) ? grp.items : [];
-                const rows = items.map((it) =>
-                    `<div class="etc-row"><span class="n">${escapeHtml(it.name || '')}</span>` +
-                    `<span class="c">${Number(it.count || 0).toLocaleString('ko-KR')}<small>${escapeHtml(it.unit || '')}</small></span></div>`
-                ).join('');
-                return `<div class="etc-group"><h3>${escapeHtml(grp.category || '')}</h3>${rows}</div>`;
-            }).join('');
-        } else {
-            etcEl.innerHTML = '<div class="text-muted small" style="padding:12px 2px;">기타 자재 재고가 없습니다.</div>';
-        }
-
-        if (srcEl) srcEl.textContent = `ERP 실시간 · 최신화 ${formatKpiUpdatedAt(data.updatedAt)}`;
-        materialsEverLoaded = true;
-    }
-
-    function setMaterialsError() {
-        const colsEl = document.getElementById('matCableCols');
-        const etcEl = document.getElementById('matEtcGrid');
-        const srcEl = document.getElementById('matSource');
-        const msg = '<div class="text-danger small" style="padding:12px 2px;">자재 데이터를 불러오지 못했습니다.</div>';
-        if (colsEl) colsEl.innerHTML = msg;
-        if (etcEl) etcEl.innerHTML = msg;
-        if (srcEl) srcEl.textContent = 'ERP 연동 오류';
-    }
-
-    async function loadMaterialsHome() {
-        try {
-            const res = await fetch(ERP_MATERIALS_API);
-            if (!res.ok) throw new Error('ERP materials unavailable');
-            const data = await res.json();
-            renderMaterials(data);
-        } catch (_e) {
-            // 첫 로드 실패는 정직하게 오류 표시. 이미 한 번 그렸으면 60초 갱신의
-            // 일시 실패이므로 마지막 정상 데이터를 유지한다(도넛과 같은 방침).
-            if (!materialsEverLoaded) setMaterialsError();
-        }
-    }
-
-    // ═══════════════════════════ 진행중 공사 지도 ═══════════════════════════
-
-    function setMapPlaceholder(text, show) {
-        const ph = document.getElementById('mapPlaceholder');
-        const txt = document.getElementById('mapPlaceholderText');
-        if (txt && text != null) txt.textContent = text;
-        if (ph) ph.classList.toggle('d-none', !show);
-    }
-
-    // 공사명 → 지오코딩 후보 쿼리(우선순위 순)
-    function buildGeocodeQueries(name) {
-        const raw = String(name || '')
-            .replace(/_\d+\b/g, ' ')      // 끝 코드 _3206
-            .replace(/\([^)]*\)/g, ' ')   // 괄호 내용
-            .trim();
-        const out = [];
-        const seen = new Set();
-        const push = (mode, query) => {
-            const q = String(query || '').trim();
-            if (!q || q.length < 2) return;
-            const key = mode + '|' + q;
-            if (seen.has(key)) return;
-            seen.add(key);
-            out.push({ mode, query: q });
-        };
-
-        // 1) 지번 주소: ○○동/리/가 + 번지
-        const jibun = raw.match(/([가-힣]+(?:동|리|가))\s*(\d+(?:-\d+)?)/);
-        if (jibun) {
-            push('address', `${jibun[1]} ${jibun[2]}`);
-            push('keyword', `${jibun[1]} ${jibun[2]}`);
-        }
-
-        // 2) 랜드마크 키워드: 공법/규격/용도 단어 제거 후 앞쪽 토큰
-        const cleaned = raw
-            .replace(/\d+(?:,\d+)?\s*k?w/gi, ' ')
-            .replace(/지중화공사|지중공사|교체공사|보수공사|복구공사|설치공사|신설공사|증설공사|보강공사|정비|조성사업|전기공사/g, ' ')
-            .replace(/지중케이블|노후변압기선로|지상개폐기|배전간선|불량개소|특정제원|수명만료|경과지|맨홀|관로|계통|외상고장|저압접속/g, ' ')
-            .replace(/일반용|주택용|상가용|가로등|고압|저압|임시|상용|신설|증설|교체|보수|복구|설치|노후|경과|불량|지중/g, ' ')
-            .replace(/[A-Za-z()㈜,·\d]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-        const tokens = cleaned.split(' ').filter((t) => t.length >= 2);
-        if (tokens.length) {
-            push('keyword', tokens.slice(0, 2).join(' '));
-            push('keyword', tokens[0]);
-        }
-
-        // 3) 최후: 동 이름만으로 대략 중심
-        const dong = raw.match(/[가-힣]+동/);
-        if (dong) push('keyword', dong[0]);
-
-        return out;
-    }
-
-    // 항목별 지오코딩 후보: 주소(addr)가 있으면 정확 검색을 앞에 두고, 없으면 공사명 추출
-    function buildQueriesForItem(item) {
-        const addr = String((item && item.addr) || '').trim();
-        const out = [];
-        if (addr) {
-            out.push({ mode: 'address', query: addr });
-            out.push({ mode: 'keyword', query: addr });
-        }
-        return out.concat(buildGeocodeQueries(item.name));
-    }
-
-    // 서버에서 지도 데이터(진행중 공사 목록)를 받아온다.
-    async function loadProgressSites() {
-        try {
-            const res = await fetch('/api/progress-sites');
-            if (!res.ok) return [];
-            const data = await res.json();
-            return Array.isArray(data.sites) ? data.sites : [];
-        } catch (_e) {
-            return [];
-        }
-    }
-
-    function loadGeoCache() {
-        try { return JSON.parse(localStorage.getItem(GEO_CACHE_KEY)) || {}; }
-        catch (_e) { return {}; }
-    }
-
-    function saveGeoCache(cache) {
-        try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(cache)); }
-        catch (_e) { /* 용량 초과 등 무시 */ }
-    }
-
-    // 카카오 지오코더/장소검색을 순차 시도해 첫 성공 좌표 반환
-    function geocodeQueries(geocoder, places, queries, centerLatLng) {
-        return new Promise((resolve) => {
-            let idx = 0;
-            const tryNext = () => {
-                if (idx >= queries.length) { resolve(null); return; }
-                const { mode, query } = queries[idx++];
-                if (mode === 'address') {
-                    geocoder.addressSearch(query, (res, status) => {
-                        if (status === kakao.maps.services.Status.OK && res && res[0]) {
-                            resolve({ lat: Number(res[0].y), lng: Number(res[0].x) });
-                        } else { tryNext(); }
-                    });
-                } else {
-                    places.keywordSearch(query, (res, status) => {
-                        if (status === kakao.maps.services.Status.OK && res && res[0]) {
-                            resolve({ lat: Number(res[0].y), lng: Number(res[0].x) });
-                        } else { tryNext(); }
-                    }, { location: centerLatLng, radius: 20000 });
-                }
-            };
-            tryNext();
-        });
-    }
-
-    function pinImageSrc(style) {
-        const svg =
-            `<svg xmlns='http://www.w3.org/2000/svg' width='40' height='48' viewBox='0 0 40 48'>` +
-            `<path d='M20 47C20 47 36 28 36 16.5A16 16 0 1 0 4 16.5C4 28 20 47 20 47Z' fill='${style.color}' stroke='#ffffff' stroke-width='2.5'/>` +
-            `<text x='20' y='21' text-anchor='middle' font-family='Malgun Gothic,AppleSDGothicNeo,sans-serif' font-size='11' font-weight='700' fill='#ffffff'>${style.short}</text>` +
-            `</svg>`;
-        return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    }
-
-    function closeActiveTooltip() {
-        if (activeTooltipOverlay) {
-            activeTooltipOverlay.setMap(null);
-            activeTooltipOverlay = null;
-        }
-    }
-
-    function openTooltip(map, marker, item) {
-        closeActiveTooltip();
-        const style = managerStyle(item.manager);
-        const pct = Number(item.percent) || 0;
-        const bar = Math.max(0, Math.min(100, pct));
-        const box = document.createElement('div');
-        box.className = 'map-tip';
-        box.innerHTML =
-            `<button type="button" class="map-tip-close" aria-label="닫기">×</button>` +
-            `<div class="tt-name">${escapeHtml(item.name)}</div>` +
-            `<div class="tt-row"><span>담당자</span><b>${escapeHtml(item.manager || '-')}</b></div>` +
-            `<div class="tt-row"><span>공번</span><b>${escapeHtml(item.no || '-')}</b></div>` +
-            `<div class="tt-row"><span>공정률</span><span class="tt-pct">${pct}%</span></div>` +
-            `<div class="tt-bar"><div style="width:${bar}%;background:${style.color}"></div></div>`;
-        const overlay = new kakao.maps.CustomOverlay({
-            content: box,
-            position: marker.getPosition(),
-            yAnchor: 1.42,
-            zIndex: 1000,
-            clickable: true,
-        });
-        box.querySelector('.map-tip-close').addEventListener('click', (e) => {
-            e.stopPropagation();
-            closeActiveTooltip();
-        });
-        overlay.setMap(map);
-        activeTooltipOverlay = overlay;
-        // 가장자리 핀의 툴팁이 지도 밖으로 잘리지 않도록, 클릭한 핀을 중앙으로 이동
-        if (typeof map.panTo === 'function') {
-            map.panTo(marker.getPosition());
-        }
-    }
-
-    function loadKakaoSdk() {
-        return new Promise((resolve, reject) => {
-            if (window.kakao && window.kakao.maps) { resolve(); return; }
-            const existing = document.getElementById('kakao-maps-sdk');
-            if (existing) {
-                existing.addEventListener('load', () => resolve());
-                existing.addEventListener('error', () => reject(new Error('sdk load error')));
-                return;
-            }
-            const script = document.createElement('script');
-            script.id = 'kakao-maps-sdk';
-            script.async = true;
-            script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(kakaoMapJsKey)}&autoload=false&libraries=services,clusterer`;
-            script.addEventListener('load', () => resolve());
-            script.addEventListener('error', () => reject(new Error('sdk load error')));
-            document.head.appendChild(script);
-        });
-    }
-
-    async function renderProgressMap() {
-        const mapEl = document.getElementById('progressMap');
-        if (!mapEl) return;
-
-        const center = new kakao.maps.LatLng(ANYANG_CENTER.lat, ANYANG_CENTER.lng);
-        mapInstance = new kakao.maps.Map(mapEl, { center, level: 7 });
-        mapInstance.setMaxLevel(11);
-        kakao.maps.event.addListener(mapInstance, 'click', closeActiveTooltip);
-
-        MONTHLY_PROGRESS_DATA = await loadProgressSites();
-
-        const geocoder = new kakao.maps.services.Geocoder();
-        const places = new kakao.maps.services.Places();
-        const cache = loadGeoCache();
-        let cacheDirty = false;
-
-        const markers = [];
-        const bounds = new kakao.maps.LatLngBounds();
-        const imageCache = {};
-
-        for (const item of MONTHLY_PROGRESS_DATA) {
-            let coord = null;
-            if (item.lat != null && item.lng != null) {
-                // 관리 페이지에서 지정한 위치 — 지오코딩 없이 그대로 사용(울산 튐 방지)
-                coord = { lat: Number(item.lat), lng: Number(item.lng) };
-            } else {
-                const cacheKey = (item.name || '') + '|' + (item.addr || '');
-                coord = cache[cacheKey];
-                if (coord === undefined) {
-                    coord = await geocodeQueries(geocoder, places, buildQueriesForItem(item), center);
-                    cache[cacheKey] = coord; // 실패(null)도 캐시해 재시도 폭주 방지
-                    cacheDirty = true;
-                }
-            }
-            if (!coord) continue;
-
-            const style = managerStyle(item.manager);
-            if (!imageCache[style.color]) {
-                imageCache[style.color] = new kakao.maps.MarkerImage(
-                    pinImageSrc(style),
-                    new kakao.maps.Size(40, 48),
-                    { offset: new kakao.maps.Point(20, 47) }
-                );
-            }
-            const position = new kakao.maps.LatLng(coord.lat, coord.lng);
-            const marker = new kakao.maps.Marker({ position, image: imageCache[style.color], title: item.name });
-            kakao.maps.event.addListener(marker, 'click', () => openTooltip(mapInstance, marker, item));
-            markers.push(marker);
-            bounds.extend(position);
-        }
-
-        if (cacheDirty) saveGeoCache(cache);
-
-        const clusterer = new kakao.maps.MarkerClusterer({
-            map: mapInstance,
-            averageCenter: true,
-            minLevel: 6,
-            gridSize: 60,
-            disableClickZoom: false,
-            styles: [{
-                width: '46px', height: '46px',
-                background: 'rgba(33, 86, 156, 0.88)',
-                borderRadius: '23px',
-                color: '#fff', textAlign: 'center', lineHeight: '46px',
-                fontWeight: '800', fontSize: '15px',
-                border: '3px solid rgba(255,255,255,0.92)',
-            }],
-        });
-        clusterer.addMarkers(markers);
-
-        const badge = document.getElementById('mapCountBadge');
-        if (badge) badge.textContent = `표시 ${markers.length}건 · 자동`;
-
-        if (markers.length > 0) {
-            mapInstance.setBounds(bounds);
-            setMapPlaceholder('', false);
-        } else {
-            setMapPlaceholder('표시할 공사 위치를 찾지 못했습니다.', true);
-        }
-    }
-
-    async function fetchPublicConfig() {
-        try {
-            const res = await fetch('/api/public-config');
-            if (!res.ok) return;
-            const cfg = await res.json();
-            kakaoMapJsKey = cfg.kakaoMapJsKey || '';
-        } catch (_e) {
-            // noop — 키 없으면 아래에서 안내 플레이스홀더 표시
-        }
-    }
-
-    async function initMapHome() {
-        await fetchPublicConfig();
-        if (!kakaoMapJsKey) {
-            setMapPlaceholder('카카오맵 JavaScript 키가 설정되지 않았습니다. 서버 .env의 KAKAO_MAP_JS_KEY를 설정하면 지도가 표시됩니다.', true);
-            return;
-        }
-        setMapPlaceholder('지도를 불러오는 중...', true);
-        try {
-            await loadKakaoSdk();
-        } catch (_e) {
-            setMapPlaceholder('카카오맵 SDK 로드 실패 — JS 키/도메인 등록을 확인해 주세요.', true);
-            return;
-        }
-        kakao.maps.load(() => {
-            renderProgressMap().catch(() => {
-                setMapPlaceholder('지도 렌더링 중 오류가 발생했습니다.', true);
-            });
-        });
-    }
-
     // ═══════════════════════════ 현장 날씨 ═══════════════════════════
 
     const WEATHER_ICONS = { clear: '☀️', cloudy: '⛅', overcast: '☁️', rain: '🌧️', snow: '❄️', shower: '🌦️' };
@@ -1669,14 +1245,11 @@
         await fetchMeAndPaint();
         renderTotalProgressChartHome();
         loadTotalProgressHome();
-        loadMaterialsHome();
         renderWeatherPlaceholder();
-        initMapHome();
         await Promise.all([loadFrequentSitesHome(), loadWeatherHome()]);
         setInterval(() => {
             updateNowLabel();
             loadTotalProgressHome();
-            loadMaterialsHome();
             loadFrequentSitesHome();
             loadWeatherHome();
         }, 60000);
