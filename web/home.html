@@ -101,13 +101,44 @@
             padding: 10px 14px 12px;
         }
 
-        .home-row {
+        /* ── 홈 배치 (2026-11-12 연간 PR-3, 1600×900 기준) ──
+           왼쪽 바로가기 170px | 오른쪽(위: 공정률+날씨 / 아래: 표 칸).
+           아래 칸이 더 큰 이유: PR-4 1~12월 표(접힘 4줄 → 펼침 약 13행)가 들어올 자리 */
+        .home-grid {
+            display: grid;
+            grid-template-columns: 170px minmax(0, 1fr);
+            gap: 8px;
             height: 100%;
         }
+        .home-right {
+            display: grid;
+            grid-template-rows: minmax(0, 46fr) minmax(0, 54fr);
+            gap: 8px;
+            min-height: 0;
+        }
+        .home-top {
+            display: flex;
+            gap: 8px;
+            min-height: 0;
+        }
+        .home-top-main { flex: 1 1 auto; min-width: 0; min-height: 0; }
+        .home-table-slot { min-height: 0; overflow: auto; }
+        /* 월 표(임시)가 넓은 칸에서 1400px로 늘어나 숫자가 멀어지지 않게 */
+        .home-table-slot .pa-table { max-width: 640px; }
 
-        .home-row > [class^="col"] {
-            height: 100%;
+        /* 바로가기 세로 한 열 — 아이콘 + 이름 가로 한 줄 */
+        .shortcut-col { min-height: 0; }
+        .shortcut-col .mini-link-grid { grid-template-columns: 1fr; gap: 6px; }
+        .shortcut-col .mini-link {
+            display: flex; align-items: center; gap: 8px;
+            text-align: left; padding: 7px 10px; font-size: 0.8rem;
         }
+        .shortcut-col .mini-link-favicon,
+        .shortcut-col .mini-link-icon-fallback { margin: 0; flex: 0 0 auto; }
+
+        /* 날씨 소형 */
+        .weather-mini { flex: 0 0 180px; min-height: 0; }
+        .weather-mini .weather-now { gap: 8px; margin-bottom: 4px; }
 
         .home-card {
             border: 1px solid var(--y-border);
@@ -153,163 +184,6 @@
         .weather-icon { font-size: 2.4rem; line-height: 1; }
         .weather-temp { font-size: 1.85rem; font-weight: 800; color: #143656; line-height: 1; }
         .weather-cond { font-size: 0.8rem; color: #4a647e; margin-top: 2px; }
-
-        .weather-meta {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-top: 8px;
-        }
-
-        .weather-chip {
-            font-size: 0.72rem;
-            color: #44607a;
-            background: #f1f6fb;
-            border: 1px solid #dde9f3;
-            border-radius: 999px;
-            padding: 3px 9px;
-        }
-
-        .weather-chip b { color: #1f3045; }
-
-        .weather-forecast {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 6px;
-            margin-top: 9px;
-        }
-
-        .wf-day {
-            text-align: center;
-            border: 1px solid #e6eef6;
-            border-radius: 10px;
-            padding: 7px 4px;
-            background: #fbfdff;
-        }
-
-        .wf-day .d { font-size: 0.72rem; color: #6b7d90; font-weight: 700; }
-        .wf-day .i { font-size: 1.3rem; margin: 3px 0; }
-        .wf-day .t { font-size: 0.74rem; font-weight: 700; color: #1f3045; }
-        .wf-day .t small { color: #8aa0b4; font-weight: 600; }
-
-        .weather-alert {
-            font-size: 0.72rem;
-            color: #8a5a00;
-            margin-top: 8px;
-        }
-
-        /* ── 진행중 공사 지도 ── */
-        .map-card-body {
-            position: relative;
-            flex: 1 1 auto;
-            min-height: 0;
-            border-radius: 12px;
-            overflow: hidden;
-            border: 1px solid #dbe7df;
-            background: #eef3f1;
-        }
-
-        #progressMap {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-        }
-
-        /* 우측 좁은 칸으로 이동하면서 가로 한 줄 범례로 — 지도를 덜 가리게 */
-        .map-legend {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            right: 10px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px 10px;
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid #d3e0ec;
-            border-radius: 10px;
-            padding: 5px 10px;
-            font-size: 0.72rem;
-            color: #45586c;
-            z-index: 6;
-            line-height: 1.4;
-            pointer-events: none;
-        }
-
-        .legend-dot {
-            width: 11px;
-            height: 11px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 5px;
-            transform: translateY(1px);
-        }
-
-        .map-placeholder {
-            position: absolute;
-            inset: 0;
-            z-index: 8;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            text-align: center;
-            padding: 24px;
-            background:
-                radial-gradient(circle at 30% 25%, #eaf3e8 0 18%, transparent 18%),
-                radial-gradient(circle at 72% 60%, #e7f0f7 0 26%, transparent 26%),
-                linear-gradient(135deg, #eef4ec 0%, #e9f1f6 100%);
-            color: #5b7088;
-            font-size: 0.85rem;
-        }
-
-        .map-placeholder .ph-icon { font-size: 2rem; }
-        .map-placeholder.d-none { display: none; }
-
-        /* 클릭 툴팁 (카카오 CustomOverlay 내용) */
-        .map-tip {
-            position: relative;
-            width: 232px;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(13, 41, 69, 0.22);
-            border: 1px solid #e1e9f2;
-            padding: 11px 13px;
-        }
-
-        .map-tip::after {
-            content: "";
-            position: absolute;
-            bottom: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            border-width: 8px 8px 0 8px;
-            border-style: solid;
-            border-color: #fff transparent transparent transparent;
-            filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.06));
-        }
-
-        .map-tip-close {
-            position: absolute;
-            top: 4px;
-            right: 6px;
-            border: 0;
-            background: transparent;
-            color: #98a8b8;
-            font-size: 1.1rem;
-            line-height: 1;
-            cursor: pointer;
-        }
-
-        .map-tip-close:hover { color: #5b6b7b; }
-
-        .tt-name { font-size: 0.82rem; font-weight: 800; color: #1c3350; line-height: 1.3; padding-right: 14px; }
-        .tt-row { display: flex; justify-content: space-between; font-size: 0.74rem; margin-top: 5px; color: #54677c; }
-        .tt-row b { color: #1f3045; }
-        .tt-pct { color: #1c8b4c; font-weight: 800; }
-        .tt-bar { height: 6px; border-radius: 999px; background: #eef2f7; margin-top: 7px; overflow: hidden; }
-        .tt-bar > div { height: 100%; background: #2f9e44; }
 
         /* ── 총 공정률 도넛 ── */
         /* 이중 링: 바깥 = 시공 / 시공 목표, 안쪽 = 정산 / 정산 목표.
@@ -428,12 +302,6 @@
         /* 담당자 줄 안의 누르는 숫자 — 칸이 좁아 캡션용 여백을 줄인다 */
         .mgr-val .tp-clickable, .mgr-unplanned .tp-clickable { padding: 0 3px; margin: 0; }
         .mgr-val .tp-clickable::after, .mgr-unplanned .tp-clickable::after { margin-left: 2px; }
-
-        /* 자재 현황(오른쪽 좁은 칸): 케이블 1단, 기타 자재 2단, 숫자 타일 축소 */
-        .mat-narrow .cable-cols { column-count: 1; }
-        .mat-narrow .etc-grid { grid-template-columns: 1fr 1fr; }
-        .mat-narrow .cable-stat { padding: 3px 8px; }
-        .mat-narrow .cable-stat .v { font-size: 1.1rem; }
 
         /* ── 총 공정률 상세 팝업 (실적/목표 캡션 클릭) ── */
         /* 캡션 줄을 '눌러도 되는 글자'로 보이게 한다 — 안 그러면 클릭할 수 있는 줄 알 방법이 없다 */
@@ -557,7 +425,7 @@
 
         /* ── 바로가기 ── */
         .mini-link-grid {
-            /* 지도 하단 가로 배치로 이동 — 칸 수를 폭에 맞춰 자동 조절 */
+            /* 기본은 폭에 맞춰 칸 수 자동 — 홈 왼쪽 세로열에선 .shortcut-col 이 1열로 덮어씀 */
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
             gap: 8px;
@@ -600,268 +468,6 @@
             line-height: 1;
         }
 
-        /* ── 자재 현황 (중앙 메인 · ERP 자재관리 실시간 연동) ──
-           전자칠판 1~2m 시청 전제: 선종·수량은 크게, 드럼 상세 칩은 근접 확인용으로만 작게 */
-        .mat-seg {
-            display: inline-flex;
-            gap: 3px;
-            background: #eef3f9;
-            border: 1px solid var(--y-border);
-            border-radius: 999px;
-            padding: 3px;
-        }
-
-        .mat-seg button {
-            border: none;
-            background: transparent;
-            border-radius: 999px;
-            padding: 4px 16px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            color: var(--y-text-subtle);
-        }
-
-        .mat-seg button.active {
-            background: var(--y-primary);
-            color: #fff;
-        }
-
-        .mat-tab {
-            display: none;
-            flex: 1 1 auto;
-            min-height: 0;
-            flex-direction: column;
-        }
-
-        .mat-tab.active { display: flex; }
-
-        .cable-stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-bottom: 10px;
-            flex: 0 0 auto;
-        }
-
-        .cable-stat {
-            border: 1px solid #e3ebf4;
-            border-radius: 10px;
-            background: #f9fbff;
-            padding: 4px 12px;
-            display: flex;
-            align-items: baseline;
-            justify-content: space-between;
-            gap: 8px;
-        }
-
-        .cable-stat .lb { font-size: 0.8rem; font-weight: 700; color: var(--y-text-subtle); }
-
-        .cable-stat .v {
-            font-size: 1.4rem;
-            font-weight: 800;
-            color: #1f3045;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .cable-stat .v small { font-size: 0.78rem; font-weight: 700; color: var(--y-text-subtle); margin-left: 1px; }
-
-        .cable-scrollwrap {
-            overflow-y: auto;
-            min-height: 0;
-            flex: 1 1 auto;
-            padding-right: 2px;
-        }
-
-        .cable-scrollwrap::-webkit-scrollbar { width: 8px; }
-        .cable-scrollwrap::-webkit-scrollbar-thumb { background: #c9d7e6; border-radius: 999px; }
-
-        /* 2단 신문 배치 — 접기 없이 전 선종 상시 노출, 높이는 두 단으로 자동 균형 */
-        .cable-cols {
-            column-count: 2;
-            column-gap: 14px;
-        }
-
-        .cable-group-title {
-            font-size: 0.82rem;
-            font-weight: 800;
-            color: var(--y-text-subtle);
-            letter-spacing: 0.06em;
-            margin: 0 1px 4px;
-            break-inside: avoid;
-            break-after: avoid;
-        }
-
-        .cable-group-title .gd {
-            width: 10px;
-            height: 10px;
-            border-radius: 3px;
-            background: #2f6fed;
-            display: inline-block;
-            margin-right: 5px;
-            transform: translateY(1px);
-        }
-
-        .cable-group-title.lv .gd { background: #2f9e44; }
-
-        .cable-row {
-            border: 1px solid #e3ebf4;
-            border-radius: 10px;
-            background: #fbfdff;
-            padding: 6px 10px 7px;
-            margin-bottom: 5px;
-            break-inside: avoid;
-        }
-
-        .cable-row-top {
-            display: flex;
-            align-items: baseline;
-            gap: 8px;
-        }
-
-        .cable-code { font-size: 1.06rem; font-weight: 800; color: #1f3045; }
-
-        .cable-flag {
-            font-size: 0.66rem;
-            font-weight: 700;
-            border-radius: 999px;
-            padding: 1px 8px;
-            background: #fef3c7;
-            color: #b45309;
-            white-space: nowrap;
-        }
-
-        .cable-flag.muted { background: #eef2f7; color: #64748b; }
-
-        .cable-total {
-            margin-left: auto;
-            font-size: 0.78rem;
-            color: var(--y-text-subtle);
-            font-variant-numeric: tabular-nums;
-            white-space: nowrap;
-        }
-
-        .cable-total b { color: #1f3045; font-size: 0.98rem; }
-
-        /* 막대 하나 = 드럼 하나, 길이 = 남은 미터수 비율 (목업 drumbar 축소판) */
-        .cable-drumbar {
-            display: flex;
-            gap: 2px;
-            height: 7px;
-            margin-top: 5px;
-        }
-
-        .cable-drumbar span {
-            flex-grow: var(--w);
-            border-radius: 2px;
-            background: var(--bar, #2f6fed);
-            min-width: 3px;
-        }
-
-        .cable-drumbar span.rem { opacity: 0.35; }
-        .cable-row.lv .cable-drumbar span { --bar: #2f9e44; }
-
-        /* 드럼 묶음 칩 — 상시 노출(접기 없음), 근접 확인용 */
-        .cable-drums {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-            margin-top: 5px;
-        }
-
-        .cable-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            background: #f1f6fb;
-            border: 1px solid #dde9f3;
-            border-radius: 999px;
-            padding: 1px 8px;
-            font-size: 0.68rem;
-            color: #44607a;
-            white-space: nowrap;
-        }
-
-        .cable-chip b { color: #1f3045; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .cable-chip.rem { border-style: dashed; }
-
-        .cable-chip .rtag {
-            font-size: 0.58rem;
-            font-weight: 700;
-            color: #b45309;
-            background: #fef3c7;
-            border-radius: 999px;
-            padding: 0 5px;
-        }
-
-        /* 출고중(현재 반출) — 창고 재고 타일엔 안 잡히므로 잔재와 다른 표식으로 구분 */
-        .cable-chip.shipping { border-style: dotted; }
-
-        .cable-chip .stag {
-            font-size: 0.58rem;
-            font-weight: 700;
-            color: #1d6fa5;
-            background: #e0f2fe;
-            border-radius: 999px;
-            padding: 0 5px;
-        }
-
-        .cable-drumbar span.shipping { opacity: 0.7; background: transparent; box-shadow: inset 0 0 0 1px var(--bar, #2f6fed); }
-
-        /* ── 기타 자재 탭 — 그룹 4단, 전 품목 상시 노출 ── */
-        .etc-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            align-content: start;
-            overflow-y: auto;
-            min-height: 0;
-            flex: 1 1 auto;
-        }
-
-        .etc-group {
-            border: 1px solid #e3ebf4;
-            border-radius: 10px;
-            background: #fbfdff;
-            padding: 2px 12px 6px;
-            align-self: start;
-        }
-
-        .etc-group h3 {
-            font-size: 0.88rem;
-            font-weight: 800;
-            color: #1f3045;
-            margin: 9px 0 3px;
-        }
-
-        .etc-row {
-            display: flex;
-            align-items: baseline;
-            justify-content: space-between;
-            gap: 8px;
-            padding: 6px 0;
-        }
-
-        .etc-row + .etc-row { border-top: 1px solid #e9f0f7; }
-
-        .etc-row .n { font-size: 0.85rem; color: #33465c; min-width: 0; }
-
-        .etc-row .c {
-            font-size: 1.12rem;
-            font-weight: 800;
-            color: #1f3045;
-            font-variant-numeric: tabular-nums;
-            white-space: nowrap;
-        }
-
-        .etc-row .c small { font-size: 0.7rem; font-weight: 700; color: var(--y-text-subtle); margin-left: 1px; }
-
-        .cable-foot {
-            font-size: 0.7rem;
-            color: var(--y-text-subtle);
-            margin-top: 6px;
-            flex: 0 0 auto;
-        }
-
         .login-card {
             width: min(420px, 92vw);
             border-radius: 12px;
@@ -875,11 +481,12 @@
                 top: auto;
                 padding: 70px 12px 16px;
             }
-            .home-row, .home-row > [class^="col"] { height: auto; }
-            .map-card-body { min-height: 380px; }
-            /* 좁은 화면: 케이블 2단 → 1단, 기타 자재 4단 → 2단 */
-            .cable-cols { column-count: 1; }
-            .etc-grid { grid-template-columns: 1fr 1fr; }
+            /* 좁은 화면: 한 열로 쌓고 세로 스크롤 */
+            .home-grid { grid-template-columns: 1fr; height: auto; }
+            .home-right { grid-template-rows: auto auto; }
+            .home-top { flex-direction: column; }
+            .weather-mini { flex: 0 0 auto; }
+            .shortcut-col .mini-link-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
             .tp-split { flex-direction: column; }
             .tp-split-donut { flex: 0 0 auto; }
             .tp-split-managers { border-left: 0; padding-left: 0; }
@@ -913,58 +520,24 @@
     </header>
 
     <main class="home-shell">
-        <div class="row g-2 home-row">
-            <!-- 좌: 계획/실적 표 + 현장 날씨 -->
-            <div class="col-12 col-xl-3">
-                <div class="d-flex flex-column gap-2 h-100">
-                    <!-- 계획/실적 표 (2026-11-10, 설계 §6 PR-3) — 외출/행선표 자리. 도넛·담당자 그래프와 같은 상태에서 그린다(home.js renderPlanActualTableHome).
-                         ‹ › 는 표만이 아니라 도넛·담당자 그래프·상세 팝업을 같은 달로 함께 옮긴다 — "어디를 봐도 같은 숫자" -->
-                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 56%; min-height: 0;">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <div class="section-title">계획 / 실적</div>
-                            <div class="pa-nav">
-                                <button type="button" id="planActualPrev" class="pa-nav-btn" aria-label="이전 달" disabled>‹</button>
-                                <span id="planActualMonth" class="pa-nav-month">-</span>
-                                <button type="button" id="planActualNext" class="pa-nav-btn" aria-label="다음 달" disabled>›</button>
-                            </div>
-                        </div>
-                        <div id="planActualPeriod" class="pa-period">단위 천원</div>
-                        <div id="planActualBody" class="pa-table">
-                            <div class="text-muted small" style="grid-column: 1 / -1; text-align: left;">불러오는 중...</div>
-                        </div>
-                        <div id="planActualNotice" class="pa-notice" style="display:none;"></div>
-                    </div>
-
-                    <!-- 현장 날씨 -->
-                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 44%; min-height: 0;">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="section-title">현장 날씨 · <span id="weatherCity">안양</span></div>
-                            <span id="weatherDateBadge" class="badge text-bg-light border">-</span>
-                        </div>
-                        <div class="weather-now">
-                            <div class="weather-icon" id="weatherIcon">⛅</div>
-                            <div>
-                                <div class="weather-temp" id="weatherTemp">--°</div>
-                                <div class="weather-cond" id="weatherCond">날씨 정보 연동 대기</div>
-                            </div>
-                        </div>
-                        <div class="weather-meta" id="weatherMeta">
-                            <span class="weather-chip">강수확률 <b id="weatherPop">--</b></span>
-                            <span class="weather-chip">바람 <b id="weatherWind">--</b></span>
-                            <span class="weather-chip">습도 <b id="weatherHumidity">--</b></span>
-                        </div>
-                        <div class="weather-forecast" id="weatherForecast"></div>
-                        <div class="weather-alert" id="weatherAlert"></div>
-                    </div>
+        <!-- 2026-11-12 연간 PR-3: 1600×900 전자칠판 기준 재배치(설계 §3-4·§5-2).
+             왼쪽 = 바로가기 세로 한 열, 오른쪽 위 = 총 공정률 + 날씨(소형), 오른쪽 아래 = 표 칸.
+             표 칸은 PR-4에서 1~12월 표로 바뀐다 — 그때까지 기존 월 계획/실적 표(‹ ›)를 둔다.
+             그래프 칸은 PR-5에서 표 칸 아래에 추가한다. -->
+        <div class="home-grid">
+            <!-- 왼쪽: 바로가기 세로 한 열 (id 유지로 home.js 렌더링 그대로 동작) -->
+            <div class="home-card p-3 d-flex flex-column shortcut-col">
+                <div class="section-title mb-2">바로가기</div>
+                <div id="homeFrequentSiteList" class="mini-link-grid">
+                    <div class="text-muted small">불러오는 중...</div>
                 </div>
             </div>
 
-            <!-- 중앙: 총 공정률(전체 + 담당자별) + 바로가기 -->
-            <div class="col-12 col-xl-6">
-                <div class="d-flex flex-column gap-2 h-100">
-                    <!-- 총 공정률 — 사장님 요청(2026-10-12)으로 자재 현황과 자리를 바꿨다(자주 보는 쪽을 넓은 중앙에).
-                         왼쪽 = 전체 도넛, 오른쪽 = 담당자별 진척(home.js renderManagerProgressHome) -->
-                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 66%; min-height: 0;">
+            <div class="home-right">
+                <!-- 오른쪽 위: 총 공정률(전체 + 담당자별) + 현장 날씨(소형) -->
+                <div class="home-top">
+                    <!-- 총 공정률 — 왼쪽 = 전체 도넛, 오른쪽 = 담당자별 진척(home.js renderManagerProgressHome) -->
+                    <div class="home-card p-3 d-flex flex-column home-top-main">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <div id="totalProgressTitle" class="section-title">6월 총 공정률</div>
                             <span class="badge text-bg-light border">목표 대비</span>
@@ -996,75 +569,34 @@
                         </div>
                     </div>
 
-                    <!-- 바로가기 (id 유지로 home.js 렌더링 그대로 동작) -->
-                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 34%; min-height: 0;">
-                        <div class="section-title mb-2">바로가기 모음</div>
-                        <div id="homeFrequentSiteList" class="mini-link-grid">
-                            <div class="text-muted small">불러오는 중...</div>
+                    <!-- 현장 날씨(소형) — 2026-11-12 축소: 예보·바람·습도·특보 줄 제거, /api/weather 호출은 그대로 -->
+                    <div class="home-card p-3 d-flex flex-column weather-mini">
+                        <div class="section-title mb-2">날씨 · <span id="weatherCity">안양</span></div>
+                        <div class="weather-now">
+                            <div class="weather-icon" id="weatherIcon">⛅</div>
+                            <div class="weather-temp" id="weatherTemp">--°</div>
                         </div>
+                        <div class="weather-cond" id="weatherCond">날씨 정보 연동 대기</div>
+                        <div class="weather-cond">강수확률 <b id="weatherPop">--</b></div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 우: 자재 현황 + 진행중 공사 지도(축소) -->
-            <div class="col-12 col-xl-3">
-                <div class="d-flex flex-column gap-2 h-100">
-                    <!-- 자재 현황 — 2026-10-12 공정률과 자리를 바꿔 오른쪽 좁은 칸으로(mat-narrow: 케이블 1단·기타 자재 2단). yjs_erp 자재관리 실시간 연동 (/api/erp/materials, home.js가 렌더) -->
-                    <div class="home-card p-3 d-flex flex-column mat-narrow" style="flex: 1 1 62%; min-height: 0;">
-                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                            <div class="d-flex align-items-center gap-3 flex-wrap">
-                                <div class="section-title">자재 현황</div>
-                                <div class="mat-seg" role="tablist" aria-label="자재 분류 전환">
-                                    <button type="button" class="active" data-mat-tab="matTabCable">케이블</button>
-                                    <button type="button" data-mat-tab="matTabEtc">기타 자재</button>
-                                </div>
-                            </div>
-                            <span id="matSource" class="text-muted" style="font-size:0.72rem;white-space:nowrap;">불러오는 중…</span>
-                        </div>
-
-                        <!-- 탭 1 · 케이블 재고 -->
-                        <div id="matTabCable" class="mat-tab active">
-                            <div class="cable-stats" id="matCableStats"></div>
-
-                            <div class="cable-scrollwrap">
-                                <div class="cable-cols" id="matCableCols"></div>
-                            </div>
-
-                            <div class="cable-foot">막대 하나 = 드럼 하나 · 길이 = 남은 미터수 · 흐린 표시 = 잔재 · ERP 자재관리 실시간 연동</div>
-                        </div>
-
-                        <!-- 탭 2 · 기타 자재 (접속재·개폐기·변압기 — 자재관리 목업의 기타 자재 탭 축소판) -->
-                        <div id="matTabEtc" class="mat-tab">
-                            <div class="etc-grid" id="matEtcGrid"></div>
-
-                            <div class="cable-foot">접속재·개폐기·변압기 수량 — ERP 자재관리 입·출고 기록 실시간 연동</div>
+                <!-- 오른쪽 아래: 표 칸 — PR-4 전까지 기존 월 계획/실적 표(2026-11-10).
+                     ‹ › 는 표만이 아니라 도넛·담당자 그래프·상세 팝업을 같은 달로 함께 옮긴다(동작 무변경) -->
+                <div class="home-card p-3 d-flex flex-column home-table-slot">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div class="section-title">계획 / 실적</div>
+                        <div class="pa-nav">
+                            <button type="button" id="planActualPrev" class="pa-nav-btn" aria-label="이전 달" disabled>‹</button>
+                            <span id="planActualMonth" class="pa-nav-month">-</span>
+                            <button type="button" id="planActualNext" class="pa-nav-btn" aria-label="다음 달" disabled>›</button>
                         </div>
                     </div>
-
-                    <!-- 진행중 공사 지도 — 오른쪽 칸에서 자재 현황 아래 (id 유지로 home.js 그대로 동작) -->
-                    <div class="home-card p-3 d-flex flex-column" style="flex: 1 1 38%; min-height: 0;">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="section-title">진행중 공사 지도</div>
-                            <div class="d-flex align-items-center gap-2">
-                                <a href="/map-admin.html" class="badge text-bg-light border text-decoration-none" title="공사 목록·위치 관리">⚙ 위치 관리</a>
-                                <span id="mapCountBadge" class="badge text-bg-light border">자동 표시</span>
-                            </div>
-                        </div>
-                        <div class="map-card-body">
-                            <div id="progressMap"></div>
-                            <div class="map-legend">
-                                <div><span class="legend-dot" style="background:#2f6fed"></span>김무선</div>
-                                <div><span class="legend-dot" style="background:#e8590c"></span>김상훈</div>
-                                <div><span class="legend-dot" style="background:#2f9e44"></span>이재규</div>
-                                <div><span class="legend-dot" style="background:#ae3ec9"></span>김단후</div>
-                            </div>
-                            <div id="mapPlaceholder" class="map-placeholder">
-                                <div class="ph-icon">🗺️</div>
-                                <div id="mapPlaceholderText">지도를 불러오는 중...</div>
-                            </div>
-                        </div>
-                        <div class="text-muted mt-2" style="font-size:0.72rem;">※ 월간 공사 계획 기준</div>
+                    <div id="planActualPeriod" class="pa-period">단위 천원</div>
+                    <div id="planActualBody" class="pa-table">
+                        <div class="text-muted small" style="grid-column: 1 / -1; text-align: left;">불러오는 중...</div>
                     </div>
+                    <div id="planActualNotice" class="pa-notice" style="display:none;"></div>
                 </div>
             </div>
         </div>
@@ -1141,24 +673,11 @@
         </div>
     </div>
 
-    <script>
-        // 자재 현황 — 케이블/기타 자재 탭 전환 (정적 목업 전용이라 home.js 대신 인라인)
-        (function () {
-            const seg = document.querySelector('.mat-seg');
-            if (!seg) return;
-            seg.addEventListener('click', (e) => {
-                const btn = e.target.closest('button[data-mat-tab]');
-                if (!btn || btn.classList.contains('active')) return;
-                seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === btn));
-                document.querySelectorAll('.mat-tab').forEach((p) => p.classList.toggle('active', p.id === btn.dataset.matTab));
-            });
-        })();
-    </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20261110a"></script>
+    <script src="/home.js?v=20261112a"></script>
 </body>
 
 </html>
