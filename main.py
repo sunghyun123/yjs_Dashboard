@@ -2,6 +2,7 @@
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
@@ -153,6 +154,10 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_li
 app.add_middleware(SecurityHeadersMiddleware)
 if settings.FORCE_HTTPS_REDIRECT:
     app.add_middleware(HTTPSRedirectMiddleware)
+# 연간 표 응답(약 164KB)을 5분마다 받는다 — 중계→브라우저 구간만 줄인다.
+# ERP→중계 구간 압축은 ERP nginx 설정이라 이 레포 범위 밖(2026-11-13 실측: ERP 는 gzip 요청에도 원본 그대로).
+# 액세스 로그는 바이트를 찍지 않아 압축 전/후 순서는 집계에 영향 없다.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 # 마지막에 추가 = 최외곽 → 최종 상태코드와 전체 소요시간을 정확히 집계한다.
 app.add_middleware(AccessLogMiddleware)
 

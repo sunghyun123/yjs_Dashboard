@@ -208,3 +208,46 @@ def test_관리자가_아니면_담당자_목록과_계획외_지정을_못_바�
     assert client.post("/api/admin/target-managers", json={"name": "x"}).status_code in (401, 403)
     assert client.delete("/api/admin/target-managers/1").status_code in (401, 403)
     assert _assign(client, "999", "김무선").status_code in (401, 403)
+
+
+# ── 연간 목표 한 번에 (2026-11-13, 연간 PR-4) ──
+# 연간 표는 1~12월 목표를 ?year= 한 번으로 받는다. ?month= 12번이면 '몇 달만 실패'한 반쪽 표가 생길 자리가 있다.
+
+def test_연도_설정은_12달을_한_번에_돌려준다(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    _add(client, month="2026-01", jijung_no="A", amount_thousand=100)
+    _add(client, month="2026-09", jijung_no="B", amount_thousand=200, kind="settlement")
+    _add(client, month="2025-12", jijung_no="Z", amount_thousand=999)  # 다른 해는 섞이면 안 된다
+    _assign(client, "999", "김상훈", month="2026-09")
+
+    res = client.get("/api/erp/monthly-progress-config?year=2026")
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert data["year"] == "2026"
+    assert [m["month"] for m in data["months"]] == [f"2026-{i:02d}" for i in range(1, 13)]
+    jan, sep, dec = data["months"][0], data["months"][8], data["months"][11]
+    assert [r["amountThousand"] for r in jan["targets"]["construction"]] == [100]
+    assert sep["targets"]["settlement"][0]["jijungNo"] == "B"
+    assert sep["unplannedAssignments"] == [{"jijungNo": "999", "manager": "김상훈"}]
+    # 행이 없는 달도 빈 칸으로 자리를 지킨다
+    assert dec == {"month": "2026-12", "targets": {"construction": [], "settlement": []}, "unplannedAssignments": []}
+    assert "김상훈" in data["managers"]
+    # 2025-12 행이 2026 어디에도 없다
+    all_nos = [r["jijungNo"] for m in data["months"] for k in ("construction", "settlement") for r in m["targets"][k]]
+    assert "Z" not in all_nos
+
+
+def test_연도_행_모양은_월_경로와_같다(client, monkeypatch, tmp_path):
+    # 두 경로가 행 dict 를 따로 만들면 칸 이름이 갈라질 수 있다 — 같은 함수에서 나와야 한다
+    login_as_admin(client, monkeypatch, tmp_path)
+    _add(client, month="2026-10")
+    by_month = client.get("/api/erp/monthly-progress-config?month=2026-10").json()["data"]["targets"]
+    by_year = client.get("/api/erp/monthly-progress-config?year=2026").json()["data"]["months"][9]["targets"]
+    assert by_year == by_month
+
+
+def test_연도_설정의_잘못된_입력(client, monkeypatch, tmp_path):
+    login_as_admin(client, monkeypatch, tmp_path)
+    assert client.get("/api/erp/monthly-progress-config?year=26").status_code == 400
+    assert client.get("/api/erp/monthly-progress-config?year=2026-01").status_code == 400
+    assert client.get("/api/erp/monthly-progress-config?year=2026&month=2026-10").status_code == 400
