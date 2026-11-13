@@ -22,6 +22,17 @@ def month_label(month: str) -> str:
         return ""
 
 
+def _target_row(r) -> Dict[str, Any]:
+    # 월 경로와 연간 경로가 같은 함수로 행을 만든다 — 칸 이름이 두 벌로 갈라질 자리를 없앤다
+    return {
+        "id": r["id"],
+        "jijungNo": r["jijung_no"],
+        "name": r["name"],
+        "amountThousand": r["amount_thousand"],
+        "manager": r["manager"] or "",
+    }
+
+
 class MonthlyProgressRepository:
     def __init__(self, db_path: str):
         self._db_path = db_path
@@ -141,14 +152,53 @@ class MonthlyProgressRepository:
             ).fetchall()
         grouped: Dict[str, List[Dict[str, Any]]] = {kind: [] for kind in TARGET_KINDS}
         for r in rows:
-            grouped[r["kind"]].append({
-                "id": r["id"],
-                "jijungNo": r["jijung_no"],
-                "name": r["name"],
-                "amountThousand": r["amount_thousand"],
-                "manager": r["manager"] or "",
-            })
+            grouped[r["kind"]].append(_target_row(r))
         return grouped
+
+    def get_year_config(self, year: str) -> Dict[str, Any]:
+        """1~12월 목표 행·계획외 지정을 한 번에 (2026-11-13, 연간 PR-4).
+
+        쿼리는 표마다 한 번 — 달마다 list_target_rows 를 12번 부르지 않는다.
+        행이 없는 달도 빈 칸으로 12개를 다 채운다: 화면이 '그 달 목표 없음'과 '못 받음'을 섞지 않게.
+        total_progress·label 은 넣지 않는다(도넛 전용 칸).
+        """
+        y = (year or "").strip()
+        months = [f"{y}-{i:02d}" for i in range(1, 13)]
+        with get_conn(self._db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT id, month, kind, jijung_no, name, amount_thousand, manager
+                FROM monthly_target_rows
+                WHERE month BETWEEN ? AND ?
+                ORDER BY id
+                """,
+                (months[0], months[-1]),
+            ).fetchall()
+            assigned = conn.execute(
+                """
+                SELECT month, jijung_no, manager FROM monthly_unplanned_assignments
+                WHERE month BETWEEN ? AND ?
+                ORDER BY id
+                """,
+                (months[0], months[-1]),
+            ).fetchall()
+        by_month: Dict[str, Dict[str, Any]] = {
+            m: {"month": m, "targets": {kind: [] for kind in TARGET_KINDS}, "unplannedAssignments": []}
+            for m in months
+        }
+        for r in rows:
+            if r["month"] in by_month:  # 'YYYY-MM' 이 아닌 이상한 month 값은 BETWEEN 을 통과해도 버린다
+                by_month[r["month"]]["targets"][r["kind"]].append(_target_row(r))
+        for r in assigned:
+            if r["month"] in by_month:
+                by_month[r["month"]]["unplannedAssignments"].append(
+                    {"jijungNo": r["jijung_no"], "manager": r["manager"]}
+                )
+        return {
+            "year": y,
+            "months": [by_month[m] for m in months],
+            "managers": [m["name"] for m in self.list_managers()],
+        }
 
     def add_target_row(
         self,

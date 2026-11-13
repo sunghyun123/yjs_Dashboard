@@ -53,6 +53,7 @@ def _as_day(value: Any) -> Optional[int]:
 
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _MONTH_RE = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
+_YEAR_RE = re.compile(r"\d{4}")
 
 
 def _as_date(value: Any) -> Optional[str]:
@@ -213,32 +214,81 @@ def _normalize_month_kpi(payload: Dict[str, Any], month: str) -> Dict[str, Any]:
     home.js 는 빈 updatedAt 을 대체값 날짜(2026-06-18)로 그린다 — 지난 달 표에 6월 날짜가 에러 없이 찍힌다.
     요청한 달과 다른 달이 오면 계약 위반으로 본다(그대로 그리면 '10월' 제목 아래 9월 숫자).
     """
-    split = _normalize_split(payload)
-    if payload.get("month") != month or split is None or split.get("month") != month:
+    if payload.get("month") != month:
         raise _ErpContractError(f"ERP month 응답이 요청({month})과 다르다")
+    split = _check_month_split(payload.get("split"), month)
+    return {"status": "success", "month": month, "split": split}
+
+
+def _check_month_split(raw: Any, month: str) -> Dict[str, Any]:
+    """한 달치 split 을 정규화하고 계약을 검사한다 — month 경로와 year 경로가 같은 검사를 쓴다."""
+    split = _normalize_split({"split": raw})
+    if split is None or split.get("month") != month:
+        raise _ErpContractError(f"ERP split 이 요청한 달({month})과 다르다")
     # 시공 칸이 없으면 화면은 어차피 실패를 그린다 — 200 으로 빈 칸을 보내지 않고 계약 위반으로 본다
     if split.get("construction") is None:
-        raise _ErpContractError(f"ERP month 응답({month})에 시공 칸이 없다")
-    return {"status": "success", "month": month, "split": split}
+        raise _ErpContractError(f"ERP split({month})에 시공 칸이 없다")
+    return split
+
+
+# 허용목록 — 여기 적지 않은 상태 값은 브라우저에 가지 않는다(계약 위반 503)
+_YEAR_MONTH_STATES = ("완료", "진행중", "미래")
+
+
+def _normalize_year_kpi(payload: Dict[str, Any], year: str) -> Dict[str, Any]:
+    """
+    ?year= 응답 { year, months[12] } 전용 (2026-11-13, 연간 PR-4).
+
+    미래 달의 split: null 은 'ERP 가 약속한 빈 칸'이고, 계산 실패는 ERP 가 500 으로 알린다(→ 503).
+    둘을 섞지 않는다 — 완료·진행 달에 null 이 오면 그건 약속이 아니라 고장이므로 통째로 503.
+    한 달이라도 어긋나면 12달 전체를 버린다: 몇 달만 비어 있는 표는 '그 달 실적 0'과 구분되지 않는다.
+    """
+    if str(payload.get("year")) != year:
+        raise _ErpContractError(f"ERP year 응답이 요청({year})과 다르다")
+    raw_months = payload.get("months")
+    if not isinstance(raw_months, list) or len(raw_months) != 12:
+        raise _ErpContractError(f"ERP year 응답({year})의 months 가 12개가 아니다")
+
+    months = []
+    for i, item in enumerate(raw_months):
+        month = f"{year}-{i + 1:02d}"
+        if not isinstance(item, dict) or item.get("month") != month:
+            raise _ErpContractError(f"ERP year 응답 {i + 1}번째가 {month} 가 아니다")
+        state = item.get("상태")
+        if state not in _YEAR_MONTH_STATES:
+            raise _ErpContractError(f"ERP year 응답 {month} 상태 '{state}' 를 모른다")
+        if state == "미래":
+            if item.get("split") is not None:
+                raise _ErpContractError(f"ERP year 응답 {month} 은 미래인데 split 이 있다")
+            split = None
+        else:
+            split = _check_month_split(item.get("split"), month)
+        months.append({"month": month, "상태": state, "split": split})
+    return {"status": "success", "year": year, "months": months}
 
 
 def _erp_error_text(response: "httpx.Response") -> str:
     try:
         body = response.json()
     except ValueError:
-        return "ERP 가 요청한 달을 거절했습니다."
+        return "ERP 가 요청한 기간을 거절했습니다."
     if isinstance(body, dict) and isinstance(body.get("error"), str) and body["error"].strip():
         return body["error"].strip()
-    return "ERP 가 요청한 달을 거절했습니다."
+    return "ERP 가 요청한 기간을 거절했습니다."
 
 
 @router.get("/monthly-kpi")
-async def get_monthly_kpi(month: str = "", _session=Depends(require_session)):
-    # month 가 비면 지금과 같은 응답(이번 달). 있으면 그 달의 { status, month, split } 만.
+async def get_monthly_kpi(month: str = "", year: str = "", _session=Depends(require_session)):
+    # 셋 중 하나: 비면 이번 달(기존 응답) / month 면 그 달의 { status, month, split } / year 면 1~12월
     month = (month or "").strip()
+    year = (year or "").strip()
+    if month and year:
+        raise HTTPException(status_code=400, detail="month 와 year 는 함께 쓸 수 없습니다.")
     # ERP 가 다시 검사하지만, 모양이 틀린 값은 ERP 를 부르기 전에 돌려보낸다(fullmatch — _as_month 와 같은 규칙)
     if month and not _MONTH_RE.fullmatch(month):
         raise HTTPException(status_code=400, detail="month 는 YYYY-MM 형식이어야 합니다.")
+    if year and not _YEAR_RE.fullmatch(year):
+        raise HTTPException(status_code=400, detail="year 는 YYYY 형식이어야 합니다.")
 
     url = (settings.ERP_MONTHLY_KPI_URL or "").strip()
     token = (settings.ERP_DASHBOARD_API_KEY or "").strip()
@@ -246,26 +296,30 @@ async def get_monthly_kpi(month: str = "", _session=Depends(require_session)):
         raise HTTPException(status_code=503, detail="ERP KPI API is not configured.")
 
     try:
+        # timeout 10초: 운영 ?year= 실측 0.19~0.37초(2026-11-13, 164KB) — 여유가 충분해 그대로 둔다
         async with httpx.AsyncClient(timeout=10.0) as client:
             headers = {"Authorization": f"Bearer {token}"}
-            # month 없는 호출은 params 를 아예 넘기지 않는다(기존 호출 모양 그대로)
+            # 인자 없는 호출은 params 를 아예 넘기지 않는다(기존 호출 모양 그대로)
+            params = {"month": month} if month else ({"year": year} if year else None)
             response = (
-                await client.get(url, headers=headers, params={"month": month})
-                if month
+                await client.get(url, headers=headers, params=params)
+                if params
                 else await client.get(url, headers=headers)
             )
-        # ERP 의 400 은 '요청한 쪽(범위 밖 달)' 잘못이다 — 503 으로 바꾸면 브라우저가 ERP 장애와 구분하지 못한다
-        if month and response.status_code == 400:
+        # ERP 의 400 은 '요청한 쪽(범위 밖 달·해)' 잘못이다 — 503 으로 바꾸면 브라우저가 ERP 장애와 구분하지 못한다
+        if (month or year) and response.status_code == 400:
             raise HTTPException(status_code=400, detail=_erp_error_text(response))
         response.raise_for_status()
         body = response.json()
         if not isinstance(body, dict):
             raise ValueError("ERP KPI API returned a non-object response.")
+        if year:
+            return _normalize_year_kpi(body, year)
         return _normalize_month_kpi(body, month) if month else _normalize_monthly_kpi(body)
     except HTTPException:
         raise
     except Exception as exc:
-        logger.warning("ERP monthly KPI lookup failed (month=%s): %s", month or "-", exc)
+        logger.warning("ERP monthly KPI lookup failed (month=%s, year=%s): %s", month or "-", year or "-", exc)
         raise HTTPException(status_code=503, detail="ERP KPI data is unavailable.")
 
 
@@ -359,7 +413,16 @@ async def get_materials(_session=Depends(require_session)):
 @router.get("/monthly-progress-config")
 def get_monthly_progress_config(
     month: str = "",
+    year: str = "",
     _session=Depends(require_session),
     repo: MonthlyProgressRepository = Depends(get_monthly_progress_repo),
 ):
+    # year 는 연간 표 전용(1~12월 목표 한 번에). month 와 같이 오면 어느 쪽을 원하는지 모르니 거절한다
+    year = (year or "").strip()
+    if year:
+        if month:
+            raise HTTPException(status_code=400, detail="month 와 year 는 함께 쓸 수 없습니다.")
+        if not _YEAR_RE.fullmatch(year):
+            raise HTTPException(status_code=400, detail="year 는 YYYY 형식이어야 합니다.")
+        return {"status": "success", "data": repo.get_year_config(year)}
     return {"status": "success", "data": repo.get_config(month or None)}
