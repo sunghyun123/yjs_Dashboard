@@ -124,6 +124,9 @@
         .home-top-main { flex: 1 1 auto; min-width: 0; min-height: 0; }
         /* 표 칸: 카드는 넘치지 않고, 표 본문(#planActualBody)만 세로 스크롤 — 펼쳐도 페이지가 길어지지 않게(PR-4 Q6) */
         .home-table-slot { min-height: 0; overflow: hidden; }
+        /* 표와 그래프가 같은 열 틀을 쓴다 — 막대가 바로 위 월 열 아래 서야 전자칠판에서 숫자를 표로 읽는다(PR-5 Q6).
+           폭은 1600x900 실측(첫 열 내용 최대 77px·합계 숫자 36px) + 여유 */
+        .home-table-slot { --yt-col-k: 112px; --yt-col-sum: 76px; }
 
         /* 바로가기 세로 한 열 — 아이콘 + 이름 가로 한 줄 */
         .shortcut-col { min-height: 0; }
@@ -158,7 +161,13 @@
         .pa-period { font-size: 0.74rem; color: #5b6f86; margin-bottom: 4px; }
         .pa-year { font-weight: 800; color: #1f3045; font-size: 0.95rem; }
         .pa-notice { margin-bottom: 4px; font-size: 0.78rem; color: #b42318; background: #fdecea; border-radius: 8px; padding: 4px 8px; }
-        .yt-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+        /* scrollbar-gutter: 펼쳐서 세로 스크롤바가 생겨도 표만 좁아져 그래프와 어긋나지 않게 자리를 늘 비워 둔다(PR-5) */
+        .yt-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-gutter: stable; }
+        /* table-layout: fixed — 열 너비를 colgroup이 정한다(내용에 따라 열이 움직이지 않게). min-width는 좁은 화면에서
+           월 열이 0으로 찌그러지지 않고 예전처럼 가로 스크롤되게 하는 바닥값 */
+        .yt-table { table-layout: fixed; min-width: calc(var(--yt-col-k) + var(--yt-col-sum) + 12 * 48px); }
+        .yt-col-k { width: var(--yt-col-k); }
+        .yt-col-sum { width: var(--yt-col-sum); }
         .yt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; font-size: 0.86rem; }
         .yt-table th, .yt-table td { padding: 3px 6px; border-bottom: 1px solid #eef3f8; text-align: right; white-space: nowrap; }
         /* 머리줄 고정 — 배경이 없으면 스크롤된 숫자가 비쳐 보인다 */
@@ -166,7 +175,7 @@
         .yt-table thead th span { display: block; font-size: 0.66rem; font-weight: 600; }
         .yt-table thead th.yt-now { color: #1f6fd6; }
         /* 첫 열(구분) 고정 — 좁은 화면에서 가로로 밀려도 누구 줄인지 보이게 */
-        .yt-table .yt-k { position: sticky; left: 0; z-index: 1; background: #fff; text-align: left; min-width: 104px; color: #2c3e55; }
+        .yt-table .yt-k { position: sticky; left: 0; z-index: 1; background: #fff; text-align: left; color: #2c3e55; overflow: hidden; text-overflow: ellipsis; }
         .yt-table thead .yt-k { z-index: 3; background: #f6f9fc; }
         .yt-c .yt-p { color: #8a99ab; font-size: 0.78rem; line-height: 1.2; }
         .yt-c .yt-a { color: #1f3045; font-weight: 700; line-height: 1.25; }
@@ -184,6 +193,39 @@
         .yt-mgr .yt-k { padding-left: 18px; font-weight: 600; }
         .yt-mgr.unassigned .yt-k { color: #8a99ab; }
         .yt-error { padding: 16px 4px; color: #b42318; font-weight: 700; }
+
+        /* ── 연간 표 하단 그래프 (2026-11-13 연간 PR-5) ──
+           스크롤 영역 밖 카드 바닥 고정. 열 틀은 표와 같은 CSS 변수 + 같은 scrollbar-gutter.
+           막대 = 옅은 계획(넓게, 뒤) 위에 진한 실적(좁게, 앞). 높이만 인라인 %(값 의존), 색·위치는 클래스 */
+        .yg { flex: 0 0 150px; display: flex; flex-direction: column; overflow: hidden; scrollbar-gutter: stable;
+              border-top: 1px solid #eef3f8; padding-top: 8px; min-width: 0; }
+        .yg-row { display: grid; grid-template-columns: var(--yt-col-k) repeat(12, minmax(0, 1fr)) var(--yt-col-sum);
+                  min-width: calc(var(--yt-col-k) + var(--yt-col-sum) + 12 * 48px); }
+        .yg-plot { flex: 1 1 auto; min-height: 0; }
+        .yg-labels { flex: 0 0 auto; }
+        .yg-slot { display: flex; justify-content: center; gap: 4px; padding: 0 10%; border-bottom: 1px solid #dbe4ee; }
+        /* 최대값 눈금선 한 줄 — 이 높이 = 첫 칸의 '점선 ○' 값 */
+        .yg-slot.yg-has-max { border-top: 1px dashed #c9d5e2; }
+        .yg-slot.yg-now, .yg-label.yg-now { box-shadow: inset 1px 0 0 #b7cdea, inset -1px 0 0 #b7cdea; }
+        .yg-bar { position: relative; flex: 1 1 0; max-width: 30px; height: 100%; }
+        /* min-height 2px: 진짜 0원은 바닥에 얇은 줄로 보이고, '막대 없음'(미래·미등록·실패)은 div 자체가 없다 —
+           0%만 주면 둘이 화면에서 똑같아진다(게이트 4에서 발견) */
+        .yg-plan, .yg-act { position: absolute; bottom: 0; min-height: 2px; }
+        .yg-plan { left: 0; right: 0; border-radius: 2px 2px 0 0; }
+        .yg-act { left: 25%; right: 25%; border-radius: 2px 2px 0 0; }
+        .yg-bar.construction .yg-plan { background: rgba(31, 111, 214, 0.22); }
+        .yg-bar.construction .yg-act { background: #1f6fd6; }
+        .yg-bar.settlement .yg-plan { background: rgba(43, 138, 62, 0.22); }
+        .yg-bar.settlement .yg-act { background: #2b8a3e; }
+        .yg-fail { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; color: #b42318; font-weight: 800; line-height: 1.1; }
+        .yg-legend { font-size: 0.7rem; color: #5b6f86; line-height: 1.5; padding-right: 6px; }
+        .yg-max { margin-top: 4px; color: #8a99ab; }
+        .yg-sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 3px; vertical-align: -1px; }
+        .yg-sw.construction { background: #1f6fd6; }
+        .yg-sw.settlement { background: #2b8a3e; margin-left: 6px; }
+        .yg-sw.plan { background: rgba(31, 111, 214, 0.22); }
+        .yg-label { text-align: center; font-size: 0.7rem; color: #8a99ab; padding-top: 2px; font-variant-numeric: tabular-nums; }
+        .yg-label.yg-now { color: #1f6fd6; font-weight: 700; }
 
         /* ── 현장 날씨 ── */
         .weather-now {
@@ -607,6 +649,9 @@
                     <div id="planActualBody" class="yt-scroll">
                         <div class="text-muted small">불러오는 중...</div>
                     </div>
+                    <!-- 연간 표 하단 그래프(2026-11-13 연간 PR-5): 스크롤 영역 밖 = 카드 바닥 고정. 표와 같은 열 틀,
+                         숫자는 위 표가 말한다. 표 전체 실패면 숨김(home.js renderYearGraphHome) -->
+                    <div id="planActualGraph" class="yg" role="img" aria-label="1~12월 시공·정산 계획 대비 실적 막대그래프(숫자는 위 표)" style="display:none;"></div>
                 </div>
             </div>
         </div>
@@ -687,7 +732,7 @@
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20261113a"></script>
+    <script src="/home.js?v=20261113b"></script>
 </body>
 
 </html>
