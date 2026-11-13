@@ -122,9 +122,8 @@
             min-height: 0;
         }
         .home-top-main { flex: 1 1 auto; min-width: 0; min-height: 0; }
-        .home-table-slot { min-height: 0; overflow: auto; }
-        /* 월 표(임시)가 넓은 칸에서 1400px로 늘어나 숫자가 멀어지지 않게 */
-        .home-table-slot .pa-table { max-width: 640px; }
+        /* 표 칸: 카드는 넘치지 않고, 표 본문(#planActualBody)만 세로 스크롤 — 펼쳐도 페이지가 길어지지 않게(PR-4 Q6) */
+        .home-table-slot { min-height: 0; overflow: hidden; }
 
         /* 바로가기 세로 한 열 — 아이콘 + 이름 가로 한 줄 */
         .shortcut-col { min-height: 0; }
@@ -154,21 +153,37 @@
         }
 
         /* ── 계획/실적 표 (PR-3) ── */
-        .pa-nav { display: inline-flex; align-items: center; gap: 6px; }
-        .pa-nav-btn { width: 30px; height: 30px; border: 1px solid #c9d6e4; border-radius: 8px; background: #fff; color: #1f3045; font-size: 1rem; line-height: 1; }
-        .pa-nav-btn:disabled { border-color: #e3ebf4; background: #f4f7fb; color: #b3c0cf; }
-        .pa-nav-month { min-width: 56px; text-align: center; font-weight: 800; font-size: 1rem; color: #1f3045; }
-        .pa-period { font-size: 0.74rem; color: #5b6f86; margin-bottom: 6px; }
-        .pa-table { display: grid; grid-template-columns: 44px 1fr 1fr 64px; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
-        .pa-table > div { padding: 10px 4px; border-top: 1px solid #eef3f8; text-align: right; color: #2c3e55; }
-        .pa-table > .pa-h { border-top: 0; border-bottom: 1px solid #dbe4ee; padding: 4px; font-size: 0.78rem; color: #5b6f86; }
-        .pa-table > .pa-k { text-align: left; font-weight: 800; }
-        .pa-table > .pa-k.construction { color: #1f6fd6; }
-        .pa-table > .pa-k.settlement { color: #2b8a3e; }
-        .pa-table > .pa-rate { font-weight: 800; color: #1f3045; }
-        .pa-table .pa-fail { color: #b42318; font-weight: 700; }
-        .pa-table .pa-dim { color: #8a99ab; }
-        .pa-notice { margin-top: 8px; font-size: 0.78rem; color: #b42318; background: #fdecea; border-radius: 8px; padding: 6px 8px; }
+        /* ── 연간 계획/실적 표 (2026-11-13 연간 PR-4) ──
+           단위 백만원, 한 칸에 계획(위)/실적(아래), 실행률은 칸 배경색. 머리줄·첫 열 고정(sticky) */
+        .pa-period { font-size: 0.74rem; color: #5b6f86; margin-bottom: 4px; }
+        .pa-year { font-weight: 800; color: #1f3045; font-size: 0.95rem; }
+        .pa-notice { margin-bottom: 4px; font-size: 0.78rem; color: #b42318; background: #fdecea; border-radius: 8px; padding: 4px 8px; }
+        .yt-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+        .yt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; font-size: 0.86rem; }
+        .yt-table th, .yt-table td { padding: 3px 6px; border-bottom: 1px solid #eef3f8; text-align: right; white-space: nowrap; }
+        /* 머리줄 고정 — 배경이 없으면 스크롤된 숫자가 비쳐 보인다 */
+        .yt-table thead th { position: sticky; top: 0; z-index: 2; background: #f6f9fc; color: #5b6f86; font-size: 0.78rem; font-weight: 700; border-bottom: 1px solid #dbe4ee; }
+        .yt-table thead th span { display: block; font-size: 0.66rem; font-weight: 600; }
+        .yt-table thead th.yt-now { color: #1f6fd6; }
+        /* 첫 열(구분) 고정 — 좁은 화면에서 가로로 밀려도 누구 줄인지 보이게 */
+        .yt-table .yt-k { position: sticky; left: 0; z-index: 1; background: #fff; text-align: left; min-width: 104px; color: #2c3e55; }
+        .yt-table thead .yt-k { z-index: 3; background: #f6f9fc; }
+        .yt-c .yt-p { color: #8a99ab; font-size: 0.78rem; line-height: 1.2; }
+        .yt-c .yt-a { color: #1f3045; font-weight: 700; line-height: 1.25; }
+        .yt-c.yt-now { box-shadow: inset 1px 0 0 #b7cdea, inset -1px 0 0 #b7cdea; }
+        .yt-c.yt-good { background: #e6f4ea; }
+        .yt-c.yt-low { background: #fdecea; }
+        .yt-c.yt-sum, .yt-table thead th.yt-sum { border-left: 1px solid #dbe4ee; }
+        .yt-dim { color: #b3c0cf; font-weight: 400; }
+        .yt-fail { color: #b42318; font-weight: 800; }
+        .yt-total th, .yt-total td { background-clip: padding-box; }
+        .yt-total .yt-k { font-weight: 800; }
+        .yt-total.construction .yt-toggle { color: #1f6fd6; }
+        .yt-total.settlement .yt-toggle { color: #2b8a3e; }
+        .yt-toggle { border: 0; background: none; padding: 0; font: inherit; font-weight: 800; cursor: pointer; }
+        .yt-mgr .yt-k { padding-left: 18px; font-weight: 600; }
+        .yt-mgr.unassigned .yt-k { color: #8a99ab; }
+        .yt-error { padding: 16px 4px; color: #b42318; font-weight: 700; }
 
         /* ── 현장 날씨 ── */
         .weather-now {
@@ -581,22 +596,17 @@
                     </div>
                 </div>
 
-                <!-- 오른쪽 아래: 표 칸 — PR-4 전까지 기존 월 계획/실적 표(2026-11-10).
-                     ‹ › 는 표만이 아니라 도넛·담당자 그래프·상세 팝업을 같은 달로 함께 옮긴다(동작 무변경) -->
+                <!-- 오른쪽 아래: 연간 계획/실적 표(2026-11-13 연간 PR-4). 담당자 × 시공/정산 × 1~12월.
+                     기본 접힘(시공 합계·정산 합계), 펼침 상태는 그 기기·브라우저에 기억. 5분마다 갱신(도넛은 60초, 항상 이번 달) -->
                 <div class="home-card p-3 d-flex flex-column home-table-slot">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <div class="section-title">계획 / 실적</div>
-                        <div class="pa-nav">
-                            <button type="button" id="planActualPrev" class="pa-nav-btn" aria-label="이전 달" disabled>‹</button>
-                            <span id="planActualMonth" class="pa-nav-month">-</span>
-                            <button type="button" id="planActualNext" class="pa-nav-btn" aria-label="다음 달" disabled>›</button>
-                        </div>
-                    </div>
-                    <div id="planActualPeriod" class="pa-period">단위 천원</div>
-                    <div id="planActualBody" class="pa-table">
-                        <div class="text-muted small" style="grid-column: 1 / -1; text-align: left;">불러오는 중...</div>
+                    <div class="d-flex justify-content-between align-items-baseline mb-1">
+                        <div class="section-title">계획 / 실적 <span id="planActualYear" class="pa-year"></span></div>
+                        <div class="pa-period">단위 백만원 · 칸 위 계획 / 아래 실적 · 마우스를 올리면 천원</div>
                     </div>
                     <div id="planActualNotice" class="pa-notice" style="display:none;"></div>
+                    <div id="planActualBody" class="yt-scroll">
+                        <div class="text-muted small">불러오는 중...</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -677,7 +687,7 @@
         integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
     <script src="/dashboard.common.js?v=20260429"></script>
     <script src="/dashboard.auth.js?v=20260429"></script>
-    <script src="/home.js?v=20261112a"></script>
+    <script src="/home.js?v=20261113a"></script>
 </body>
 
 </html>

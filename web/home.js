@@ -8,11 +8,11 @@
     const WEATHER_API_BASE = '/api/weather/current';
     const ERP_MONTHLY_KPI_API = '/api/erp/monthly-kpi';
     const MONTHLY_PROGRESS_CONFIG_API = '/api/erp/monthly-progress-config';
-    // 계획/실적 표 ‹ › 왼쪽 끝. ERP gongmu/_lib/주차.ts 의 최소월과 같은 값 — 바꾸면 ERP 도 같이(어긋나면 ERP 가 400 으로 알린다)
-    const MIN_PLAN_MONTH = '2026-09';
-    // 지난 달을 보다 이만큼 지나면 이번 달로 돌아온다 — 전자칠판에 지난 달이 하루 종일 떠 있지 않게
-    const VIEW_RETURN_MS = 5 * 60 * 1000;
-    const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+    // 연간 표 갱신 간격(2026-11-13 연간 PR-4 Q5). 연간 응답 1번 = ERP 가 12달을 새로 계산(표 4개 + 1년치 투입실적).
+    // 도넛(60초)과 같이 돌리면 화면 하나당 ERP 부하가 5배 — 대가: 지난 달 담당 수정은 최대 5분 뒤 표에 반영된다.
+    const YEAR_TABLE_REFRESH_MS = 5 * 60 * 1000;
+    // 펼침 기억 키(기기·브라우저마다). 값 '1' = 펼침, 없거나 못 읽으면 접힘
+    const YEAR_TABLE_OPEN_KEY = { construction: 'home.yearTable.open.construction', settlement: 'home.yearTable.open.settlement' };
     // ═══════════════════════════════════════════════════════════════════════
 
     // 6월 총 공정현황 (2026-06-18 기준)
@@ -50,15 +50,14 @@
         // 계획외 공사의 담당 지정 { 지중No → 담당 }. 시공·정산 둘 다 이 담당의 실적에 합쳐진다(목표에는 안 들어감)
         unplannedOwner: new Map(),
     };
+    // 연간 표(1~12월). 도넛과 따로 5분마다 받는다 — 도넛 60초 갱신은 이 상태를 건드리지 않는다.
+    //   year       : 지금 그린 표의 해(ERP 가 정한 split.month 앞 4자리 — 브라우저 시계를 쓰지 않는다)
+    //   requested  : 마지막으로 부른 해. 도넛이 새 해를 알려줬을 때 한 번만 즉시 부르려고 기억한다
+    //   grid       : buildYearGrid 결과. null = 아직 한 번도 못 받음
+    //   error      : 첫 로드 실패 문구(표 대신 보임) / staleSince : 갱신 실패 시각(직전 표 유지 + 한 줄)
+    //   seq        : 늦게 온 응답이 새 응답을 덮지 않게
+    const yearTableState = { year: '', requested: '', grid: null, error: '', staleSince: '', seq: 0 };
     // 목표 상세 팝업이 지금 보여주는 종류(시공/정산). 정렬 상태는 tableSortState 에 따로 둔다.
-    // 표·도넛·담당자 그래프·팝업이 함께 보는 달.
-    //   latestMonth : month 없는 응답의 split.month(금요일 기준 금주 달) = ‹ › 오른쪽 끝. '' = 아직 모름 → ‹ › 둘 다 막음
-    //   viewMonth   : '' = 이번 달(latestMonth 를 따름), 'YYYY-MM' = 지난 달을 보는 중
-    //   loading     : ‹ › 직후 응답 전 — 옛 달 숫자를 새 달 제목 아래 남겨 두지 않으려고 '…'로 비운다
-    //   actualError : 지난 달 실적(month 경로)을 못 받음 — 0 이나 6월 대체값으로 채우지 않는다
-    const monthNavState = { latestMonth: '', viewMonth: '', viewSince: 0, loading: false, actualError: false };
-    // 로드 순번. 응답을 기다린 뒤 이 값이 바뀌어 있으면(그 사이 ‹ › 나 60초 갱신이 새로 시작됨) 아무것도 적용하지 않는다
-    let totalProgressLoadSeq = 0;
     // 지금 targets 가 어느 달의 목표인지. 목표 조회가 실패했을 때 다른 달 목표를 남겨 두지 않으려고 기억한다
     let targetsMonth = '';
     const targetModalState = { kind: 'construction' };
@@ -125,8 +124,7 @@
         if (titleEl) titleEl.textContent = `${label} 총 공정률`;
         // 못 받음(targets=null)과 목표 미등록(행 0개)은 캡션과 같은 말로 구분한다 — 고칠 곳이 다르다.
         // 도넛 가운데는 좁아서 '목표 미등록' 대신 '미등록'으로 줄인다(캡션에 전체 문구가 있다).
-        // 실적을 못 받았는데 목표가 있으면 '미등록'이 찍힌다 — 고칠 곳(관리자 입력)을 잘못 가리키므로 실적 쪽 사정이 먼저다
-        const noTargetText = (monthNavState.loading || monthNavState.actualError || !totalProgressState.targets) ? '-' : '미등록';
+        const noTargetText = !totalProgressState.targets ? '-' : '미등록';
         donutEl.style.setProperty('--progress', String(percent === null ? 0 : Math.min(100, percent)));
         valueEl.textContent = percent === null ? noTargetText : `${percent}%`;
 
@@ -141,16 +139,6 @@
                 : settle.state === 'notarget' ? '미등록' : '-';
         }
         if (amtEl) {
-            // 지난 달 로딩·실패 — 0 을 찍지 않는다(진짜 0 과 구분되게). 목표 조각은 그대로 붙여 목표는 보이게 한다
-            if (monthNavState.loading || monthNavState.actualError) {
-                const msg = monthNavState.loading ? '불러오는 중…' : '실적 불러오지 못함';
-                amtEl.innerHTML =
-                    `<span style="color:${monthNavState.loading ? '#8a99ab' : '#b42318'};">${msg}</span>` +
-                    buildTargetFractionHtml('construction');
-                renderManagerProgressHome();
-                renderPlanActualTableHome();
-                return;
-            }
             const detailHtml = totalProgressState.actualDetailText
                 ? `<br><span style="font-size:0.74rem;color:#7a8fa3;font-weight:500;white-space:nowrap;">${escapeHtml(totalProgressState.actualDetailText)}</span>`
                 : '';
@@ -176,9 +164,9 @@
                 settlementHtml +
                 `<br><span style="font-size:0.71rem;color:#aab8c6;white-space:nowrap;">최신화${sourceText} ${escapeHtml(totalProgressState.updatedAt)}</span>`;
         }
-        // 담당자 그래프는 도넛과 같은 상태(targets·breakdown·settlement)에서 그린다 — 도넛이 다시 그려질 때 항상 같이
+        // 담당자 그래프는 도넛과 같은 상태(targets·breakdown·settlement)에서 그린다 — 도넛이 다시 그려질 때 항상 같이.
+        // 연간 표는 여기서 그리지 않는다 — 표는 5분 데이터로만 다시 그린다(60초 도넛 갱신이 표를 건드리지 않게)
         renderManagerProgressHome();
-        renderPlanActualTableHome();
     }
 
     // 담당자 한 줄(시공 또는 정산). 100%에서 자르지 않는다 — 계획보다 얼마나 부족/초과했는지가 다음 달 계획을 고치는 근거다.
@@ -212,9 +200,7 @@
         if (!listEl) return;
         const t = totalProgressState.targets;
         if (!t) {
-            // 달을 옮기는 중엔 목표를 비워 둔 것이지 실패가 아니다 — 같은 모양으로 '불러오는 중'을 보인다
-            const msg = monthNavState.loading ? '불러오는 중…' : '목표를 불러오지 못했습니다.';
-            listEl.innerHTML = `<div class="text-muted small">${msg}</div>`;
+            listEl.innerHTML = '<div class="text-muted small">목표를 불러오지 못했습니다.</div>';
             return;
         }
         if (!t.construction.rows.length && !t.settlement.rows.length) {
@@ -263,66 +249,6 @@
                 `<span class="text-muted">목표에 없는 공사</span></div>`
             : '';
         listEl.innerHTML = rowsHtml + unplannedHtml;
-    }
-
-    // ══════════ 계획/실적 표 (PR-3) ══════════
-    // 도넛·담당자 그래프와 같은 상태에서 그린다. 실행률은 도넛과 같은 함수(getTotalProgressPercent·getSettlementPercent)로 —
-    // 표의 % 와 도넛의 % 가 같은 계산에서 나와 갈라질 자리가 없다. 100% 에서 자르지 않는다(설계 §7-3), 계획 0 이면 '—'(§7-5).
-    function renderPlanActualTableHome() {
-        const bodyEl = document.getElementById('planActualBody');
-        if (!bodyEl) return;
-        const fmt = (n) => Number(n).toLocaleString('ko-KR');
-        const open = (which, text) => `<span class="tp-clickable" role="button" tabindex="0" data-tp-open="${which}">${text}</span>`;
-        const nav = monthNavState;
-        const shown = shownMonth();
-
-        const monthEl = document.getElementById('planActualMonth');
-        if (monthEl) monthEl.textContent = shown ? monthLabel(shown) : totalProgressState.label;
-        const prevEl = document.getElementById('planActualPrev');
-        const nextEl = document.getElementById('planActualNext');
-        if (prevEl) prevEl.disabled = !shown || !nav.latestMonth || shiftMonth(shown, -1) < MIN_PLAN_MONTH;
-        if (nextEl) nextEl.disabled = !shown || !nav.latestMonth || shown >= nav.latestMonth;
-        const periodEl = document.getElementById('planActualPeriod');
-        if (periodEl) periodEl.textContent = `단위 천원${periodSubText()}`;
-        const noticeEl = document.getElementById('planActualNotice');
-        if (noticeEl) {
-            noticeEl.style.display = nav.actualError ? '' : 'none';
-            noticeEl.textContent = nav.actualError ? 'ERP 실적을 불러오지 못했습니다 · 1분 뒤 다시 시도합니다' : '';
-        }
-
-        const t = totalProgressState.targets;
-        const planCell = (kind) => {
-            if (!t) return '<span class="pa-dim">-</span>';
-            if (!t[kind].rows.length) return '<span class="pa-dim">미등록</span>';
-            return open(`target-${kind}`, fmt(t[kind].totalThousand));
-        };
-        const actualCell = (kind) => {
-            if (nav.loading) return '<span class="pa-dim">…</span>';
-            if (nav.actualError) return '<span class="pa-fail">못 불러옴</span>';
-            if (kind === 'construction') {
-                // 대체값 화면(ERP 시공 실적 없음)에선 6월 숫자를 표로 옮기지 않는다
-                const b = totalProgressState.actualFromErp ? totalProgressState.breakdown : null;
-                return b ? open('actual', fmt(b.totalThousand)) : '<span class="pa-dim">-</span>';
-            }
-            if (!totalProgressState.settlementEnabled) return '<span class="pa-dim">-</span>';
-            const s = totalProgressState.settlement;
-            return s ? open('settlement', fmt(s.totalThousand)) : '<span class="pa-fail">못 불러옴</span>';
-        };
-        const rateCell = (kind) => {
-            if (nav.loading) return '<span class="pa-dim">…</span>';
-            if (kind === 'construction') {
-                const pct = totalProgressState.actualFromErp ? getTotalProgressPercent() : null;
-                return pct === null ? '<span class="pa-dim">—</span>' : `${pct}%`;
-            }
-            const s = getSettlementPercent();
-            return s.state === 'ok' ? `${s.value}%` : '<span class="pa-dim">—</span>';
-        };
-
-        const row = (kind, label) =>
-            `<div class="pa-k ${kind}">${label}</div><div>${planCell(kind)}</div><div>${actualCell(kind)}</div><div class="pa-rate">${rateCell(kind)}</div>`;
-        bodyEl.innerHTML =
-            '<div class="pa-h"></div><div class="pa-h">계획</div><div class="pa-h">실적</div><div class="pa-h">실행률</div>' +
-            row('construction', '시공') + row('settlement', '정산');
     }
 
     // 캡션의 ' / 목표천원' 조각. 누르면 그 종류의 목표 상세가 열린다.
@@ -641,7 +567,7 @@
                 });
             });
         // 도넛 캡션과 담당자 그래프(계획외 줄 포함). 둘 다 innerHTML 로 다시 그려지므로 바뀌지 않는 부모에 건다
-        ['totalProgressAmount', 'managerProgressList', 'planActualBody'].forEach((id) => {
+        ['totalProgressAmount', 'managerProgressList'].forEach((id) => {
             const host = document.getElementById(id);
             if (!host) return;
             host.addEventListener('click', (e) => {
@@ -684,8 +610,6 @@
     }
 
     function getTotalProgressPercent() {
-        // 지난 달 로딩·실패 중엔 숫자가 없다 — 아래 대체값 분기(수동 공정률)로 떨어지지 않게 먼저 막는다
-        if (monthNavState.loading || monthNavState.actualError) return null;
         if (!totalProgressState.actualFromErp) {
             return Math.max(0, Math.min(100, Number(totalProgressState.totalProgress) || 0));
         }
@@ -694,21 +618,6 @@
         if (target === null || !Number.isFinite(actual)) return null;
         // 정산과 같은 이유로 100%에서 자르지 않는다. ERP 장애용 수동 공정률(위)은 사람이 넣는 값이라 0~100 그대로 둔다
         return Math.max(0, Math.round((actual / target) * 1000) / 10);
-    }
-
-    // 'YYYY-MM' 을 delta 달만큼 옮긴다. Date 를 쓰지 않는다 — 기기 시간대에 따라 달력이 바뀌는 자리를 만들지 않으려고
-    function shiftMonth(ym, delta) {
-        const idx = Number(ym.slice(0, 4)) * 12 + (Number(ym.slice(5, 7)) - 1) + delta;
-        return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`;
-    }
-
-    // 지금 화면이 보여주는 달. 'YYYY-MM' 끼리는 문자열 비교가 곧 날짜 비교다
-    function shownMonth() {
-        return monthNavState.viewMonth || monthNavState.latestMonth;
-    }
-
-    function monthLabel(ym) {
-        return `${Number(ym.slice(5, 7))}월`;
     }
 
     function formatKpiUpdatedAt(value) {
@@ -740,59 +649,6 @@
         totalProgressState.erpMonth = '';
         totalProgressState.periodFrom = '';
         totalProgressState.periodTo = '';
-    }
-
-    // ‹ › 를 누른 직후. 옛 달의 숫자·목표를 새 달 제목 아래 남기지 않는다 — 표·도넛·캡션이 모두 '…'/'-'가 된다
-    function showMonthLoading(month) {
-        monthNavState.loading = true;
-        monthNavState.actualError = false;
-        totalProgressState.label = monthLabel(month);
-        totalProgressState.erpMonth = month;
-        totalProgressState.periodFrom = '';
-        totalProgressState.periodTo = '';
-        totalProgressState.actualAmountThousand = null;
-        totalProgressState.actualFromErp = true;
-        totalProgressState.actualDetailText = '';
-        totalProgressState.updatedAt = '';
-        totalProgressState.sourceLabel = '';
-        totalProgressState.breakdown = null;
-        totalProgressState.settlement = null;
-        totalProgressState.settlementEnabled = true;
-        totalProgressState.targets = null;
-        targetsMonth = '';
-    }
-
-    // 지난 달 응답 { status, month, split } 적용. 요청한 달과 다르거나 시공 실적이 없으면 false(→ 실패로 그림)
-    function applyErpMonthSplit(data, month) {
-        if (!data || data.month !== month) return false;
-        const split = data.split && typeof data.split === 'object' ? data.split : null;
-        if (!split || split.month !== month) return false;
-        const construction = normalizeBreakdown(split.construction);
-        if (!construction) return false;
-        monthNavState.actualError = false;
-        totalProgressState.erpMonth = month;
-        totalProgressState.periodFrom = toDateStrings([split.from])[0] || '';
-        totalProgressState.periodTo = toDateStrings([split.to])[0] || '';
-        totalProgressState.label = monthLabel(month);
-        totalProgressState.actualAmountThousand = construction.totalThousand;
-        totalProgressState.actualFromErp = true;
-        totalProgressState.actualDetailText = '';
-        // month 응답엔 updatedAt 이 없다. 비워 두면 formatKpiUpdatedAt 이 대체값 날짜(2026-06-18)를 찍으므로 받은 시각을 적는다
-        // (기존 최신화 표기와 같은 브라우저 시계 — 국내 상황판 가정)
-        totalProgressState.updatedAt = formatKpiUpdatedAt(new Date().toISOString());
-        totalProgressState.sourceLabel = '(ERP)';
-        totalProgressState.breakdown = construction;
-        totalProgressState.settlement = normalizeSettlement(split.settlement);
-        totalProgressState.settlementEnabled = true;
-        return true;
-    }
-
-    // 지난 달 실적을 못 받음. 대체값 경로(resetErpMonthlyKpiToFallback)로 보내지 않는다 —
-    // 그 경로는 6월 숫자를 그리므로 '9월' 제목 아래 6월 실적이 에러 없이 찍힌다. 실적 칸은 '못 불러옴', 목표는 그대로 보인다.
-    function markErpMonthFailed(month) {
-        showMonthLoading(month);
-        monthNavState.loading = false;
-        monthNavState.actualError = true;
     }
 
     function applyErpMonthlyKpi(data) {
@@ -896,12 +752,17 @@
         totalProgressState.targets = normalizeTargets(cfg.targets);
         if (Array.isArray(cfg.managers)) totalProgressState.managers = cfg.managers.map((m) => String(m || '').trim()).filter(Boolean);
         if (Array.isArray(cfg.unplannedAssignments)) {
-            totalProgressState.unplannedOwner = new Map(cfg.unplannedAssignments
-                .filter((a) => a && typeof a === 'object')
-                .map((a) => [String(a.jijungNo || '').trim(), String(a.manager || '').trim()])
-                .filter(([no, m]) => no && m));
+            totalProgressState.unplannedOwner = toUnplannedOwner(cfg.unplannedAssignments);
         }
         return true;
+    }
+
+    // 계획외 지정 [{jijungNo, manager}] → Map(지중No → 담당). 도넛과 연간 표가 같은 변환을 거친다
+    function toUnplannedOwner(list) {
+        return new Map((Array.isArray(list) ? list : [])
+            .filter((a) => a && typeof a === 'object')
+            .map((a) => [String(a.jijungNo || '').trim(), String(a.manager || '').trim()])
+            .filter(([no, m]) => no && m));
     }
 
     // 목표 행. 서버는 총액을 보내지 않는다 — 여기서 '행의 합'으로 만들어 도넛 분모와 팝업 합계가 같은 배열에서 나오게 한다.
@@ -990,7 +851,7 @@
         return buildManagerProgress(t[kind], actual, totalProgressState.unplannedOwner);
     }
 
-    // 받아오기만 한다(적용은 loadTotalProgressHome 이 순번을 확인한 뒤). 실패는 { ok:false } — 400 과 503 을 화면에선 같은 '못 불러옴'으로 그린다
+    // 받아오기만 한다(적용은 부른 쪽이). 실패는 { ok:false } — 400 과 503 을 화면에선 같은 '못 불러옴'으로 그린다
     async function fetchJson(url) {
         try {
             const res = await fetch(url);
@@ -1008,63 +869,14 @@
     }
 
     // 실적을 먼저 받아 달을 정하고, 그 달의 목표를 받은 뒤 한 번만 그린다(새 달 실적 / 옛 달 목표가 잠깐 그려지지 않게).
-    // 60초 갱신과 ‹ › 가 같은 함수를 부른다 — 늦게 끝난 쪽이 먼저 시작한 쪽 결과를 덮지 않게 순번으로 거른다.
+    // 도넛은 항상 이번 달이다(2026-11-13 연간 PR-4 Q1 — ‹ › 삭제). 60초마다 부른다.
     async function loadTotalProgressHome() {
-        const seq = ++totalProgressLoadSeq;
-        // 5분 복귀로 이번 달 화면이 됐는데 아래 ①이 실패하면, 화면엔 아직 지난 달 숫자(또는 지난 달 실패 상태)가 남아 있다 → 그것도 실패로 그린다
-        let leftPast = false;
-        if (monthNavState.viewMonth && Date.now() - monthNavState.viewSince >= VIEW_RETURN_MS) {
-            monthNavState.viewMonth = '';
-            monthNavState.actualError = false;
-            leftPast = true;
-        }
-
-        // ① 이번 달(month 없음) — 오른쪽 끝을 알려면 지난 달을 보는 중에도 항상 부른다
         const current = await fetchJson(ERP_MONTHLY_KPI_API);
-        if (seq !== totalProgressLoadSeq) return;
-        if (current.ok) {
-            const split = current.data && current.data.split;
-            // 시공 칸을 못 쓰는 응답의 달은 받지 않는다 — 마지막으로 알던 오른쪽 끝을 유지해 ‹ › 는 계속 동작한다
-            const usable = split && normalizeBreakdown(split.construction) !== null;
-            const latest = usable && MONTH_RE.test(String(split.month || '')) ? split.month : '';
-            if (latest) {
-                monthNavState.latestMonth = latest;
-                // 금주 달이 넘어가 보던 달과 같아졌으면 이번 달 화면으로 친다
-                if (monthNavState.viewMonth && monthNavState.viewMonth >= latest) monthNavState.viewMonth = '';
-            }
-        }
+        // 응답은 왔는데 시공 실적이 없으면 대체값, fetch 실패면 마지막 값 유지(일시 장애로 도넛이 흔들리지 않게 — 백로그 B안 범위)
+        if (current.ok && !applyErpMonthlyKpi(current.data)) resetErpMonthlyKpiToFallback();
 
-        const viewing = monthNavState.viewMonth;
-        if (!viewing) {
-            // '마지막 값'이 이번 달의 진짜 값이 아닌 경우: ›직후(로딩), 직전에도 실패(연속 실패), 지난 달에서 복귀
-            const wasBlank = monthNavState.loading || monthNavState.actualError || leftPast;
-            monthNavState.loading = false;
-            monthNavState.actualError = false;
-            // 비워지지 않은 화면은 기존 동작 그대로: 응답은 왔는데 시공 실적이 없으면 대체값, fetch 실패면 마지막 값 유지(백로그 B안 범위)
-            if (current.ok) {
-                if (!applyErpMonthlyKpi(current.data)) {
-                    // 비워진 화면(복귀·로딩·연속 실패)에선 대체값 경로가 label 을 되돌리지 않아 지난 달 제목 아래 6월 숫자가 찍힌다 → 실패로 그린다
-                    if (wasBlank) markErpMonthFailed(monthNavState.latestMonth || totalProgressState.erpMonth);
-                    else resetErpMonthlyKpiToFallback();
-                }
-            } else if (wasBlank) {
-                // › 로 이번 달에 돌아온 직후 실패 — showMonthLoading 이 '마지막 값'을 이미 비웠다.
-                // 그대로 두면 actualAmountThousand=null 이 캡션에서 '시공 0'으로 찍히므로 실패로 그린다.
-                // 달은 latestMonth — 5분 복귀면 erpMonth 는 아직 지난 달이다
-                markErpMonthFailed(monthNavState.latestMonth || totalProgressState.erpMonth);
-            }
-        } else {
-            // ② 지난 달(month 경로)
-            const past = await fetchJson(`${ERP_MONTHLY_KPI_API}?month=${encodeURIComponent(viewing)}`);
-            if (seq !== totalProgressLoadSeq) return;
-            monthNavState.loading = false;
-            if (!past.ok || !applyErpMonthSplit(past.data, viewing)) markErpMonthFailed(viewing);
-        }
-
-        // ③ 그 달의 목표
         const month = totalProgressState.erpMonth;
         const cfg = await fetchJson(monthlyProgressConfigUrl(month));
-        if (seq !== totalProgressLoadSeq) return;
         if (cfg.ok && applyMonthlyProgressConfig(cfg.data)) {
             targetsMonth = month;
         } else if (targetsMonth !== month) {
@@ -1072,19 +884,244 @@
             totalProgressState.targets = null;
         }
         renderTotalProgressChartHome();
+
+        // 연간 표의 해는 ERP 가 정한 이번 달에서 온다(브라우저 시계로 정하지 않는다).
+        // 처음 알게 됐거나 해가 바뀌었으면(새해 첫 주) 5분을 기다리지 않고 바로 부른다
+        const year = month.slice(0, 4);
+        if (year && year !== yearTableState.requested) {
+            loadYearTableHome();
+        } else if (!year && !yearTableState.grid && !yearTableState.error) {
+            // 해를 모른다(옛 ERP·도넛이 대체값) — 연간 표를 부르지 않고 실패 문구. 도넛이 회복되면 위 분기가 부른다
+            yearTableState.error = '연간 실적을 불러오지 못했습니다.';
+            renderYearTableHome();
+        }
     }
 
-    // ‹ › 한 칸. 범위 밖이면 아무것도 안 한다(버튼도 막혀 있다)
-    function goPlanActualMonth(delta) {
-        const base = shownMonth();
-        if (!base || !monthNavState.latestMonth) return;
-        const next = shiftMonth(base, delta);
-        if (next < MIN_PLAN_MONTH || next > monthNavState.latestMonth) return;
-        monthNavState.viewMonth = next === monthNavState.latestMonth ? '' : next;
-        monthNavState.viewSince = Date.now();
-        showMonthLoading(next);
-        renderTotalProgressChartHome();
-        loadTotalProgressHome();
+    // ══════════ 연간 표 (2026-11-13, 연간 PR-4) ══════════
+    // 실적(ERP ?year=)과 목표(대시보드 ?year=)를 **둘 다** 받아야 적용한다 — 계획만 새것·실적은 옛것인 반쪽 표를 만들지 않는다.
+    async function loadYearTableHome() {
+        const year = (totalProgressState.erpMonth || '').slice(0, 4) || yearTableState.year;
+        if (!year) return;
+        yearTableState.requested = year;
+        const seq = ++yearTableState.seq;
+        const [kpi, cfg] = await Promise.all([
+            fetchJson(`${ERP_MONTHLY_KPI_API}?year=${encodeURIComponent(year)}`),
+            fetchJson(`${MONTHLY_PROGRESS_CONFIG_API}?year=${encodeURIComponent(year)}`),
+        ]);
+        // 늦게 끝난 옛 요청이 새 요청 결과를 덮지 않게
+        if (seq !== yearTableState.seq) return;
+        let grid = null;
+        try {
+            grid = kpi.ok && cfg.ok ? buildYearGridFromResponses(kpi.data, cfg.data, year) : null;
+        } catch (e) {
+            // 예상 못 한 모양으로 계산이 터지면 '불러오는 중...'에 영원히 멈추지 않게 실패로 그린다
+            console.warn('[yearTable] 칸 계산 실패', e);
+        }
+        if (grid) {
+            yearTableState.year = year;
+            yearTableState.grid = grid;
+            yearTableState.error = '';
+            yearTableState.staleSince = '';
+        } else if (yearTableState.grid) {
+            // 갱신 실패 — 직전 표를 지우지 않는다(빈 표로 바꾸면 '실적 없음'과 구분되지 않는다). 언제부터 낡았는지 한 줄만.
+            // 계획 칸도 0 으로 그리지 않는다: 목표(config)만 실패해도 같은 처리
+            if (!yearTableState.staleSince) {
+                const now = new Date();
+                yearTableState.staleSince = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            }
+        } else {
+            yearTableState.error = '연간 실적을 불러오지 못했습니다.';
+        }
+        renderYearTableHome();
+    }
+
+    // 응답 모양 검사 + 칸 계산. 하나라도 어긋나면 null(→ 실패로 그림) — 중계가 이미 검사하지만 12달·순서는 여기서도 본다
+    function buildYearGridFromResponses(kpiData, cfgData, year) {
+        const kpiMonths = kpiData && kpiData.year === year && Array.isArray(kpiData.months) ? kpiData.months : null;
+        const cfg = cfgData && cfgData.data ? cfgData.data : null;
+        const cfgMonths = cfg && cfg.year === year && Array.isArray(cfg.months) ? cfg.months : null;
+        if (!kpiMonths || !cfgMonths || kpiMonths.length !== 12 || cfgMonths.length !== 12) return null;
+        for (let i = 0; i < 12; i++) {
+            const m = `${year}-${String(i + 1).padStart(2, '0')}`;
+            if (!kpiMonths[i] || kpiMonths[i].month !== m || !cfgMonths[i] || cfgMonths[i].month !== m) return null;
+        }
+        const managers = Array.isArray(cfg.managers) ? cfg.managers.map((n) => String(n || '').trim()).filter(Boolean) : [];
+        return buildYearGrid(kpiMonths, cfgMonths, managers);
+    }
+
+    // 1~12월 칸. 달마다 도넛과 **같은 함수**(normalize* + toUnplannedOwner + buildManagerProgress)를 그대로 돌린다 —
+    // 담당 귀속 규칙은 home.js 한 벌뿐(중계가 담당×월 합계를 따로 만들면 규칙이 두 벌이 된다 — 10/14 기각 구조).
+    // '담당 미지정' 행 = '' 칸(ERP 담당 미지정·옛 미지정 목표 행) + unplannedRows(담당도 목표도 없는 실적, 옛 ERP 규칙).
+    // 이 행이 있어야 담당 행의 합이 합계와 같다(빠지면 '덜 했다'로 읽힌다, 2026-10-12).
+    // 칸 값은 천원. plan=null: 그 달 목표 행 0개 / actual=null: 미래 달 / failed: 완료·진행 달인데 그 종류 실적이 없음(중계가 버린 칸)
+    function buildYearGrid(kpiMonths, cfgMonths, managers) {
+        const UNASSIGNED = '\u0000미지정'; // 담당 이름과 겹칠 수 없는 열쇠
+        const grid = { nowIndex: kpiMonths.findIndex((km) => km['상태'] === '진행중') };
+        ['construction', 'settlement'].forEach((kind) => {
+            const blank = () => Array.from({ length: 12 }, () => ({ plan: 0, actual: 0 }));
+            const byName = new Map(managers.map((n) => [n, blank()]));
+            const add = (name, i, plan, actual) => {
+                if (!byName.has(name)) byName.set(name, blank());
+                const c = byName.get(name)[i];
+                c.plan += plan;
+                c.actual += actual;
+            };
+            const months = kpiMonths.map((km, i) => {
+                const targets = normalizeTargets(cfgMonths[i].targets);
+                const target = targets ? targets[kind] : { rows: [], totalThousand: 0 };
+                const future = km['상태'] === '미래';
+                const split = km.split && typeof km.split === 'object' ? km.split : null;
+                const actual = future || !split ? null
+                    : (kind === 'construction' ? normalizeBreakdown(split.construction) : normalizeSettlement(split.settlement));
+                const pg = buildManagerProgress(target, actual, toUnplannedOwner(cfgMonths[i].unplannedAssignments));
+                pg.buckets.forEach((b, name) => add(name || UNASSIGNED, i, b.targetThousand, b.actualThousand || 0));
+                if (actual) add(UNASSIGNED, i, 0, sumThousand(pg.unplannedRows));
+                return {
+                    hasPlan: target.rows.length > 0,
+                    hasActual: !!actual,
+                    failed: !future && !actual,
+                    now: km['상태'] === '진행중',
+                    srcPlan: target.totalThousand,
+                    srcActual: actual ? actual.totalThousand : null,
+                };
+            });
+            if (!byName.has(UNASSIGNED)) byName.set(UNASSIGNED, blank());
+            // 담당 행은 '그 달 목표가 있으면' 몫이 없어도 0 — '—'는 목표 행이 없는 달·미래 달만
+            const shape = (cells) => cells.map((c, i) => ({
+                plan: months[i].hasPlan ? c.plan : null,
+                actual: months[i].hasActual ? c.actual : null,
+                failed: months[i].failed,
+            }));
+            // 행 순서: 담당자 목록 순 → 목록 밖 이름(가나다 — 목록에서 빠진 옛 담당자) → 담당 미지정
+            const extra = [...byName.keys()].filter((n) => n !== UNASSIGNED && !managers.includes(n)).sort((a, b) => a.localeCompare(b, 'ko'));
+            const rows = [...managers, ...extra, UNASSIGNED].map((name) => {
+                const cells = shape(byName.get(name));
+                return { name: name === UNASSIGNED ? '' : name, cells, ...yearRowTotals(cells) };
+            });
+            // 합계 행 = 담당 행들의 합(같은 배열에서 파생). 원본 합과 다르면 규칙 어딘가에서 행이 새거나 두 번 세어진 것 —
+            // 화면에 띄우지 않고 개발자용 흔적만 남긴다
+            const totalCells = months.map((m, i) => {
+                const plan = m.hasPlan ? rows.reduce((s, r) => s + r.cells[i].plan, 0) : null;
+                const actual = m.hasActual ? rows.reduce((s, r) => s + r.cells[i].actual, 0) : null;
+                if ((m.hasPlan && plan !== m.srcPlan) || actual !== m.srcActual) {
+                    console.warn('[yearTable] 담당 합 ≠ 합계', kpiMonths[i].month, kind,
+                        { plan, srcPlan: m.srcPlan, actual, srcActual: m.srcActual });
+                }
+                return { plan, actual, failed: m.failed };
+            });
+            grid[kind] = { rows, total: { cells: totalCells, ...yearRowTotals(totalCells) } };
+        });
+        return grid;
+    }
+
+    // 합계 열: 계획 = 목표 행이 있는 달의 계획 합, 실적 = 완료·진행 달 실적 합. 해당 칸이 하나도 없으면 null
+    function yearRowTotals(cells) {
+        const sum = (key) => {
+            const vals = cells.map((c) => c[key]).filter((v) => v !== null);
+            return vals.length ? vals.reduce((s, v) => s + v, 0) : null;
+        };
+        return { totalPlan: sum('plan'), totalActual: sum('actual') };
+    }
+
+    function readYearTableOpen(kind) {
+        try { return window.localStorage.getItem(YEAR_TABLE_OPEN_KEY[kind]) === '1'; } catch (_e) { return false; }
+    }
+    function writeYearTableOpen(kind, open) {
+        try {
+            if (open) window.localStorage.setItem(YEAR_TABLE_OPEN_KEY[kind], '1');
+            else window.localStorage.removeItem(YEAR_TABLE_OPEN_KEY[kind]);
+        } catch (_e) { /* 저장 못 해도 이번 화면에선 누른 대로 — 새로고침하면 접힘 */ }
+    }
+    // 저장소를 못 쓰는 브라우저에서도 누른 대로 보이게 화면용 사본을 따로 둔다. 5분·60초 갱신은 이 값을 건드리지 않는다
+    const yearTableOpen = { construction: readYearTableOpen('construction'), settlement: readYearTableOpen('settlement') };
+
+    function toggleYearTableKind(kind) {
+        if (!Object.prototype.hasOwnProperty.call(yearTableOpen, kind)) return;
+        yearTableOpen[kind] = !yearTableOpen[kind];
+        writeYearTableOpen(kind, yearTableOpen[kind]);
+        renderYearTableHome();
+    }
+
+    // 백만원 = 천원 ÷ 1000 을 **찍을 때만** 반올림(Q7) — 더하기는 전부 천원으로 끝낸 뒤다.
+    // 그래서 화면 칸을 손으로 더하면 합계와 ±1백만원 어긋날 수 있다(칸에 마우스를 올리면 천원 값).
+    function fmtMillion(thousand) {
+        return Math.round(thousand / 1000).toLocaleString('ko-KR');
+    }
+    function fmtThousandTitle(v) {
+        return v === null ? '—' : `${v.toLocaleString('ko-KR')}천원`;
+    }
+
+    function yearCellHtml(c, isNow) {
+        const plan = c.plan === null ? '<span class="yt-dim">—</span>' : fmtMillion(c.plan);
+        const actual = c.failed ? '<span class="yt-fail">!</span>'
+            : (c.actual === null ? '<span class="yt-dim">—</span>' : fmtMillion(c.actual));
+        // 실행률 배경: 계획 > 0 이고 실적이 있는 칸만(≥100% 초록, <80% 옅은 빨강). 계획 0·미래·실패는 무색
+        let cls = '';
+        if (!c.failed && c.plan > 0 && c.actual !== null) {
+            const ratio = c.actual / c.plan;
+            if (ratio >= 1) cls = ' yt-good';
+            else if (ratio < 0.8) cls = ' yt-low';
+        }
+        const title = c.failed ? '이 달 실적을 불러오지 못했습니다' : `계획 ${fmtThousandTitle(c.plan)} / 실적 ${fmtThousandTitle(c.actual)}`;
+        return `<td class="yt-c${cls}${isNow ? ' yt-now' : ''}" title="${escapeHtml(title)}">` +
+            `<div class="yt-p">${plan}</div><div class="yt-a">${actual}</div></td>`;
+    }
+
+    // 합계 열엔 배경색을 칠하지 않는다 — 연간 계획 대 누적 실적이라 비율이 늘 낮아 보여 오해를 산다
+    function yearTotalCellHtml(totalPlan, totalActual) {
+        const v = (x) => (x === null ? '<span class="yt-dim">—</span>' : fmtMillion(x));
+        return `<td class="yt-c yt-sum" title="${escapeHtml(`계획 ${fmtThousandTitle(totalPlan)} / 실적 ${fmtThousandTitle(totalActual)}`)}">` +
+            `<div class="yt-p">${v(totalPlan)}</div><div class="yt-a">${v(totalActual)}</div></td>`;
+    }
+
+    // 연간 표 그리기. 5분 데이터가 왔을 때와 접힘 단추를 눌렀을 때만 부른다(도넛 60초 갱신은 부르지 않는다)
+    function renderYearTableHome() {
+        const bodyEl = document.getElementById('planActualBody');
+        if (!bodyEl) return;
+        const st = yearTableState;
+        const yearEl = document.getElementById('planActualYear');
+        if (yearEl) yearEl.textContent = st.year ? `${st.year}년` : '';
+        const noticeEl = document.getElementById('planActualNotice');
+        if (noticeEl) {
+            const parts = [];
+            if (st.grid && st.staleSince) parts.push(`갱신 실패 ${st.staleSince}(직전 값) · 5분 뒤 다시 시도합니다`);
+            // 칸의 '!'는 전자칠판에서 마우스를 못 올려 설명이 안 보인다 — 어느 달 무엇이 빠졌는지 글로 한 줄 띄운다
+            if (st.grid) {
+                [['construction', '시공'], ['settlement', '정산']].forEach(([kind, label]) => {
+                    const months = st.grid[kind].total.cells.map((c, i) => (c.failed ? `${i + 1}월` : '')).filter(Boolean);
+                    if (months.length) parts.push(`${months.join('·')} ${label}을 불러오지 못함`);
+                });
+            }
+            noticeEl.style.display = parts.length ? '' : 'none';
+            noticeEl.textContent = parts.join(' / ');
+        }
+        if (!st.grid) {
+            // '—'(아직 안 온 달)와 다른 모양으로 — 표 자체가 없다
+            bodyEl.innerHTML = st.error
+                ? `<div class="yt-error">${escapeHtml(st.error)}</div>`
+                : '<div class="text-muted small">불러오는 중...</div>';
+            return;
+        }
+        const grid = st.grid;
+        const nowIdx = grid.nowIndex;
+        const head = '<thead><tr><th class="yt-k">구분<span>계획 / 실적</span></th>' +
+            Array.from({ length: 12 }, (_, i) =>
+                `<th class="${i === nowIdx ? 'yt-now' : ''}">${i + 1}월${i === nowIdx ? '<span>진행</span>' : ''}</th>`).join('') +
+            '<th class="yt-sum">합계</th></tr></thead>';
+        const cellsHtml = (cells) => cells.map((c, i) => yearCellHtml(c, i === nowIdx)).join('');
+        const kindRows = (kind, label) => {
+            const k = grid[kind];
+            const open = yearTableOpen[kind];
+            // 합계 행이 접힘 단추를 겸한다 — 펼쳐도 단추 자리가 움직이지 않게 합계를 그 종류 맨 위에 둔다
+            const totalRow = `<tr class="yt-total ${kind}"><th class="yt-k">` +
+                `<button type="button" class="yt-toggle" data-yt-toggle="${kind}" aria-expanded="${open}">${open ? '▾' : '▸'} ${label} 합계</button></th>` +
+                cellsHtml(k.total.cells) + yearTotalCellHtml(k.total.totalPlan, k.total.totalActual) + '</tr>';
+            if (!open) return totalRow;
+            return totalRow + k.rows.map((r) =>
+                `<tr class="yt-mgr ${kind}${r.name ? '' : ' unassigned'}"><th class="yt-k">${escapeHtml(r.name || '담당 미지정')}</th>` +
+                cellsHtml(r.cells) + yearTotalCellHtml(r.totalPlan, r.totalActual) + '</tr>').join('');
+        };
+        bodyEl.innerHTML = `<table class="yt-table">${head}<tbody>${kindRows('construction', '시공')}${kindRows('settlement', '정산')}</tbody></table>`;
     }
 
     // ═══════════════════════════ 현장 날씨 ═══════════════════════════
@@ -1235,10 +1272,14 @@
     async function initializeHomePage() {
         window.dashboardLoginModal = new bootstrap.Modal(document.getElementById('dashboardLoginModal'));
         bindProgressDetailHandlers();
-        const paPrev = document.getElementById('planActualPrev');
-        const paNext = document.getElementById('planActualNext');
-        if (paPrev) paPrev.addEventListener('click', () => goPlanActualMonth(-1));
-        if (paNext) paNext.addEventListener('click', () => goPlanActualMonth(1));
+        // 연간 표는 innerHTML 로 다시 그려지므로 바뀌지 않는 부모에 한 번만 건다(<button> 이라 Enter·Space 도 click 으로 온다)
+        const yearBody = document.getElementById('planActualBody');
+        if (yearBody) {
+            yearBody.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-yt-toggle]');
+                if (btn) toggleYearTableKind(btn.dataset.ytToggle);
+            });
+        }
         const ok = await ensureSession();
         if (!ok) return;
         updateNowLabel();
@@ -1247,6 +1288,8 @@
         loadTotalProgressHome();
         renderWeatherPlaceholder();
         await Promise.all([loadFrequentSitesHome(), loadWeatherHome()]);
+        // 연간 표는 첫 도넛 로드가 해를 알려주면 그때 한 번 불리고(loadTotalProgressHome 끝), 이후 5분마다
+        setInterval(loadYearTableHome, YEAR_TABLE_REFRESH_MS);
         setInterval(() => {
             updateNowLabel();
             loadTotalProgressHome();
