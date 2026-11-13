@@ -1051,6 +1051,11 @@
         return v === null ? '—' : `${v.toLocaleString('ko-KR')}천원`;
     }
 
+    // 표 칸과 그래프 막대가 같은 함수로 마우스 문구를 만든다 — 문구·숫자가 갈라질 자리를 없앤다(PR-5 Q6)
+    function yearCellTitle(c) {
+        return c.failed ? '이 달 실적을 불러오지 못했습니다' : `계획 ${fmtThousandTitle(c.plan)} / 실적 ${fmtThousandTitle(c.actual)}`;
+    }
+
     function yearCellHtml(c, isNow) {
         const plan = c.plan === null ? '<span class="yt-dim">—</span>' : fmtMillion(c.plan);
         const actual = c.failed ? '<span class="yt-fail">!</span>'
@@ -1062,7 +1067,7 @@
             if (ratio >= 1) cls = ' yt-good';
             else if (ratio < 0.8) cls = ' yt-low';
         }
-        const title = c.failed ? '이 달 실적을 불러오지 못했습니다' : `계획 ${fmtThousandTitle(c.plan)} / 실적 ${fmtThousandTitle(c.actual)}`;
+        const title = yearCellTitle(c);
         return `<td class="yt-c${cls}${isNow ? ' yt-now' : ''}" title="${escapeHtml(title)}">` +
             `<div class="yt-p">${plan}</div><div class="yt-a">${actual}</div></td>`;
     }
@@ -1121,7 +1126,75 @@
                 `<tr class="yt-mgr ${kind}${r.name ? '' : ' unassigned'}"><th class="yt-k">${escapeHtml(r.name || '담당 미지정')}</th>` +
                 cellsHtml(r.cells) + yearTotalCellHtml(r.totalPlan, r.totalActual) + '</tr>').join('');
         };
-        bodyEl.innerHTML = `<table class="yt-table">${head}<tbody>${kindRows('construction', '시공')}${kindRows('settlement', '정산')}</tbody></table>`;
+        // 열 틀 고정(PR-5): 그래프가 같은 CSS 변수로 같은 열 틀을 쓴다 — 막대가 바로 위 월 열 아래 선다
+        const colgroup = '<colgroup><col class="yt-col-k">' + '<col>'.repeat(12) + '<col class="yt-col-sum"></colgroup>';
+        bodyEl.innerHTML = `<table class="yt-table">${colgroup}${head}<tbody>${kindRows('construction', '시공')}${kindRows('settlement', '정산')}</tbody></table>`;
+        // 표와 같은 호출로 그래프를 그린다 — 표와 그래프가 다른 순간의 grid를 보일 자리가 없다.
+        // 접힘 클릭 때도 다시 그려지지만 그래프는 합계만 써서 모양이 안 바뀐다(Q4)
+        renderYearGraphHome();
+    }
+
+    // ── 연간 표 하단 그래프 (2026-11-13 연간 PR-5) ──
+    // 순수 함수: 표의 합계 칸(grid[kind].total.cells)만 읽는다 — 새 합산 없음.
+    // 미래·실패 달을 0 높이 막대로 그리면 에러 없이 '이 달 0원'으로 읽힌다(조용한 절단 계열) —
+    // 그래서 pct는 '막대 없음'이면 null 이고, 0원(진짜 0)일 때만 0 이다. 렌더는 null이면 div 자체를 안 만든다
+    function buildYearGraph(grid) {
+        const kinds = ['construction', 'settlement'];
+        const values = [];
+        kinds.forEach((kind) => grid[kind].total.cells.forEach((c) => {
+            if (c.plan !== null) values.push(c.plan);
+            if (!c.failed && c.actual !== null) values.push(c.actual);
+        }));
+        // 시공·정산 같은 눈금(Q3). 상한을 자르지 않는다 — 큰 달이 거짓 높이가 되므로 최대 막대가 꼭대기에 닿게 둔다
+        const max = values.length ? Math.max(0, ...values) : 0;
+        const pct = (v) => (v === null || max === 0 ? null : Math.max(0, v) / max * 100);
+        const bar = (c) => ({
+            plan: c.plan,
+            actual: c.failed ? null : c.actual,
+            failed: !!c.failed,
+            planPct: pct(c.plan),
+            actualPct: c.failed ? null : pct(c.actual),
+            title: yearCellTitle(c),
+        });
+        const slots = Array.from({ length: 12 }, (_, i) => ({
+            now: i === grid.nowIndex,
+            construction: bar(grid.construction.total.cells[i]),
+            settlement: bar(grid.settlement.total.cells[i]),
+        }));
+        return { max, slots };
+    }
+
+    function renderYearGraphHome() {
+        const el = document.getElementById('planActualGraph');
+        if (!el) return;
+        const grid = yearTableState.grid;
+        // 표 전체 실패면 그래프를 숨긴다 — 빈 축만 남기면 '전부 0'으로 읽힌다(Q5)
+        if (!grid) {
+            el.style.display = 'none';
+            el.innerHTML = '';
+            return;
+        }
+        const g = buildYearGraph(grid);
+        const barHtml = (b, kind, label) => {
+            let inner = '';
+            if (b.planPct !== null) inner += `<div class="yg-plan" style="height:${b.planPct.toFixed(2)}%"></div>`;
+            if (b.actualPct !== null) inner += `<div class="yg-act" style="height:${b.actualPct.toFixed(2)}%"></div>`;
+            if (b.failed) inner += '<div class="yg-fail">!</div>';
+            return `<div class="yg-bar ${kind}" title="${escapeHtml(`${label} ${b.title}`)}">${inner}</div>`;
+        };
+        const legend = '<div class="yg-legend">' +
+            '<div><i class="yg-sw construction"></i>시공 <i class="yg-sw settlement"></i>정산</div>' +
+            '<div><i class="yg-sw plan"></i>계획(옅게)</div>' +
+            (g.max > 0 ? `<div class="yg-max">점선 ${fmtMillion(g.max)}<br>(백만원)</div>` : '') +
+            '</div>';
+        const slots = g.slots.map((s) =>
+            `<div class="yg-slot${s.now ? ' yg-now' : ''}${g.max > 0 ? ' yg-has-max' : ''}">` +
+            barHtml(s.construction, 'construction', '시공') + barHtml(s.settlement, 'settlement', '정산') + '</div>').join('');
+        const labels = g.slots.map((s, i) =>
+            `<div class="yg-label${s.now ? ' yg-now' : ''}">${i + 1}${s.now ? ' 진행' : ''}</div>`).join('');
+        el.innerHTML = `<div class="yg-row yg-plot">${legend}${slots}<div></div></div>` +
+            `<div class="yg-row yg-labels"><div></div>${labels}<div></div></div>`;
+        el.style.display = '';
     }
 
     // ═══════════════════════════ 현장 날씨 ═══════════════════════════
