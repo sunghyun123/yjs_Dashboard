@@ -35,8 +35,8 @@
         settlement: null,
         // split.construction 을 받았을 때만 true — 대체값으로 그리는 중에는 정산 줄 자체를 안 그린다
         settlementEnabled: false,
-        // ERP split 의 달('YYYY-MM')과 집계 기간 [from, to). 달력 월이 아니라 금요일 기준 주차의 달이다
-        // (ERP 공무 화면·주간업무 보고서와 같은 규칙 — 9/28(월)부터 10월). 목표도 이 달로 불러온다.
+        // ERP split 의 달('YYYY-MM')과 집계 기간 [from, to) — 달력 월(ERP 공무 화면과 같은 규칙, 2026-11-17부터).
+        // 목표도 이 달로 불러온다.
         // '' 이면 옛 ERP·대체값 — 목표는 서버의 달력 월로 불러온다.
         erpMonth: '',
         periodFrom: '',
@@ -264,7 +264,7 @@
 
     // ══════════ 총 공정률 실적 상세 팝업 ══════════
 
-    // 날짜 한 칸의 표기. 기간이 금요일 기준 주차라 달을 넘나든다(9월 표에 8/31) —
+    // 날짜 한 칸의 표기. 옛 ERP(금요일 기준, ~2026-11-16)는 기간이 달을 넘나들었다(9월 표에 8/31) —
     // 카드 제목의 달과 같은 날짜는 '일'만, 다른 달 날짜는 '월/일'로 적어 31일이 어느 달인지 헷갈리지 않게 한다.
     function formatPeriodDay(ymd) {
         const m = Number(ymd.slice(5, 7));
@@ -306,7 +306,7 @@
         const last = new Date(`${to}T00:00:00Z`);
         last.setUTCDate(last.getUTCDate() - 1);
         const md = (ymd) => `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
-        return ` · 기간 ${md(from)}~${md(last.toISOString().slice(0, 10))} (금요일 기준 주차)`;
+        return ` · 기간 ${md(from)}~${md(last.toISOString().slice(0, 10))}`;
     }
 
     // 팝업 제목에 끼울 '누구 몫' 글자. 전체면 빈 문자열.
@@ -660,7 +660,7 @@
         const construction = normalizeBreakdown(split && split.construction);
         if (!construction) return false;
 
-        // split.month 는 금요일 기준 주차의 달이다. data.label 은 달력 월(ERP 홈 KPI용)이라 9/28~30 엔 한 달 어긋난다 —
+        // split.month 는 split 기간의 달이다(지금은 달력 월이라 data.label 과 같다. 옛 ERP 금요일 기준일 땐 어긋났다) —
         // split.month 가 있으면 제목도 그 달로 쓴다(그 달 목표를 불러오면 관리자가 정한 라벨로 다시 덮인다)
         const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(split.month || '')) ? split.month : '';
         totalProgressState.erpMonth = month;
@@ -706,7 +706,7 @@
             // 문자열이 이 경로로 들어올 자리를 아예 남기지 않는다.
             days: toDayNumbers(r.days),
             nightDays: toDayNumbers(r.nightDays),
-            // 주차 기간은 달을 넘나든다 — 어느 달의 31일인지 그리려면 전체 날짜가 필요하다(옛 ERP면 빈 배열 → days 로 그림)
+            // 옛 ERP(금요일 기준)는 기간이 달을 넘나들어 전체 날짜가 필요했다(더 옛 ERP면 빈 배열 → days 로 그림)
             dates: toDateStrings(r.dates),
             nightDates: toDateStrings(r.nightDates),
             // 시공 담당별(ERP 공사이력.담당공무_id). null = 옛 ERP 이거나 합이 안 맞아 중계가 버린 행 → 옛 규칙으로 나눈다
@@ -862,7 +862,7 @@
         }
     }
 
-    // 목표는 화면이 보는 달(ERP 금요일 기준 달)로 부른다 — 서버의 달력 월로 부르면 9/28~30 에 10월 실적 / 9월 목표가 된다.
+    // 목표는 화면이 보는 달(ERP split.month)로 부른다 — 실적과 목표가 같은 달을 보게 한다.
     // month 가 비면(옛 ERP·대체값) 서버 기본(달력 월)으로 부른다.
     function monthlyProgressConfigUrl(month) {
         return month ? `${MONTHLY_PROGRESS_CONFIG_API}?month=${encodeURIComponent(month)}` : MONTHLY_PROGRESS_CONFIG_API;
