@@ -106,7 +106,7 @@ def _construction_row(item: Dict[str, Any]) -> Dict[str, Any]:
         "amountThousand": amount,
         "days": _as_day_list(item.get("일자")),
         "nightDays": _as_day_list(item.get("야간일자")),
-        # split 은 금요일 기준 주차로 잘라 달을 넘나든다(9월 실적에 8/31) — '일'만으로는 달을 모른다
+        # 옛 ERP(금요일 기준, ~2026-11-16)는 split 이 달을 넘나들어 '일'만으로는 달을 몰랐다 — 전체 날짜를 같이 받는다
         "dates": _as_date_list(item.get("날짜")),
         "nightDates": _as_date_list(item.get("야간날짜")),
         # 허용목록이라 이 줄이 없으면 ERP 가 보낸 담당별이 브라우저에 도착하지 않는다
@@ -163,7 +163,7 @@ def _normalize_split(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     시공 실적 / 정산 분리 (2026-09-28). 섹션마다 따로 판정한다 — 정산이 깨졌다고 시공(도넛)까지 버리지 않는다.
     split 자체가 없으면(옛 ERP) None. home.js 는 그때 monthlyRevenue 로 대신 채우지 않고 대체값 경로로 간다.
 
-    month/from/to (2026-10-23): split 의 기간은 달력 월이 아니라 금요일 기준 주차의 달이다(ERP 공무 화면과 같은 규칙).
+    month/from/to (2026-10-23): split 의 기간(2026-11-17부터 달력 월, 그 전엔 금요일 기준 주차의 달 — ERP 공무 화면과 같은 규칙).
     home.js 는 month 로 그 달의 목표 행을 불러온다 — 실적과 목표가 같은 달을 보게. 옛 ERP 면 None(달력 월로 동작).
     """
     raw = payload.get("split")
