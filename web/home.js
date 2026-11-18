@@ -11,6 +11,8 @@
     // 연간 표 갱신 간격(2026-11-13 연간 PR-4 Q5). 연간 응답 1번 = ERP 가 12달을 새로 계산(표 4개 + 1년치 투입실적).
     // 도넛(60초)과 같이 돌리면 화면 하나당 ERP 부하가 5배 — 대가: 지난 달 담당 수정은 최대 5분 뒤 표에 반영된다.
     const YEAR_TABLE_REFRESH_MS = 5 * 60 * 1000;
+    // 펼침 기억 키(기기·브라우저마다). 값 '1' = 펼침, 없거나 못 읽으면 접힘
+    const YEAR_TABLE_OPEN_KEY = { construction: 'home.yearTable.open.construction', settlement: 'home.yearTable.open.settlement' };
     // ═══════════════════════════════════════════════════════════════════════
 
     // 6월 총 공정현황 (2026-06-18 기준)
@@ -1021,6 +1023,25 @@
         return { totalPlan: sum('plan'), totalActual: sum('actual') };
     }
 
+    function readYearTableOpen(kind) {
+        try { return window.localStorage.getItem(YEAR_TABLE_OPEN_KEY[kind]) === '1'; } catch (_e) { return false; }
+    }
+    function writeYearTableOpen(kind, open) {
+        try {
+            if (open) window.localStorage.setItem(YEAR_TABLE_OPEN_KEY[kind], '1');
+            else window.localStorage.removeItem(YEAR_TABLE_OPEN_KEY[kind]);
+        } catch (_e) { /* 저장 못 해도 이번 화면에선 누른 대로 — 새로고침하면 접힘 */ }
+    }
+    // 저장소를 못 쓰는 브라우저에서도 누른 대로 보이게 화면용 사본을 따로 둔다. 5분·60초 갱신은 이 값을 건드리지 않는다
+    const yearTableOpen = { construction: readYearTableOpen('construction'), settlement: readYearTableOpen('settlement') };
+
+    function toggleYearTableKind(kind) {
+        if (!Object.prototype.hasOwnProperty.call(yearTableOpen, kind)) return;
+        yearTableOpen[kind] = !yearTableOpen[kind];
+        writeYearTableOpen(kind, yearTableOpen[kind]);
+        renderYearTableHome();
+    }
+
     // 백만원 = 천원 ÷ 1000 을 **찍을 때만** 반올림(Q7) — 더하기는 전부 천원으로 끝낸 뒤다.
     // 그래서 화면 칸을 손으로 더하면 합계와 ±1백만원 어긋날 수 있다(칸에 마우스를 올리면 천원 값).
     function fmtMillion(thousand) {
@@ -1030,7 +1051,7 @@
         return v === null ? '—' : `${v.toLocaleString('ko-KR')}천원`;
     }
 
-    // 칸에 마우스를 올리면 보이는 천원 문구(화면 글자는 백만원 반올림이라 정밀값은 여기서만 본다)
+    // 표 칸과 그래프 막대가 같은 함수로 마우스 문구를 만든다 — 문구·숫자가 갈라질 자리를 없앤다(PR-5 Q6)
     function yearCellTitle(c) {
         return c.failed ? '이 달 실적을 불러오지 못했습니다' : `계획 ${fmtThousandTitle(c.plan)} / 실적 ${fmtThousandTitle(c.actual)}`;
     }
@@ -1039,7 +1060,7 @@
         const plan = c.plan === null ? '<span class="yt-dim">—</span>' : fmtMillion(c.plan);
         const actual = c.failed ? '<span class="yt-fail">!</span>'
             : (c.actual === null ? '<span class="yt-dim">—</span>' : fmtMillion(c.actual));
-        // 실행률 배경색(초록/빨강)은 2026-11-18 단순화에서 뺐다 — 규칙이 화면에 없고 진행 중인 달은 늘 빨강이었다.
+        // 실행률 배경색(초록/빨강)은 2026-11-18에 뺐다 — 규칙이 화면에 없고 진행 중인 달은 늘 빨강이었다.
         // 진행 중인 달 테두리(yt-now)는 색이 아니라 위치 표시라 남긴다
         const title = yearCellTitle(c);
         return `<td class="yt-c${isNow ? ' yt-now' : ''}" title="${escapeHtml(title)}">` +
@@ -1053,7 +1074,7 @@
             `<div class="yt-p">${v(totalPlan)}</div><div class="yt-a">${v(totalActual)}</div></td>`;
     }
 
-    // 연간 표 그리기. 연간 응답이 왔을 때와 해를 몰라 실패 문구를 띄울 때만 부른다(도넛 60초 갱신은 부르지 않는다)
+    // 연간 표 그리기. 5분 데이터가 왔을 때와 접힘 단추를 눌렀을 때만 부른다(도넛 60초 갱신은 부르지 않는다)
     function renderYearTableHome() {
         const bodyEl = document.getElementById('planActualBody');
         if (!bodyEl) return;
@@ -1088,16 +1109,87 @@
                 `<th class="${i === nowIdx ? 'yt-now' : ''}">${i + 1}월${i === nowIdx ? '<span>진행</span>' : ''}</th>`).join('') +
             '<th class="yt-sum">합계</th></tr></thead>';
         const cellsHtml = (cells) => cells.map((c, i) => yearCellHtml(c, i === nowIdx)).join('');
-        // 합계 한 줄만 그린다(2026-11-18 단순화) — 담당자별 1~12월은 홈에서 뺐다(이번 달 담당자별은 위 칸, 지난달은 ERP 공무 화면).
-        // 담당 행(k.rows)은 그리지 않아도 buildYearGrid 가 계속 만든다: 합계 칸 = 담당 행의 합이고, 원본 합과의 대조가 거기 산다
         const kindRows = (kind, label) => {
             const k = grid[kind];
-            return `<tr class="yt-total ${kind}"><th class="yt-k">${label}</th>` +
+            const open = yearTableOpen[kind];
+            // 합계 행이 접힘 단추를 겸한다 — 펼쳐도 단추 자리가 움직이지 않게 합계를 그 종류 맨 위에 둔다
+            const totalRow = `<tr class="yt-total ${kind}"><th class="yt-k">` +
+                `<button type="button" class="yt-toggle" data-yt-toggle="${kind}" aria-expanded="${open}">${open ? '▾' : '▸'} ${label} 합계</button></th>` +
                 cellsHtml(k.total.cells) + yearTotalCellHtml(k.total.totalPlan, k.total.totalActual) + '</tr>';
+            if (!open) return totalRow;
+            return totalRow + k.rows.map((r) =>
+                `<tr class="yt-mgr ${kind}${r.name ? '' : ' unassigned'}"><th class="yt-k">${escapeHtml(r.name || '담당 미지정')}</th>` +
+                cellsHtml(r.cells) + yearTotalCellHtml(r.totalPlan, r.totalActual) + '</tr>').join('');
         };
-        // 열 틀 고정: 내용에 따라 열이 움직이지 않게 colgroup 이 폭을 정한다
+        // 열 틀 고정(PR-5): 그래프가 같은 CSS 변수로 같은 열 틀을 쓴다 — 막대가 바로 위 월 열 아래 선다
         const colgroup = '<colgroup><col class="yt-col-k">' + '<col>'.repeat(12) + '<col class="yt-col-sum"></colgroup>';
         bodyEl.innerHTML = `<table class="yt-table">${colgroup}${head}<tbody>${kindRows('construction', '시공')}${kindRows('settlement', '정산')}</tbody></table>`;
+        // 표와 같은 호출로 그래프를 그린다 — 표와 그래프가 다른 순간의 grid를 보일 자리가 없다.
+        // 접힘 클릭 때도 다시 그려지지만 그래프는 합계만 써서 모양이 안 바뀐다(Q4)
+        renderYearGraphHome();
+    }
+
+    // ── 연간 표 하단 그래프 (2026-11-13 연간 PR-5) ──
+    // 순수 함수: 표의 합계 칸(grid[kind].total.cells)만 읽는다 — 새 합산 없음.
+    // 미래·실패 달을 0 높이 막대로 그리면 에러 없이 '이 달 0원'으로 읽힌다(조용한 절단 계열) —
+    // 그래서 pct는 '막대 없음'이면 null 이고, 0원(진짜 0)일 때만 0 이다. 렌더는 null이면 div 자체를 안 만든다
+    function buildYearGraph(grid) {
+        const kinds = ['construction', 'settlement'];
+        const values = [];
+        kinds.forEach((kind) => grid[kind].total.cells.forEach((c) => {
+            if (c.plan !== null) values.push(c.plan);
+            if (!c.failed && c.actual !== null) values.push(c.actual);
+        }));
+        // 시공·정산 같은 눈금(Q3). 상한을 자르지 않는다 — 큰 달이 거짓 높이가 되므로 최대 막대가 꼭대기에 닿게 둔다
+        const max = values.length ? Math.max(0, ...values) : 0;
+        const pct = (v) => (v === null || max === 0 ? null : Math.max(0, v) / max * 100);
+        const bar = (c) => ({
+            plan: c.plan,
+            actual: c.failed ? null : c.actual,
+            failed: !!c.failed,
+            planPct: pct(c.plan),
+            actualPct: c.failed ? null : pct(c.actual),
+            title: yearCellTitle(c),
+        });
+        const slots = Array.from({ length: 12 }, (_, i) => ({
+            now: i === grid.nowIndex,
+            construction: bar(grid.construction.total.cells[i]),
+            settlement: bar(grid.settlement.total.cells[i]),
+        }));
+        return { max, slots };
+    }
+
+    function renderYearGraphHome() {
+        const el = document.getElementById('planActualGraph');
+        if (!el) return;
+        const grid = yearTableState.grid;
+        // 표 전체 실패면 그래프를 숨긴다 — 빈 축만 남기면 '전부 0'으로 읽힌다(Q5)
+        if (!grid) {
+            el.style.display = 'none';
+            el.innerHTML = '';
+            return;
+        }
+        const g = buildYearGraph(grid);
+        const barHtml = (b, kind, label) => {
+            let inner = '';
+            if (b.planPct !== null) inner += `<div class="yg-plan" style="height:${b.planPct.toFixed(2)}%"></div>`;
+            if (b.actualPct !== null) inner += `<div class="yg-act" style="height:${b.actualPct.toFixed(2)}%"></div>`;
+            if (b.failed) inner += '<div class="yg-fail">!</div>';
+            return `<div class="yg-bar ${kind}" title="${escapeHtml(`${label} ${b.title}`)}">${inner}</div>`;
+        };
+        const legend = '<div class="yg-legend">' +
+            '<div><i class="yg-sw construction"></i>시공 <i class="yg-sw settlement"></i>정산</div>' +
+            '<div><i class="yg-sw plan"></i>계획(옅게)</div>' +
+            (g.max > 0 ? `<div class="yg-max">점선 ${fmtMillion(g.max)}<br>(백만원)</div>` : '') +
+            '</div>';
+        const slots = g.slots.map((s) =>
+            `<div class="yg-slot${s.now ? ' yg-now' : ''}${g.max > 0 ? ' yg-has-max' : ''}">` +
+            barHtml(s.construction, 'construction', '시공') + barHtml(s.settlement, 'settlement', '정산') + '</div>').join('');
+        const labels = g.slots.map((s, i) =>
+            `<div class="yg-label${s.now ? ' yg-now' : ''}">${i + 1}${s.now ? ' 진행' : ''}</div>`).join('');
+        el.innerHTML = `<div class="yg-row yg-plot">${legend}${slots}<div></div></div>` +
+            `<div class="yg-row yg-labels"><div></div>${labels}<div></div></div>`;
+        el.style.display = '';
     }
 
     // ═══════════════════════════ 현장 날씨 ═══════════════════════════
@@ -1248,6 +1340,14 @@
     async function initializeHomePage() {
         window.dashboardLoginModal = new bootstrap.Modal(document.getElementById('dashboardLoginModal'));
         bindProgressDetailHandlers();
+        // 연간 표는 innerHTML 로 다시 그려지므로 바뀌지 않는 부모에 한 번만 건다(<button> 이라 Enter·Space 도 click 으로 온다)
+        const yearBody = document.getElementById('planActualBody');
+        if (yearBody) {
+            yearBody.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-yt-toggle]');
+                if (btn) toggleYearTableKind(btn.dataset.ytToggle);
+            });
+        }
         const ok = await ensureSession();
         if (!ok) return;
         updateNowLabel();
